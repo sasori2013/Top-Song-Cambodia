@@ -7,7 +7,7 @@ export default async function Home() {
   const data = await getRankingData();
   const ranking = data?.ranking || [];
   const topItem = ranking[0];
-  const otherItems = ranking.slice(1, 11);
+  const otherItems = ranking.slice(1, 20);
 
   return (
     <main className="bg-black min-h-screen">
