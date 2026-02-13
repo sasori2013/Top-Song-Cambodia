@@ -134,21 +134,15 @@ const ImagePoints: React.FC<ParticleImageProps> = ({ src }) => {
             <bufferGeometry>
                 <bufferAttribute
                     attach="attributes-position"
-                    count={count}
-                    array={positions}
-                    itemSize={3}
+                    args={[positions, 3]}
                 />
                 <bufferAttribute
                     attach="attributes-uv"
-                    count={count}
-                    array={uvs}
-                    itemSize={2}
+                    args={[uvs, 2]}
                 />
                 <bufferAttribute
                     attach="attributes-aOffset"
-                    count={count}
-                    array={offsets}
-                    itemSize={1}
+                    args={[offsets, 1]}
                 />
             </bufferGeometry>
         </points>
