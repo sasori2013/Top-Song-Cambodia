@@ -13,7 +13,7 @@ export async function getRankingData(): Promise<RankingResponse> {
 
     try {
         const res = await fetch(GAS_API_URL, {
-            next: { revalidate: 3600 }, // Cache for 1 hour
+            cache: 'no-store',
         });
 
         if (!res.ok) {
