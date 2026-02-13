@@ -4,9 +4,11 @@ import { RankingResponse } from './types';
 const GAS_API_URL = process.env.NEXT_PUBLIC_GAS_API_URL || '';
 
 export async function getRankingData(): Promise<RankingResponse> {
+    const mock = getMockData();
+
     // If no API URL is provided, return mock data for development
     if (!GAS_API_URL) {
-        return getMockData();
+        return mock;
     }
 
     try {
@@ -18,10 +20,18 @@ export async function getRankingData(): Promise<RankingResponse> {
             throw new Error('Failed to fetch ranking data');
         }
 
-        return res.json();
+        const data = await res.json();
+
+        // Basic validation to ensure data matches our expectations
+        if (!data || !Array.isArray(data.ranking)) {
+            console.error('Invalid API response structure:', data);
+            return mock;
+        }
+
+        return data as RankingResponse;
     } catch (error) {
         console.error('API Fetch Error:', error);
-        return getMockData(); // Fallback to mock data on error
+        return mock; // Fallback to mock data on error
     }
 }
 

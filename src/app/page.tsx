@@ -5,8 +5,9 @@ import { getRankingData } from '@/lib/api';
 
 export default async function Home() {
   const data = await getRankingData();
-  const topItem = data.ranking[0];
-  const otherItems = data.ranking.slice(1, 11);
+  const ranking = data?.ranking || [];
+  const topItem = ranking[0];
+  const otherItems = ranking.slice(1, 11);
 
   return (
     <main className="bg-black min-h-screen">
