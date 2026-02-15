@@ -20,9 +20,9 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     const gradientId = `gradient-${uniqueId}`;
     const filterId = `glow-${uniqueId}`;
 
-    // 描画データがない場合は平坦な線を生成
+    // 描画データがない場合は中位の平坦な線を生成
     const data = (!rawData || rawData.length === 0)
-        ? [50, 50, 50]
+        ? [50, 50]
         : rawData.length === 1
             ? [rawData[0], rawData[0]]
             : rawData;
