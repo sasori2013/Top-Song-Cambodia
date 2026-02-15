@@ -15,11 +15,13 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background-color: #000000 !important;
+  background: #000000 !important;
+  color: #ffffff !important;
   min-height: 100vh;
+  vertical-align: middle;
   overflow-x: hidden;
-  font-family: var(--font-sans);
+  font-family: var(--font-exo), var(--font-inter), sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 

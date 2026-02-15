@@ -9,6 +9,7 @@ interface HeatScoreProps {
     size?: 'sm' | 'lg';
     color?: string;
     className?: string;
+    disableAnimation?: boolean;
 }
 
 export const HeatScore: React.FC<HeatScoreProps> = ({
@@ -16,7 +17,8 @@ export const HeatScore: React.FC<HeatScoreProps> = ({
     rank,
     size = 'lg',
     color = "#60a5fa",
-    className = ""
+    className = "",
+    disableAnimation = false
 }) => {
     const isLg = size === 'lg';
     const [displayScore, setDisplayScore] = React.useState(0);
@@ -46,12 +48,13 @@ export const HeatScore: React.FC<HeatScoreProps> = ({
     return (
         <motion.div
             className={`relative flex flex-col items-center ${className}`}
-            animate={{
+            animate={disableAnimation ? {} : {
                 y: [0, -4, 0],
             }}
             transition={{
                 duration: 4,
                 repeat: Infinity,
+                repeatDelay: 0,
                 ease: "easeInOut"
             }}
         >
@@ -66,19 +69,21 @@ export const HeatScore: React.FC<HeatScoreProps> = ({
             )}
 
             {/* Pulsating Glow Backdrop */}
-            <motion.div
-                className="absolute inset-0 blur-xl rounded-full"
-                style={{ backgroundColor: color, opacity: 0.1 }}
-                animate={{
-                    scale: [1, 1.4, 1],
-                    opacity: [0.1, 0.25, 0.1],
-                }}
-                transition={{
-                    duration: 3,
-                    repeat: Infinity,
-                    ease: "easeInOut"
-                }}
-            />
+            {!disableAnimation && (
+                <motion.div
+                    className="absolute inset-0 blur-xl rounded-full"
+                    style={{ backgroundColor: color, opacity: 0.1 }}
+                    animate={{
+                        scale: [1, 1.4, 1],
+                        opacity: [0.1, 0.25, 0.1],
+                    }}
+                    transition={{
+                        duration: 3,
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                    }}
+                />
+            )}
 
             <div className="relative flex flex-col items-center">
                 <div className="flex items-baseline gap-1">
@@ -86,9 +91,9 @@ export const HeatScore: React.FC<HeatScoreProps> = ({
                         {displayScore.toFixed(displayScore > 99 ? 0 : 1)}
                     </span>
                     <motion.span
-                        className={`${isLg ? 'text-[10px]' : 'text-[7px]'} font-bold opacity-80`}
+                        className={`${isLg ? 'text-[10px]' : 'text-[7px]'} font-normal opacity-80`}
                         style={{ color }}
-                        animate={{
+                        animate={disableAnimation ? {} : {
                             opacity: [1, 0.5, 1],
                             skewX: [0, 10, -10, 0],
                         }}
@@ -103,22 +108,24 @@ export const HeatScore: React.FC<HeatScoreProps> = ({
                 </div>
 
                 {/* Underline pulse */}
-                <motion.div
-                    className="h-px w-full mt-1"
-                    style={{
-                        background: `linear-gradient(to right, transparent, ${color}, transparent)`
-                    }}
-                    animate={{
-                        opacity: [0.2, 0.8, 0.2],
-                        scaleX: [0.8, 1.2, 0.8],
-                        x: [-2, 2, -2],
-                    }}
-                    transition={{
-                        duration: 2,
-                        repeat: Infinity,
-                        ease: "easeInOut"
-                    }}
-                />
+                {!disableAnimation && (
+                    <motion.div
+                        className="h-px w-full mt-1"
+                        style={{
+                            background: `linear-gradient(to right, transparent, ${color}, transparent)`
+                        }}
+                        animate={{
+                            opacity: [0.2, 0.8, 0.2],
+                            scaleX: [0.8, 1.2, 0.8],
+                            x: [-2, 2, -2],
+                        }}
+                        transition={{
+                            duration: 2,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                        }}
+                    />
+                )}
             </div>
         </motion.div>
     );

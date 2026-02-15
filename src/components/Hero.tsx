@@ -8,7 +8,6 @@ import { FluctuatingText } from './FluctuatingText';
 import { AuraR3F } from './AuraR3F';
 import { IntelligenceText } from './IntelligenceText';
 import { Canvas } from '@react-three/fiber';
-import { DottedImage } from './DottedImage';
 import { TrendChart } from './TrendChart';
 import { MetricsBoard } from './MetricsBoard';
 import { HeatScore } from './HeatScore';
@@ -63,7 +62,19 @@ export const Hero: React.FC<HeroProps> = ({ topItem }) => {
                     <div
                         className="group relative w-full max-w-lg aspect-video overflow-hidden border border-white/5 bg-black"
                     >
-                        <DottedImage src={topItem.thumbnail} />
+                        <img
+                            src={topItem.thumbnail}
+                            className="h-full w-full object-cover opacity-70 contrast-[1.5] brightness-110 group-hover:scale-105 transition-all duration-1000"
+                            alt={topItem.title}
+                        />
+                        {/* デジタル・メッシュ（ドット ＋ スキャンライン） */}
+                        <div className="absolute inset-0 opacity-[0.2] pointer-events-none" style={{
+                            backgroundImage: `
+                                radial-gradient(circle, #fff 0.5px, transparent 0.5px),
+                                linear-gradient(to bottom, transparent 2px, rgba(255,255,255,0.05) 2px, rgba(255,255,255,0.05) 4px, transparent 4px)
+                            `,
+                            backgroundSize: '4px 4px, 100% 4px'
+                        }} />
                         <div className="absolute inset-0 bg-black/20 transition-opacity group-hover:opacity-0 pointer-events-none" />
                     </div>
                 </motion.div>

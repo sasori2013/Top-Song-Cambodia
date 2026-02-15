@@ -11,12 +11,19 @@ interface TrendChartProps {
 }
 
 export const TrendChart: React.FC<TrendChartProps> = ({
-    data,
+    data: rawData,
     width = 300,
     height = 50,
     color = "#ffffff"
 }) => {
-    if (!data || data.length < 2) return null;
+    const uniqueId = React.useId().replace(/[^a-zA-Z0-9]/g, '');
+    const gradientId = `gradient-${uniqueId}`;
+    const filterId = `glow-${uniqueId}`;
+
+    if (!rawData || rawData.length === 0) return null;
+
+    // 1点しかない場合は平坦な線にするために複製
+    const data = rawData.length === 1 ? [rawData[0], rawData[0]] : rawData;
 
     const min = Math.min(...data);
     const max = Math.max(...data);
@@ -25,26 +32,28 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     // Scale functions
     const getX = (index: number) => (index / (data.length - 1)) * width;
     const getY = (value: number) => {
-        const range = max - min || 1;
+        const range = (max - min) || 100; // 差がない場合は中央付近に描画
+        const baseOffset = (max === min) ? height / 2 : height - padding;
+        if (max === min) return baseOffset;
         return height - padding - ((value - min) / range) * (height - padding * 2);
     };
 
     // Construct SVG path
-    const points = data.map((val, i) => `${getX(i)},${getY(val)}`);
+    const points = data.map((val, i) => `${getX(i).toFixed(1)},${getY(val).toFixed(1)}`);
     const pathData = `M ${points.join(' L ')}`;
 
     // Area path
-    const areaPath = `${pathData} L ${getX(data.length - 1)},${height} L ${getX(0)},${height} Z`;
+    const areaPath = `${pathData} L ${getX(data.length - 1).toFixed(1)},${height} L ${getX(0).toFixed(1)},${height} Z`;
 
     return (
         <div className="relative" style={{ width, height }}>
             <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
                 <defs>
-                    <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+                    <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={color} stopOpacity="0.4" />
                         <stop offset="100%" stopColor={color} stopOpacity="0" />
                     </linearGradient>
-                    <filter id="glow">
+                    <filter id={filterId} x="-20%" y="-20%" width="140%" height="140%">
                         <feGaussianBlur stdDeviation="1.5" result="coloredBlur" />
                         <feMerge>
                             <feMergeNode in="coloredBlur" />
@@ -56,7 +65,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                 {/* Fill Area */}
                 <motion.path
                     d={areaPath}
-                    fill="url(#trendGradient)"
+                    fill={`url(#${gradientId})`}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ duration: 1, delay: 0.5 }}
@@ -67,13 +76,13 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                     d={pathData}
                     fill="none"
                     stroke={color}
-                    strokeWidth="1.5"
+                    strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    filter="url(#glow)"
+                    filter={`url(#${filterId})`}
                     initial={{ pathLength: 0, opacity: 0 }}
-                    animate={{ pathLength: 1, opacity: 0.6 }}
-                    transition={{ duration: 3.0, ease: "easeInOut" }}
+                    animate={{ pathLength: 1, opacity: 0.8 }}
+                    transition={{ duration: 2.0, ease: "easeInOut" }}
                 />
 
                 {/* Last point dot */}

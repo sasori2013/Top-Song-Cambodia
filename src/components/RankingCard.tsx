@@ -6,7 +6,6 @@ import { RankingItem } from '@/lib/types';
 import { FluctuatingText } from './FluctuatingText';
 import { TrendChart } from './TrendChart';
 import { HeatScore } from './HeatScore';
-import { DottedImage } from './DottedImage';
 
 interface RankingCardProps {
     item: RankingItem;
@@ -22,10 +21,6 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
             transition={{ duration: 1.2 }}
             className="group flex flex-col items-center text-center w-full"
         >
-            <div className="mb-2 text-[8px] md:text-[10px] font-bold tracking-[0.3em] text-white/30 group-hover:text-white/60 transition-colors uppercase">
-                DAILY RANK {index < 10 ? `0${index}` : index}
-            </div>
-
             <a
                 href={item.url}
                 target="_blank"
@@ -33,7 +28,27 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                 className="group/link block w-full mb-4"
             >
                 <div className="relative aspect-video w-full overflow-hidden border border-white/5 bg-black transition-transform duration-500 group-hover:scale-105">
-                    <DottedImage src={item.thumbnail} />
+                    {/* Simple Rank Number Overlay - Added pr-2 to prevent italic clipping */}
+                    <div className="absolute top-2 left-3 z-30 font-bold text-3xl md:text-4xl text-white/50 group-hover:text-white transition-all duration-500 pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] italic pr-2">
+                        {index}
+                    </div>
+
+                    <div className="relative h-full w-full">
+                        <img
+                            src={item.thumbnail}
+                            className="h-full w-full object-cover opacity-70 contrast-[1.4] brightness-110 group-hover:scale-110 group-hover:opacity-100 transition-all duration-700 mixture-blend-lighten"
+                            alt={item.title}
+                        />
+                        {/* デジタル・メッシュ・オーバーレイ */}
+                        <div className="absolute inset-0 opacity-[0.15] pointer-events-none" style={{
+                            backgroundImage: `
+                                radial-gradient(circle, #fff 0.5px, transparent 0.5px),
+                                linear-gradient(to bottom, transparent 1px, rgba(255,255,255,0.05) 1px, rgba(255,255,255,0.05) 2px, transparent 2px)
+                            `,
+                            backgroundSize: '3px 3px, 100% 3px'
+                        }} />
+                    </div>
+
                     <div className="absolute inset-0 bg-black/40 transition-opacity group-hover:opacity-0" />
                 </div>
             </a>
@@ -51,6 +66,7 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                     score={item.heatScore}
                     size="sm"
                     color="#ffffff"
+                    disableAnimation={true}
                     className="mb-4 opacity-70 group-hover:opacity-100 transition-opacity scale-90 md:scale-100"
                 />
 

@@ -1,37 +1,43 @@
 import { RankingResponse } from './types';
 
-// TODO: Replace with your actual GAS Web App URL
-const GAS_API_URL = process.env.NEXT_PUBLIC_GAS_API_URL || '';
+// Hardcoded GAS Web App URL for immediate fix
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbz1RZ9cOPhhmmXdC-tDM9ynZraJ_ZBu0wsODyGlkyjgzr28c6awPswdBnl6ufveRPz7Yw/exec";
 
 export async function getRankingData(): Promise<RankingResponse> {
     const mock = getMockData();
 
-    // If no API URL is provided, return mock data for development
     if (!GAS_API_URL) {
+        console.warn('GAS_API_URL is empty');
         return mock;
     }
 
     try {
+        console.log('Fetching from GAS:', GAS_API_URL);
         const res = await fetch(GAS_API_URL, {
             cache: 'no-store',
+            method: 'GET',
         });
 
+        console.log('GAS Response Status:', res.status);
+
         if (!res.ok) {
-            throw new Error('Failed to fetch ranking data');
+            const text = await res.text();
+            console.error('GAS Fetch Error Body:', text.substring(0, 200));
+            throw new Error(`Failed to fetch: ${res.status}`);
         }
 
         const data = await res.json();
+        console.log('GAS Data Ranking count:', data?.ranking?.length);
 
-        // Basic validation to ensure data matches our expectations
         if (!data || !Array.isArray(data.ranking)) {
-            console.error('Invalid API response structure:', data);
+            console.error('Invalid API response structure');
             return mock;
         }
 
         return data as RankingResponse;
     } catch (error) {
         console.error('API Fetch Error:', error);
-        return mock; // Fallback to mock data on error
+        return mock;
     }
 }
 

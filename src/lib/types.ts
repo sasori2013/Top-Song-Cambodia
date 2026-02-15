@@ -15,7 +15,14 @@ export interface RankingItem {
     history: number[];
 }
 
+export interface RankingStats {
+    totalArtists: number;
+    totalProductions: number;
+    totalSongs: number;
+}
+
 export interface RankingResponse {
     updatedAt: string;
+    stats?: RankingStats;
     ranking: RankingItem[];
 }
