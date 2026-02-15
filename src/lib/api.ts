@@ -1,7 +1,7 @@
 import { RankingResponse } from './types';
 
 // Hardcoded GAS Web App URL for immediate fix
-const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxBIilI4_0rFmdHGuqoZZD8DMop67yDuo1ziub9mIboRFO1YkwOj7C-5KFFafIaGOKBMA/exec";
+const GAS_API_URL = "https://script.google.com/macros/s/AKfycbzyDc2vwGRfI9rhRypETFBym0zOG6NGGpvuGxzeopvUhjXUTXt0sIYpZ3IWp6AviMa0/exec";
 
 export async function getRankingData(): Promise<RankingResponse> {
     const mock = getMockData();
