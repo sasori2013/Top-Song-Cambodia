@@ -170,13 +170,20 @@ const DataCluster: React.FC<{ color: string; progress?: number }> = ({ color, pr
             const iy = i * 3 + 1;
             const iz = i * 3 + 2;
 
-            const speed = 0.5 + scrollFactor * 0.3;
+            // FIX: Decouple scroll speed from time multiplier to prevent sensitivity creep
+            // Use fixed time-base and add scroll-based offset instead
+            const baseSpeed = 0.5;
+            const scrollWobble = scrollFactor * 0.4;
+
             const intensity = 0.3 + scrollFactor * 0.1;
             const yOffset = 2.5 - (scrollFactor * 0.3);
 
-            const dx = Math.sin(time * speed + originalPositions[ix] * 0.5 + randoms[i] * 10) * intensity;
-            const dy = Math.cos(time * speed + originalPositions[iy] * 0.5 + randoms[i] * 10) * intensity;
-            const dz = Math.sin(time * speed + originalPositions[iz] * 0.5 + randoms[i] * 10) * intensity;
+            // Phase calculation: time * baseSpeed + constant scroll offset (not multiplier)
+            const phase = time * baseSpeed + scrollFactor * 2.0;
+
+            const dx = Math.sin(phase + originalPositions[ix] * 0.5 + randoms[i] * 10) * intensity;
+            const dy = Math.cos(phase + originalPositions[iy] * 0.5 + randoms[i] * 10) * intensity;
+            const dz = Math.sin(phase + originalPositions[iz] * 0.5 + randoms[i] * 10) * intensity;
 
             // ASSEMBLY EFFECT: Constrain scale from 5.0 down to 1.0 based on progress
             const assembleFactor = 1 + Math.pow(1 - progressRef.current, 1.5) * 4;
@@ -194,8 +201,9 @@ const DataCluster: React.FC<{ color: string; progress?: number }> = ({ color, pr
         }
 
         const wobble = Math.sin(time * 0.2) * 0.02;
-        points.current.rotation.y = time * 0.03 + (smoothScrollRef.current * 0.0001) + wobble;
-        points.current.rotation.z = time * 0.02 + (Math.cos(time * 0.1) * 0.01);
+        // Rotation should also be stable
+        points.current.rotation.y = time * 0.02 + (smoothScrollRef.current * 0.0001) + wobble;
+        points.current.rotation.z = time * 0.01 + (Math.cos(time * 0.1) * 0.005);
     });
 
     return (
