@@ -60,7 +60,7 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                         if (diffDays <= 7) {
                             return (
                                 <div className="absolute top-2 right-2 z-30 overflow-hidden">
-                                    <div className="bg-red-600 text-[8px] md:text-[10px] font-black text-white px-2 py-0.5 tracking-tighter shadow-lg transform skew-x-[-12deg] border border-red-400/50">
+                                    <div className="bg-white text-[8px] md:text-[10px] font-black text-black px-2 py-0.5 tracking-tighter shadow-lg transform skew-x-[-12deg] border border-black/10">
                                         NEW
                                     </div>
                                 </div>
@@ -90,7 +90,7 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
 
                 <div className="flex flex-col items-center gap-2 opacity-50 group-hover:opacity-100 transition-opacity w-full">
                     <div className="scale-75 md:scale-100 origin-center h-6 md:h-auto overflow-visible">
-                        <TrendChart data={item.history} width={100} height={24} color="#ffffff" />
+                        <TrendChart data={item.history} width={200} height={24} color="#ffffff" />
                     </div>
                     <div className="flex items-center gap-2 md:gap-4 border-t border-white/5 pt-2 w-full justify-center max-w-[200px]">
                         <div className="flex flex-col items-center">
