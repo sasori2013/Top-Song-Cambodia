@@ -4,6 +4,7 @@ import "./globals.css";
 const exo = Exo({
   variable: "--font-exo",
   subsets: ["latin"],
+  weight: ["200", "400", "700", "900"],
 });
 
 const inter = Inter({

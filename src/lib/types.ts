@@ -13,6 +13,7 @@ export interface RankingItem {
     thumbnail: string;
     url: string;
     history: number[];
+    publishedAt?: string;
 }
 
 export interface RankingStats {

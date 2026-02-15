@@ -20,10 +20,12 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     const gradientId = `gradient-${uniqueId}`;
     const filterId = `glow-${uniqueId}`;
 
-    if (!rawData || rawData.length === 0) return null;
-
-    // 1点しかない場合は平坦な線にするために複製
-    const data = rawData.length === 1 ? [rawData[0], rawData[0]] : rawData;
+    // 描画データがない場合は平坦な線を生成
+    const data = (!rawData || rawData.length === 0)
+        ? [50, 50, 50]
+        : rawData.length === 1
+            ? [rawData[0], rawData[0]]
+            : rawData;
 
     const min = Math.min(...data);
     const max = Math.max(...data);
@@ -32,7 +34,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     // Scale functions
     const getX = (index: number) => (index / (data.length - 1)) * width;
     const getY = (value: number) => {
-        const range = (max - min) || 100; // 差がない場合は中央付近に描画
+        const range = (max - min) || 100;
         const baseOffset = (max === min) ? height / 2 : height - padding;
         if (max === min) return baseOffset;
         return height - padding - ((value - min) / range) * (height - padding * 2);
@@ -54,7 +56,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                         <stop offset="100%" stopColor={color} stopOpacity="0" />
                     </linearGradient>
                     <filter id={filterId} x="-20%" y="-20%" width="140%" height="140%">
-                        <feGaussianBlur stdDeviation="1.5" result="coloredBlur" />
+                        <feGaussianBlur stdDeviation="2" result="coloredBlur" />
                         <feMerge>
                             <feMergeNode in="coloredBlur" />
                             <feMergeNode in="SourceGraphic" />
@@ -76,7 +78,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                     d={pathData}
                     fill="none"
                     stroke={color}
-                    strokeWidth="2"
+                    strokeWidth="4"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     filter={`url(#${filterId})`}
@@ -89,7 +91,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                 <motion.circle
                     cx={getX(data.length - 1)}
                     cy={getY(data[data.length - 1])}
-                    r="2"
+                    r="3"
                     fill={color}
                     initial={{ scale: 0, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}

@@ -50,6 +50,24 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                     </div>
 
                     <div className="absolute inset-0 bg-black/40 transition-opacity group-hover:opacity-0" />
+
+                    {/* NEW Badge */}
+                    {(() => {
+                        if (!item.publishedAt) return null;
+                        const pubDate = new Date(item.publishedAt);
+                        const diffTime = Math.abs(new Date().getTime() - pubDate.getTime());
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        if (diffDays <= 7) {
+                            return (
+                                <div className="absolute top-2 right-2 z-30 overflow-hidden">
+                                    <div className="bg-red-600 text-[8px] md:text-[10px] font-black text-white px-2 py-0.5 tracking-tighter shadow-lg transform skew-x-[-12deg] border border-red-400/50">
+                                        NEW
+                                    </div>
+                                </div>
+                            );
+                        }
+                        return null;
+                    })()}
                 </div>
             </a>
 

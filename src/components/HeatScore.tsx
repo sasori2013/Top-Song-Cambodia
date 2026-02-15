@@ -87,7 +87,7 @@ export const HeatScore: React.FC<HeatScoreProps> = ({
 
             <div className="relative flex flex-col items-center">
                 <div className="flex items-baseline gap-1">
-                    <span className={`${isLg ? 'text-4xl' : 'text-xl'} font-bold text-white tracking-tighter tabular-nums`}>
+                    <span className={`${isLg ? 'text-4xl' : 'text-xl'} font-extralight text-white tracking-tighter tabular-nums`}>
                         {displayScore.toFixed(displayScore > 99 ? 0 : 1)}
                     </span>
                     <motion.span
