@@ -236,6 +236,12 @@ interface AuraR3FProps {
     progress?: number;
 }
 
+const SPREAD_FULLSCREEN: [number, number, number] = [40, 20, 10];
+const SPREAD_NORMAL: [number, number, number] = [10, 4, 4];
+
+const MemoizedParticles = React.memo(Particles);
+const MemoizedDataCluster = React.memo(DataCluster);
+
 export const AuraR3F: React.FC<AuraR3FProps> = ({
     count = 160,
     color = "#ffffff",
@@ -256,9 +262,7 @@ export const AuraR3F: React.FC<AuraR3FProps> = ({
         ? { position: 'fixed', inset: 0, height: '100vh', zIndex: 0 }
         : { position: 'absolute', inset: 0, height, zIndex: 0 };
 
-    const spreadValue = useMemo<[number, number, number]>(() =>
-        fullscreen ? [40, 20, 10] : [10, 4, 4],
-        [fullscreen]);
+    const spreadValue = fullscreen ? SPREAD_FULLSCREEN : SPREAD_NORMAL;
 
     return (
         <div className={`${fullscreen ? 'fixed' : 'absolute'} inset-0 pointer-events-none ${className}`} style={containerStyle}>
@@ -270,8 +274,8 @@ export const AuraR3F: React.FC<AuraR3FProps> = ({
                 }}
             >
                 <ambientLight intensity={0.5} />
-                <Particles count={count} color={color} spread={spreadValue} />
-                <DataCluster color={color} progress={progress} />
+                <MemoizedParticles count={count} color={color} spread={spreadValue} />
+                <MemoizedDataCluster color={color} progress={progress} />
             </Canvas>
         </div>
     );
