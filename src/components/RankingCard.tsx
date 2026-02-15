@@ -89,8 +89,8 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                 />
 
                 <div className="flex flex-col items-center gap-2 opacity-50 group-hover:opacity-100 transition-opacity w-full">
-                    <div className="scale-75 md:scale-100 origin-center h-6 md:h-auto overflow-visible">
-                        <TrendChart data={item.history} width={200} height={24} color="#ffffff" heatScore={item.heatScore} />
+                    <div className="md:scale-100 origin-center h-12 md:h-auto overflow-visible">
+                        <TrendChart data={item.history} width={200} height={48} color="#00b2ff" heatScore={item.heatScore} />
                     </div>
                     <div className="flex items-center gap-2 md:gap-4 border-t border-white/5 pt-2 w-full justify-center max-w-[200px]">
                         <div className="flex flex-col items-center">
