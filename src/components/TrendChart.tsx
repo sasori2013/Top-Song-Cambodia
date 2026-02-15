@@ -71,8 +71,8 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     const pulseOpacity = Math.min(1, 0.4 + (heatScore / 200));
 
     return (
-        <div className="relative" style={{ width, height }}>
-            <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
+        <div className="relative w-full" style={{ height }}>
+            <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
                 <defs>
                     <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={color} stopOpacity="0.4" />
