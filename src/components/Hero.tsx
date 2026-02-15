@@ -55,7 +55,7 @@ export const Hero: React.FC<HeroProps> = ({ topItem }) => {
                             <div className="mb-2 text-[8px] tracking-[0.4em] text-white/20 uppercase font-bold">
                                 Analysis: 7D Trend
                             </div>
-                            <TrendChart data={topItem.history} width={400} height={60} color="#00b2ff" heatScore={topItem.heatScore} />
+                            <TrendChart data={topItem.history} width={400} height={60} color="#ffffff" heatScore={topItem.heatScore} />
                         </div>
                     </div>
 
