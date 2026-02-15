@@ -8,13 +8,15 @@ interface TrendChartProps {
     width?: number;
     height?: number;
     color?: string;
+    heatScore?: number;
 }
 
 export const TrendChart: React.FC<TrendChartProps> = ({
     data: rawData,
     width = 300,
     height = 50,
-    color = "#ffffff"
+    color = "#ffffff",
+    heatScore = 0
 }) => {
     const uniqueId = React.useId().replace(/[^a-zA-Z0-9]/g, '');
     const gradientId = `gradient-${uniqueId}`;
@@ -40,12 +42,33 @@ export const TrendChart: React.FC<TrendChartProps> = ({
         return height - padding - ((value - min) / range) * (height - padding * 2);
     };
 
-    // Construct SVG path
-    const points = data.map((val, i) => `${getX(i).toFixed(1)},${getY(val).toFixed(1)}`);
-    const pathData = `M ${points.join(' L ')}`;
+    // Construct SVG path using smooth curves (simplified Catmull-Rom or Bezier approach)
+    const points = data.map((val, i) => ({ x: getX(i), y: getY(val) }));
+
+    let pathData = `M ${points[0].x},${points[0].y}`;
+    if (points.length > 2) {
+        for (let i = 0; i < points.length - 1; i++) {
+            const p0 = points[i];
+            const p1 = points[i + 1];
+            const controlX = (p0.x + p1.x) / 2;
+            pathData += ` C ${controlX},${p0.y} ${controlX},${p1.y} ${p1.x},${p1.y}`;
+        }
+    } else {
+        // Just 2 points: use a slight curve for "shinari"
+        const p0 = points[0];
+        const p1 = points[1];
+        const cx1 = p0.x + (p1.x - p0.x) * 0.4;
+        const cx2 = p0.x + (p1.x - p0.x) * 0.6;
+        pathData += ` C ${cx1},${p0.y} ${cx2},${p1.y} ${p1.x},${p1.y}`;
+    }
 
     // Area path
     const areaPath = `${pathData} L ${getX(data.length - 1).toFixed(1)},${height} L ${getX(0).toFixed(1)},${height} Z`;
+
+    // Pulse settings based on heatScore
+    // duration: 3s (low) -> 1s (high)
+    const pulseDuration = Math.max(0.8, 3 - (heatScore / 100));
+    const pulseOpacity = Math.min(1, 0.4 + (heatScore / 200));
 
     return (
         <div className="relative" style={{ width, height }}>
@@ -73,7 +96,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                     transition={{ duration: 1, delay: 0.5 }}
                 />
 
-                {/* Trend Line */}
+                {/* Trend Line with Heat-linked Pulse */}
                 <motion.path
                     d={pathData}
                     fill="none"
@@ -83,8 +106,19 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                     strokeLinejoin="round"
                     filter={`url(#${filterId})`}
                     initial={{ pathLength: 0, opacity: 0 }}
-                    animate={{ pathLength: 1, opacity: 0.8 }}
-                    transition={{ duration: 2.0, ease: "easeInOut" }}
+                    animate={{
+                        pathLength: 1,
+                        opacity: [0.4, pulseOpacity, 0.4],
+                    }}
+                    transition={{
+                        pathLength: { duration: 2.0, ease: "easeInOut" },
+                        opacity: {
+                            duration: pulseDuration,
+                            repeat: Infinity,
+                            ease: "easeInOut",
+                            delay: 2.0
+                        }
+                    }}
                 />
 
                 {/* Last point dot */}
@@ -94,8 +128,12 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                     r="3"
                     fill={color}
                     initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ delay: 2.8, duration: 0.5 }}
+                    animate={{ scale: [1, 1.5, 1], opacity: 1 }}
+                    transition={{
+                        scale: { duration: pulseDuration, repeat: Infinity, delay: 2.0 },
+                        delay: 2.8,
+                        duration: 0.5
+                    }}
                 />
             </svg>
         </div>
