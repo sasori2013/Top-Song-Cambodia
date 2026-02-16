@@ -15,27 +15,16 @@ export const SubmissionForm: React.FC = () => {
 
         setStatus('loading');
         try {
-            const res = await fetch(GAS_API_URL, {
+            const res = await fetch('/api/submit-artist', {
                 method: 'POST',
-                mode: 'no-cors', // GAS requires no-cors for direct POST if redirects are involved, but we'll try standard first
                 headers: {
-                    'Content-Type': 'text/plain', // GAS doPost often prefers plain text for JSON strings
+                    'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ youtubeUrl: url }),
             });
 
-            // Note: with no-cors, we can't read the response. 
-            // For a better UX, we might need a proxy or handle the redirect.
-            // But usually, standard fetch works if GAS is set to "Anyone".
-            
-            // Re-trying with standard fetch to catch the response
-            const resData = await fetch(GAS_API_URL, {
-                method: 'POST',
-                body: JSON.stringify({ youtubeUrl: url }),
-            });
-            
-            const result = await resData.json();
-            
+            const result = await res.json();
+
             if (result.status === 'success') {
                 setStatus('success');
                 setMessage(result.message);
@@ -49,7 +38,6 @@ export const SubmissionForm: React.FC = () => {
             }
         } catch (err) {
             console.error('Submission error:', err);
-            // Some browsers/CORS issues might trigger this even on success if redirects fail
             setStatus('error');
             setMessage('送信に失敗しました。時間をおいて再度お試しください。');
         }
@@ -97,20 +85,19 @@ export const SubmissionForm: React.FC = () => {
                             exit={{ opacity: 0, height: 0 }}
                             className="mt-6 overflow-hidden"
                         >
-                            <div className={`p-4 border ${
-                                status === 'success' ? 'border-green-500/50 bg-green-500/5 text-green-400' :
-                                status === 'exists' ? 'border-yellow-500/50 bg-yellow-500/5 text-yellow-500' :
-                                'border-red-500/50 bg-red-500/5 text-red-500'
-                            } text-sm font-medium tracking-wide`}>
+                            <div className={`p-4 border ${status === 'success' ? 'border-green-500/50 bg-green-500/5 text-green-400' :
+                                    status === 'exists' ? 'border-yellow-500/50 bg-yellow-500/5 text-yellow-500' :
+                                        'border-red-500/50 bg-red-500/5 text-red-500'
+                                } text-sm font-medium tracking-wide`}>
                                 {message}
                             </div>
                         </motion.div>
                     )}
                 </AnimatePresence>
             </form>
-            
+
             <div className="mt-8 flex justify-center gap-8 opacity-20 hover:opacity-100 transition-opacity">
-                 <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-white/20 to-transparent" />
             </div>
         </section>
     );
