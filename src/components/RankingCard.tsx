@@ -27,17 +27,31 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                 rel="noopener noreferrer"
                 className="group/link block w-full mb-4"
             >
-                <div className="relative aspect-video w-full overflow-hidden border border-white/5 bg-black transition-transform duration-500 group-hover:scale-105">
+                <div className="relative aspect-video w-full overflow-hidden border border-white/5 bg-black">
                     {/* Simple Rank Number Overlay - Added pr-2 to prevent italic clipping */}
                     <div className="absolute top-2 left-3 z-30 font-bold text-3xl md:text-4xl text-white/50 group-hover:text-white transition-all duration-500 pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] italic pr-2">
                         {index}
                     </div>
 
                     <div className="relative h-full w-full">
-                        <img
+                        <motion.img
                             src={item.thumbnail}
-                            className="h-full w-full object-cover opacity-70 contrast-[1.4] brightness-110 group-hover:scale-110 group-hover:opacity-100 transition-all duration-700 mixture-blend-lighten"
+                            className="h-full w-full object-cover mixture-blend-lighten"
                             alt={item.title}
+                            animate={{
+                                opacity: [0.6, 0.85, 0.6],
+                                filter: [
+                                    "brightness(0.9) contrast(1.4)",
+                                    "brightness(1.2) contrast(1.4)",
+                                    "brightness(0.9) contrast(1.4)"
+                                ]
+                            }}
+                            transition={{
+                                duration: 5,
+                                repeat: Infinity,
+                                ease: "easeInOut",
+                                delay: Math.random() * 2 // 個別にタイミングをずらして自然に
+                            }}
                         />
                         {/* デジタル・メッシュ・オーバーレイ */}
                         <div className="absolute inset-0 opacity-[0.15] pointer-events-none" style={{
@@ -49,7 +63,7 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                         }} />
                     </div>
 
-                    <div className="absolute inset-0 bg-black/40 transition-opacity group-hover:opacity-0" />
+                    <div className="absolute inset-0 bg-black/30 pointer-events-none" />
 
                     {/* NEW Badge */}
                     {(() => {
