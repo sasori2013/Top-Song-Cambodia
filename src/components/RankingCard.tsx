@@ -29,7 +29,7 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
             >
                 <div className="relative aspect-video w-full overflow-hidden border border-white/5 bg-black">
                     {/* Simple Rank Number Overlay - Added pr-2 to prevent italic clipping */}
-                    <div className="absolute top-2 left-3 z-30 font-bold text-3xl md:text-4xl text-white/50 group-hover:text-white transition-all duration-500 pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] italic pr-2">
+                    <div className="absolute top-2 left-3 z-30 font-bold text-3xl md:text-4xl text-white/70 pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] italic pr-2">
                         {index}
                     </div>
 
@@ -86,7 +86,7 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
             </a>
 
             <div className="flex flex-col items-center w-full gap-1">
-                <h3 className="text-xs md:text-sm lg:text-base font-black text-white group-hover:text-cyan-400 transition-colors line-clamp-1 px-1 tracking-tight">
+                <h3 className="text-xs md:text-sm lg:text-base font-black text-white line-clamp-1 px-1 tracking-tight">
                     {item.artist}
                 </h3>
                 <p className="text-[10px] md:text-xs text-white/50 line-clamp-1 px-2 mb-3">
@@ -99,10 +99,10 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                     size="sm"
                     color="#ffffff"
                     disableAnimation={true}
-                    className="mb-4 opacity-70 group-hover:opacity-100 transition-opacity scale-90 md:scale-100"
+                    className="mb-4 opacity-80 scale-90 md:scale-100"
                 />
 
-                <div className="flex flex-col items-center gap-2 opacity-50 group-hover:opacity-100 transition-opacity w-full px-4">
+                <div className="flex flex-col items-center gap-2 opacity-80 w-full px-4">
                     <div className="md:scale-100 origin-center h-12 md:h-auto overflow-visible w-full max-w-[200px]">
                         <TrendChart data={item.history} width={200} height={48} color="#ffffff" heatScore={item.heatScore} />
                     </div>
