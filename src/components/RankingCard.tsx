@@ -89,9 +89,18 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                 <h3 className="text-xs md:text-sm lg:text-base font-black text-white line-clamp-1 px-1 tracking-tight">
                     {item.artist}
                 </h3>
-                <p className="text-[10px] md:text-xs text-white/50 line-clamp-1 px-2 mb-3">
+                <p className="text-[10px] md:text-xs text-white/50 line-clamp-1 px-2 mb-1">
                     {item.title}
                 </p>
+
+                {item.aiInsight && (
+                    <div className="mb-3 px-4">
+                        <span className="text-[8px] md:text-[9px] text-white/30 font-light tracking-wide uppercase block mb-0.5">AI INSIGHT</span>
+                        <p className="text-[10px] md:text-xs text-white/70 italic line-clamp-2 md:line-clamp-1">
+                            "{item.aiInsight}"
+                        </p>
+                    </div>
+                )}
 
                 <HeatScore
                     rank={undefined}

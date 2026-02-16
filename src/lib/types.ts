@@ -14,6 +14,8 @@ export interface RankingItem {
     url: string;
     history: number[];
     publishedAt?: string;
+    aiScore?: number;
+    aiInsight?: string;
 }
 
 export interface RankingStats {
