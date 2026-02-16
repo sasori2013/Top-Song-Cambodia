@@ -69,8 +69,8 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     const strokeGradientId = `stroke-grad-${uniqueId}`;
 
     // Flow settings based on heatScore
-    // Speed: higher score = faster flow
-    const flowDuration = Math.max(1.0, 4 - (heatScore / 30));
+    // Speed: higher score = faster flow, but keep it slow/premium (4s to 14s range)
+    const flowDuration = 14 - (heatScore / 10);
     const glowOpacity = Math.min(1, 0.5 + (heatScore / 200));
 
     return (
