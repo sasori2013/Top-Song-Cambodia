@@ -65,19 +65,55 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     // Area path
     const areaPath = `${pathData} L ${getX(data.length - 1).toFixed(1)},${height} L ${getX(0).toFixed(1)},${height} Z`;
 
-    // Pulse settings based on heatScore
-    // duration: 3s (low) -> 1s (high)
-    const pulseDuration = Math.max(0.8, 3 - (heatScore / 100));
-    const pulseOpacity = Math.min(1, 0.4 + (heatScore / 200));
+    const pathId = `path-${uniqueId}`;
+    const strokeGradientId = `stroke-grad-${uniqueId}`;
+
+    // Flow settings based on heatScore
+    // Speed: higher score = faster flow
+    const flowDuration = Math.max(1.0, 4 - (heatScore / 30));
+    const glowOpacity = Math.min(1, 0.5 + (heatScore / 200));
 
     return (
         <div className="relative w-full" style={{ height }}>
             <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
                 <defs>
+                    {/* Fill Area Gradient */}
                     <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={color} stopOpacity="0.4" />
                         <stop offset="100%" stopColor={color} stopOpacity="0" />
                     </linearGradient>
+
+                    {/* Flowing Stroke Gradient */}
+                    <linearGradient id={strokeGradientId} x1="0%" y1="0%" x2="100%" y2="0%" gradientUnits="userSpaceOnUse">
+                        <motion.stop
+                            offset="0%"
+                            stopColor={color}
+                            animate={{ offset: ["-100%", "200%"] }}
+                            transition={{ duration: flowDuration, repeat: Infinity, ease: "linear" }}
+                        />
+                        <motion.stop
+                            offset="0%"
+                            stopColor={color}
+                            stopOpacity="0.3"
+                            animate={{ offset: ["-110%", "190%"] }}
+                            transition={{ duration: flowDuration, repeat: Infinity, ease: "linear" }}
+                        />
+                        <motion.stop
+                            offset="0%"
+                            stopColor="#fff"
+                            stopOpacity="0.9"
+                            animate={{ offset: ["-105%", "195%"] }}
+                            transition={{ duration: flowDuration, repeat: Infinity, ease: "linear" }}
+                        />
+                        <motion.stop
+                            offset="0%"
+                            stopColor={color}
+                            stopOpacity="0.3"
+                            animate={{ offset: ["-100%", "200%"] }}
+                            transition={{ duration: flowDuration, repeat: Infinity, ease: "linear" }}
+                        />
+                    </linearGradient>
+
                     <filter id={filterId} x="-20%" y="-20%" width="140%" height="140%">
                         <feGaussianBlur stdDeviation="2" result="coloredBlur" />
                         <feMerge>
@@ -96,42 +132,52 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                     transition={{ duration: 1, delay: 0.5 }}
                 />
 
-                {/* Trend Line with Heat-linked Pulse */}
-                <motion.path
+                {/* Background static line for consistency */}
+                <path
                     d={pathData}
                     fill="none"
                     stroke={color}
-                    strokeWidth="1.5"
+                    strokeWidth="1.2"
+                    strokeOpacity="0.1"
+                    strokeLinecap="round"
+                />
+
+                {/* Flowing Trend Line */}
+                <motion.path
+                    id={pathId}
+                    d={pathData}
+                    fill="none"
+                    stroke={`url(#${strokeGradientId})`}
+                    strokeWidth="1.8"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     filter={`url(#${filterId})`}
                     initial={{ pathLength: 0, opacity: 0 }}
                     animate={{
                         pathLength: 1,
-                        opacity: [0.4, pulseOpacity, 0.4],
+                        opacity: glowOpacity,
                     }}
                     transition={{
-                        pathLength: { duration: 2.0, ease: "easeInOut" },
-                        opacity: {
-                            duration: pulseDuration,
-                            repeat: Infinity,
-                            ease: "easeInOut",
-                            delay: 2.0
-                        }
+                        pathLength: { duration: 1.5, ease: "easeInOut" },
+                        opacity: { duration: 1 }
                     }}
                 />
 
-                {/* Last point dot */}
+                {/* Last point dot - pulses with sync */}
                 <motion.circle
                     cx={getX(data.length - 1)}
                     cy={getY(data[data.length - 1])}
-                    r="3"
-                    fill={color}
+                    r="2.5"
+                    fill="#fff"
                     initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: [1, 1.5, 1], opacity: 1 }}
+                    animate={{
+                        scale: [1, 1.4, 1],
+                        opacity: 1,
+                        filter: "drop-shadow(0 0 4px #fff)"
+                    }}
                     transition={{
-                        scale: { duration: pulseDuration, repeat: Infinity, delay: 2.0 },
-                        delay: 2.8,
+                        scale: { duration: flowDuration / 2, repeat: Infinity, ease: "easeInOut" },
+                        delay: 1.5,
                         duration: 0.5
                     }}
                 />
