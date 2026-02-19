@@ -106,11 +106,15 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ stats }) => {
                 transition={{ duration: 1 }}
                 className="mb-24 z-10"
             >
-                <h1 className="text-6xl md:text-9xl font-bold text-white tracking-tighter mb-8 leading-[0.9]">
-                    HEAT
-                </h1>
+                <div className="flex justify-center mt-8 mb-4">
+                    <img
+                        src="/logo.png"
+                        alt="HEAT"
+                        className="h-8 md:h-14 w-auto object-contain"
+                    />
+                </div>
                 <p className="text-[12px] font-medium tracking-[0.5em] text-white/50 uppercase">
-                    AI DRIVEN CAMBODIA MUSIC ANALYSIS
+                    AI DRIVEN CAMBODIA MUSIC INDEX
                 </p>
             </motion.div>
 

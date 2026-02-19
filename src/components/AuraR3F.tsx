@@ -128,23 +128,23 @@ const DataCluster: React.FC<{ color: string; progress?: number }> = ({ color, pr
             originalPositions[i * 3 + 1] = y;
             originalPositions[i * 3 + 2] = z;
 
-            // RED CORE HEATMAP (Restore previous balance)
+            // CYAN/BLUE DATA HEATMAP (Matches OG/FB theme)
             const heatFactor = Math.max(0, 1 - r / 2.0);
 
             if (heatFactor > 0.8) {
-                // CORE: Vivid Red-Orange
-                colors[i * 3] = 1.0;
-                colors[i * 3 + 1] = 0.2;
-                colors[i * 3 + 2] = 0.3;
+                // CORE: Vibrant Cyan/Light Blue
+                colors[i * 3] = 0.0;
+                colors[i * 3 + 1] = 0.8;
+                colors[i * 3 + 2] = 1.0;
             } else if (heatFactor > 0.4) {
-                // INNER: Orange-Yellowish Glow
+                // INNER: Teal/Cyan Glow
                 const f = (heatFactor - 0.4) / 0.4;
-                colors[i * 3] = 1.0;
-                colors[i * 3 + 1] = 0.4 + (0.6 * f);
-                colors[i * 3 + 2] = 0.4 + (0.6 * f);
+                colors[i * 3] = 0.2 * (1 - f);
+                colors[i * 3 + 1] = 0.9;
+                colors[i * 3 + 2] = 0.8 + (0.2 * f);
             } else {
-                colors[i * 3] = 1.0;
-                colors[i * 3 + 1] = 1.0;
+                colors[i * 3] = 0.8;
+                colors[i * 3 + 1] = 0.9;
                 colors[i * 3 + 2] = 1.0;
             }
 

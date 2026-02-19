@@ -16,6 +16,9 @@ export interface RankingItem {
     publishedAt?: string;
     aiScore?: number;
     aiInsight?: string;
+    rankChange?: number;
+    genre?: string;
+    visualConcept?: string;
 }
 
 export interface RankingStats {

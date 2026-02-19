@@ -101,7 +101,7 @@ const ImagePoints: React.FC<ParticleImageProps> = ({ src }) => {
                     vec4 color = texture2D(uTexture, vUv);
                     
                     // If texture fails to load (CORS), use a default data-blue color
-                    if (color.a < 0.1) color = vec4(0.0, 0.5, 1.0, 1.0);
+                    if (color.a < 0.1) color = vec4(0.0, 0.8, 1.0, 1.0);
                     
                     // Apply grayscale/glitch look if needed
                     float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114));

@@ -6,6 +6,7 @@ import { RankingItem } from '@/lib/types';
 import { FluctuatingText } from './FluctuatingText';
 import { TrendChart } from './TrendChart';
 import { HeatScore } from './HeatScore';
+import { cleanSongTitle } from '@/lib/utils';
 
 interface RankingCardProps {
     item: RankingItem;
@@ -13,6 +14,7 @@ interface RankingCardProps {
 }
 
 export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
+    const cleanedTitle = cleanSongTitle(item.title);
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -28,16 +30,18 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                 className="group/link block w-full mb-4"
             >
                 <div className="relative aspect-video w-full overflow-hidden border border-white/5 bg-black">
-                    {/* Simple Rank Number Overlay - Added pr-2 to prevent italic clipping */}
-                    <div className="absolute top-2 left-3 z-30 font-bold text-3xl md:text-4xl text-white/70 pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] italic pr-2">
-                        {index}
+                    {/* Simple Rank Number Overlay */}
+                    <div className="absolute top-2 left-3 z-30 flex items-baseline gap-1 pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                        <span className="font-bold text-3xl md:text-4xl text-white/70 italic pr-1">
+                            {index}
+                        </span>
                     </div>
 
                     <div className="relative h-full w-full">
                         <motion.img
                             src={item.thumbnail}
                             className="h-full w-full object-cover mixture-blend-lighten"
-                            alt={item.title}
+                            alt={cleanedTitle}
                             animate={{
                                 opacity: [0.6, 0.85, 0.6],
                                 filter: [
@@ -90,17 +94,36 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                     {item.artist}
                 </h3>
                 <p className="text-[10px] md:text-xs text-white/50 line-clamp-1 px-2 mb-1">
-                    {item.title}
+                    {cleanedTitle}
                 </p>
+                {/* Rank Change Status - Smart Integrated Design */}
+                <div className="mb-3 h-6 flex items-center justify-center">
+                    {item.rankChange !== undefined ? (
+                        <div className="flex items-center gap-2 text-[9px] md:text-[10px] font-black tracking-[0.2em] uppercase transition-all duration-300">
+                            {item.rankChange > 0 ? (
+                                <span className="flex items-center gap-1.5 text-[#00ccff] animate-pulse-slow">
+                                    <span className="text-[12px]">▲</span>
+                                    <span>RANK UP</span>
+                                    <span className="font-mono text-[11px] ml-1">+{item.rankChange}</span>
+                                </span>
+                            ) : item.rankChange < 0 ? (
+                                <span className="flex items-center gap-1.5 text-white/30">
+                                    <span className="text-[12px]">▼</span>
+                                    <span>RANK DOWN</span>
+                                    <span className="font-mono text-[11px] ml-1">{item.rankChange}</span>
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-1.5 text-white/30">
+                                    <span className="text-[10px]">▶</span>
+                                    <span className="tracking-[0.4em]">STAY</span>
+                                </span>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="h-6" />
+                    )}
+                </div>
 
-                {item.aiInsight && (
-                    <div className="mb-3 px-4">
-                        <span className="text-[8px] md:text-[9px] text-white/30 font-light tracking-wide uppercase block mb-0.5">AI INSIGHT</span>
-                        <p className="text-[10px] md:text-xs text-white/70 italic line-clamp-2 md:line-clamp-1">
-                            "{item.aiInsight}"
-                        </p>
-                    </div>
-                )}
 
                 <HeatScore
                     rank={undefined}

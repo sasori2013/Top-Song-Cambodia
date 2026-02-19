@@ -15,7 +15,7 @@ const inter = Inter({
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "HEAT | AI Driven Cambodia Music Analysis",
+  title: "HEAT | AI Driven Cambodia Music Index",
   description: "Heat ranking of Cambodia music, powered by AI analysis.",
 };
 
