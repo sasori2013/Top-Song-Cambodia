@@ -13,10 +13,20 @@ export default async function Home() {
       <PageHeader stats={data?.stats} />
       <RankingList items={ranking} />
 
-      <footer className="mt-40 pb-20 text-center">
-        <p className="text-[10px] tracking-[0.3em] font-medium text-white/10 uppercase">
-          Finalized Feed
-        </p>
+      <footer className="mt-60 pb-32 text-center px-6">
+        <div className="max-w-2xl mx-auto space-y-4">
+          <p className="text-[10px] md:text-[11px] tracking-[0.2em] font-medium text-white/50 leading-relaxed uppercase">
+            HEAT is calculated using publicly available data from YouTube, Facebook, and streaming activity.<br />
+            The index reflects engagement, growth, and momentum.
+          </p>
+          <div className="flex items-center justify-center gap-4">
+            <div className="h-px w-8 bg-white/20" />
+            <p className="text-[9px] tracking-[0.4em] font-bold text-white/30 uppercase">
+              Updated daily
+            </p>
+            <div className="h-px w-8 bg-white/20" />
+          </div>
+        </div>
       </footer>
     </main>
   );
