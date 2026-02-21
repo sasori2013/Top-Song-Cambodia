@@ -37,6 +37,7 @@ export async function GET(request: Request) {
     const growth = searchParams.get('growth') || '0.55';
     const views = searchParams.get('views') || '276K';
     const engagement = searchParams.get('engagement') || '87';
+    const change = searchParams.get('change') || '';
 
     // 背景画像の決定 (ユーザーの指定に従い backgrounds フォルダからランダムに、thumbnailは無視)
     const bgNum = (Math.floor(Math.random() * 5) + 1).toString().padStart(2, '0');
@@ -57,6 +58,49 @@ export async function GET(request: Request) {
             if (len > 25) return '45px';
             return '65px';
         }
+    };
+
+    const renderChangeText = (changeStr: string, isRank1: boolean) => {
+        if (!changeStr) return null;
+
+        let color = '#999'; // STAY
+        let text = 'STAY';
+        let icon = '';
+
+        if (changeStr === 'NEW') {
+            color = '#00E5FF'; // Digital Cyan (blue-green)
+            text = 'NEW ENTRY';
+            icon = '';
+        } else {
+            const val = parseInt(changeStr);
+            if (val > 0) {
+                color = '#00E5FF'; // Digital Cyan (blue-green)
+                text = `UP ${Math.abs(val)}`;
+                icon = '▲ ';
+            } else if (val < 0) {
+                color = '#999'; // Gray for DOWN
+                text = `DOWN ${Math.abs(val)}`;
+                icon = '▼ ';
+            } else if (val === 0) {
+                color = '#999'; // STAY
+                text = 'STAY';
+                icon = '';
+            }
+        }
+
+        return (
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                color: color,
+                fontSize: isRank1 ? '34px' : '26px',
+                fontWeight: 700,
+                letterSpacing: '4px',
+                fontFamily: 'Arial',
+            }}>
+                <span style={{ marginRight: '10px', display: 'flex', alignItems: 'center', transform: 'translateY(-2px)' }}>{icon}</span> {text}
+            </div>
+        );
     };
 
     // --- Content Rendering ---
@@ -154,9 +198,18 @@ export async function GET(request: Request) {
                             display: 'flex', textAlign: 'center', lineHeight: 1.1, maxWidth: '1000px'
                         }}>{title}</div>
 
-                        {/* 4. Points & Stats Area: Even smaller and lighter */}
+                        {/* 4. Rank Movement & Stats Area */}
+
+                        {/* Rank Movement Indicator */}
+                        {change && (
+                            <div style={{ display: 'flex', marginBottom: '15px', marginTop: '10px' }}>
+                                {renderChangeText(change, true)}
+                            </div>
+                        )}
+
+                        {/* 5. Points & Stats Area: Even smaller and lighter */}
                         <div style={{
-                            fontSize: '24px', color: '#bbb', marginTop: '10px',
+                            fontSize: '24px', color: '#bbb', marginTop: '0px',
                             letterSpacing: '2px', display: 'flex', textTransform: 'uppercase'
                         }}>
                             {heatPoint} HEAT POINT | {Number(growth) > 0 ? '+' : ''}{growth}% | {views} | {engagement}%
@@ -216,12 +269,15 @@ export async function GET(request: Request) {
                                         }}>
                                             {cleanedTitle}
                                         </div>
-                                        <div style={{
-                                            fontSize: '48px', fontFamily: 'Arial-BoldItalic',
-                                            color: '#fff', textTransform: 'uppercase',
-                                            display: 'flex', marginTop: '-5px'
-                                        }}>
-                                            {item.artist}
+                                        <div style={{ display: 'flex', alignItems: 'center', marginTop: '-5px' }}>
+                                            <div style={{
+                                                fontSize: '48px', fontFamily: 'Arial-BoldItalic',
+                                                color: '#fff', textTransform: 'uppercase',
+                                                display: 'flex', marginRight: '30px'
+                                            }}>
+                                                {item.artist}
+                                            </div>
+                                            {item.change !== undefined && renderChangeText(String(item.change), false)}
                                         </div>
                                     </div>
                                 </div>
