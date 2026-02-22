@@ -214,6 +214,32 @@ export async function GET(request: Request) {
                         }}>
                             {heatPoint} HEAT POINT | {Number(growth) > 0 ? '+' : ''}{growth}% | {views} | {engagement}%
                         </div>
+
+                        {/* 6. AI Insight Area: 1-line summary */}
+                        {searchParams.get('insight') && searchParams.get('insight') !== '-' && (
+                            <div style={{
+                                marginTop: '30px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                borderTop: '1px solid rgba(255,255,255,0.2)',
+                                paddingTop: '20px',
+                                maxWidth: '1000px'
+                            }}>
+                                <div style={{ fontSize: '24px', marginRight: '15px' }}>🤖</div>
+                                <div style={{
+                                    fontSize: '22px',
+                                    color: '#00ccff',
+                                    fontWeight: 700,
+                                    letterSpacing: '1px',
+                                    fontFamily: 'Arial',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis'
+                                }}>
+                                    {searchParams.get('insight')}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Bottom Footer Info: Wide letter spacing */}
