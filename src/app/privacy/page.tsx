@@ -40,7 +40,7 @@ export default function PrivacyPolicyPage() {
                                 <strong className="text-white/90">Purpose:</strong> Data is processed via AI (Vertex AI) to calculate the "Heat Point" index for cultural archiving and market analysis.
                             </li>
                             <li>
-                                <strong className="text-white/90">Storage & Refresh:</strong> To comply with YouTube API Services Terms, data that cannot be synced with the API for more than 30 days is automatically discarded. Furthermore, to maintain the latest state, stored API data is refreshed (synced with YouTube API) at least once every 24 hours. The "Heat Log" acts as an index built upon this regularly verified data stream.
+                                <strong className="text-white/90">Storage:</strong> To maintain a historical index of Cambodian music, data is stored for up to 90 days before being archived or refreshed.
                             </li>
                         </ul>
                     </section>
