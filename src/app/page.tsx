@@ -14,7 +14,7 @@ export default async function Home() {
       <PageHeader stats={data?.stats} />
       <RankingList items={ranking} />
 
-      <footer className="mt-60 pb-32 text-center px-6">
+      <footer className="relative z-10 mt-60 pb-32 text-center px-6 pointer-events-auto">
         <div className="max-w-2xl mx-auto space-y-4">
           <p className="text-[10px] md:text-[11px] tracking-[0.2em] font-medium text-white/50 leading-relaxed uppercase">
             HEAT is calculated using publicly available data from YouTube, Facebook, and streaming activity.<br />
