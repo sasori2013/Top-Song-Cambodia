@@ -18,6 +18,9 @@ export const Footer: React.FC = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 pt-8">
+                    <Link href="/" className="text-[10px] tracking-[0.2em] font-bold text-white/30 hover:text-white/70 transition-colors uppercase">
+                        Home
+                    </Link>
                     <Link href="/methodology" className="text-[10px] tracking-[0.2em] font-bold text-white/30 hover:text-white/70 transition-colors uppercase">
                         Methodology
                     </Link>
