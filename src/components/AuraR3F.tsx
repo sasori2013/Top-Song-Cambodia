@@ -242,6 +242,7 @@ interface AuraR3FProps {
     height?: string;
     fullscreen?: boolean;
     progress?: number;
+    hideCluster?: boolean;
 }
 
 const SPREAD_FULLSCREEN: [number, number, number] = [40, 20, 10];
@@ -256,7 +257,8 @@ export const AuraR3F: React.FC<AuraR3FProps> = ({
     className = "",
     height = "100%",
     fullscreen = false,
-    progress = 1
+    progress = 1,
+    hideCluster = false
 }) => {
     const [mounted, setMounted] = useState(false);
 
@@ -283,7 +285,7 @@ export const AuraR3F: React.FC<AuraR3FProps> = ({
             >
                 <ambientLight intensity={0.5} />
                 <MemoizedParticles count={count} color={color} spread={spreadValue} />
-                <MemoizedDataCluster color={color} progress={progress} />
+                {!hideCluster && <MemoizedDataCluster color={color} progress={progress} />}
             </Canvas>
         </div>
     );

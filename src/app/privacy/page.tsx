@@ -1,6 +1,7 @@
 import { Header } from '@/components/Header';
+import { Footer } from '@/components/Footer';
+import { AuraR3F } from '@/components/AuraR3F';
 import type { Metadata } from 'next';
-import Link from 'next/link';
 
 export const metadata: Metadata = {
     title: 'Privacy Policy | HEAT',
@@ -8,12 +9,13 @@ export const metadata: Metadata = {
 
 export default function PrivacyPolicyPage() {
     return (
-        <main className="bg-black min-h-screen">
+        <main className="relative bg-black min-h-screen overflow-hidden">
+            <AuraR3F color="rgba(255, 255, 255, 0.2)" fullscreen progress={0} hideCluster />
             <Header />
-            <div className="max-w-3xl mx-auto px-6 pt-32 pb-24 text-white">
+            <div className="relative z-10 max-w-3xl mx-auto px-6 pt-32 pb-24 text-white">
                 <h1 className="text-3xl md:text-4xl font-bold mb-12 uppercase tracking-wide">Privacy Policy</h1>
 
-                <div className="space-y-12">
+                <div className="space-y-12 backdrop-blur-sm bg-black/30 p-8 rounded-2xl border border-white/10">
                     <section>
                         <h2 className="text-xl font-semibold mb-4 text-white/90">1. YouTube API Services</h2>
                         <p className="text-white/70 leading-relaxed">
@@ -53,11 +55,12 @@ export default function PrivacyPolicyPage() {
                     <section>
                         <h2 className="text-xl font-semibold mb-4 text-white/90">5. Contact Information</h2>
                         <p className="text-white/70 leading-relaxed">
-                            <Link href="mailto:info@example.com" className="text-white/90 underline hover:text-white transition-colors">[ここに連絡用メールアドレスまたはフォームのリンクを挿入してください]</Link>
+                            <a href="mailto:kxolab.ai@gmail.com" className="text-white/90 underline hover:text-white transition-colors">kxolab.ai@gmail.com</a>
                         </p>
                     </section>
                 </div>
             </div>
+            <Footer />
         </main>
     );
 }

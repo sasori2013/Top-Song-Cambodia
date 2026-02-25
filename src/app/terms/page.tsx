@@ -1,4 +1,6 @@
 import { Header } from '@/components/Header';
+import { Footer } from '@/components/Footer';
+import { AuraR3F } from '@/components/AuraR3F';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
@@ -7,12 +9,13 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
     return (
-        <main className="bg-black min-h-screen">
+        <main className="relative bg-black min-h-screen overflow-hidden">
+            <AuraR3F color="rgba(255, 255, 255, 0.2)" fullscreen progress={0} hideCluster />
             <Header />
-            <div className="max-w-3xl mx-auto px-6 pt-32 pb-24 text-white">
+            <div className="relative z-10 max-w-3xl mx-auto px-6 pt-32 pb-24 text-white">
                 <h1 className="text-3xl md:text-4xl font-bold mb-12 uppercase tracking-wide">Terms of Service</h1>
 
-                <div className="space-y-12">
+                <div className="space-y-12 backdrop-blur-sm bg-black/30 p-8 rounded-2xl border border-white/10">
                     <section>
                         <h2 className="text-xl font-semibold mb-4 text-white/90">1. Agreement to Terms</h2>
                         <p className="text-white/70 leading-relaxed">
@@ -35,6 +38,7 @@ export default function TermsPage() {
                     </section>
                 </div>
             </div>
+            <Footer />
         </main>
     );
 }
