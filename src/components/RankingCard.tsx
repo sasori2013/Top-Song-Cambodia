@@ -100,7 +100,12 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                 <div className="mb-3 h-6 flex items-center justify-center">
                     {item.rankChange !== undefined ? (
                         <div className="flex items-center gap-2 text-[9px] md:text-[10px] font-black tracking-[0.2em] uppercase transition-all duration-300">
-                            {item.rankChange > 0 ? (
+                            {item.rankChange === 'NEW' ? (
+                                <span className="flex items-center gap-1.5 text-[#00E5FF] animate-pulse-slow">
+                                    <span className="text-[12px]">★</span>
+                                    <span>NEW ENTRY</span>
+                                </span>
+                            ) : item.rankChange > 0 ? (
                                 <span className="flex items-center gap-1.5 text-[#00ccff] animate-pulse-slow">
                                     <span className="text-[12px]">▲</span>
                                     <span>RANK UP</span>
@@ -110,7 +115,7 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                                 <span className="flex items-center gap-1.5 text-white/30">
                                     <span className="text-[12px]">▼</span>
                                     <span>RANK DOWN</span>
-                                    <span className="font-mono text-[11px] ml-1">{item.rankChange}</span>
+                                    <span className="font-mono text-[11px] ml-1">{Math.abs(Number(item.rankChange))}</span>
                                 </span>
                             ) : (
                                 <span className="flex items-center gap-1.5 text-white/30">

@@ -2,6 +2,7 @@ import { Header } from '@/components/Header';
 import { PageHeader } from '@/components/PageHeader';
 import { RankingList } from '@/components/RankingList';
 import { getRankingData } from '@/lib/api';
+import Link from 'next/link';
 
 export default async function Home() {
   const data = await getRankingData();
@@ -25,6 +26,18 @@ export default async function Home() {
               Updated daily
             </p>
             <div className="h-px w-8 bg-white/20" />
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 pt-8">
+            <Link href="/methodology" className="text-[10px] tracking-[0.2em] font-bold text-white/30 hover:text-white/70 transition-colors uppercase">
+              Methodology
+            </Link>
+            <Link href="/terms" className="text-[10px] tracking-[0.2em] font-bold text-white/30 hover:text-white/70 transition-colors uppercase">
+              Terms of Service
+            </Link>
+            <Link href="/privacy" className="text-[10px] tracking-[0.2em] font-bold text-white/30 hover:text-white/70 transition-colors uppercase">
+              Privacy Policy
+            </Link>
           </div>
         </div>
       </footer>

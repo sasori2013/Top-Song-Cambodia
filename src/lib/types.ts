@@ -16,7 +16,7 @@ export interface RankingItem {
     publishedAt?: string;
     aiScore?: number;
     aiInsight?: string;
-    rankChange?: number;
+    rankChange?: number | 'NEW';
     genre?: string;
     visualConcept?: string;
 }
