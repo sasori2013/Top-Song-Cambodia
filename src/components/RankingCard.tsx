@@ -129,6 +129,21 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                     )}
                 </div>
 
+                {/* AI Insight Box */}
+                {item.aiInsight && item.aiInsight !== '-' && (
+                    <div className="w-full px-4 mb-4 z-20">
+                        <div className="relative border border-[#00E5FF]/20 bg-black/60 backdrop-blur-sm rounded px-3 py-2 text-left">
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <span className="text-[9px] font-bold text-[#00E5FF] tracking-widest uppercase animate-pulse-slow">
+                                    AI Insight
+                                </span>
+                            </div>
+                            <p className="text-[10px] md:text-xs text-white/80 leading-relaxed font-light">
+                                {item.aiInsight}
+                            </p>
+                        </div>
+                    </div>
+                )}
 
                 <HeatScore
                     rank={undefined}

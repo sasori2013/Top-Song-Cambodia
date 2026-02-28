@@ -58,7 +58,9 @@ function getMockData(): RankingResponse {
             thumbnail: "https://img.youtube.com/vi/uv4JKlL1o84/maxresdefault.jpg",
             url: "https://www.youtube.com/watch?v=uv4JKlL1o84",
             history: [1100000, 1150000, 1180000, 1220000, 1250000, 1300000, 1330000],
-            publishedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() // 2 days ago
+            publishedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
+            aiInsight: "VANNDA's latest track dominates with unprecedented energy and a visually stunning neon aesthetic, captivating a massive audience.",
+            shortInsight: "High energy hip-hop with strong neon visuals."
         },
         {
             rank: 2,
