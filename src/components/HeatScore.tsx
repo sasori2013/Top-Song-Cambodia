@@ -94,7 +94,7 @@ export const HeatScore: React.FC<HeatScoreProps> = ({
                         className={`${isLg ? 'text-[12px]' : 'text-[9px]'} font-bold opacity-90`}
                         style={{ color }}
                     >
-                        HEAT POINT *
+                        HEAT POINT <span className="text-[1.4em] leading-none align-middle ml-0.5">*</span>
                     </span>
                 </div>
 

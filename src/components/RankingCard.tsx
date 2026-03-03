@@ -145,15 +145,15 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                     </div>
                     <div className="flex items-center gap-2 md:gap-4 border-t border-white/5 pt-2 w-full justify-center max-w-[200px]">
                         <div className="flex flex-col items-center">
-                            <span className="text-[7px] md:text-[8px] text-white/40 font-bold uppercase tracking-widest leading-none">VEL *</span>
+                            <span className="text-[7px] md:text-[8px] text-white/40 font-bold uppercase tracking-widest leading-none flex items-center gap-0.5">VEL <span className="text-[1.6em] leading-none select-none">*</span></span>
                             <span className="text-[9px] md:text-[11px] text-white/60 font-mono">+{item.growth}%</span>
                         </div>
                         <div className="flex flex-col items-center">
-                            <span className="text-[7px] md:text-[8px] text-white/40 font-bold uppercase tracking-widest leading-none">RCT *</span>
+                            <span className="text-[7px] md:text-[8px] text-white/40 font-bold uppercase tracking-widest leading-none flex items-center gap-0.5">RCT <span className="text-[1.6em] leading-none select-none">*</span></span>
                             <span className="text-[9px] md:text-[11px] text-white/60 font-mono">{item.engagement}%</span>
                         </div>
                         <div className="flex flex-col items-center">
-                            <span className="text-[7px] md:text-[8px] text-white/40 font-bold uppercase tracking-widest leading-none">DAY *</span>
+                            <span className="text-[7px] md:text-[8px] text-white/40 font-bold uppercase tracking-widest leading-none flex items-center gap-0.5">DAY <span className="text-[1.6em] leading-none select-none">*</span></span>
                             <span className="text-[9px] md:text-[11px] text-white/60 font-mono">{item.dailyViews > 1000 ? (item.dailyViews / 1000).toFixed(1) + 'K' : item.dailyViews}</span>
                         </div>
                     </div>
