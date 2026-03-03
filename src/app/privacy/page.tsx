@@ -42,6 +42,17 @@ export default function PrivacyPolicyPage() {
                             <li>
                                 <strong className="text-white/90">Storage:</strong> To maintain a historical index of Cambodian music, data is stored for up to 90 days before being archived or refreshed.
                             </li>
+                            <li>
+                                <strong className="text-white/90">Data Processing and Sharing (Internal & External):</strong>
+                                <div className="mt-2 space-y-2">
+                                    <p>
+                                        <strong className="text-white/90">Internal Processing:</strong> Collected data (YouTube metrics and external social engagement) is processed using AI models (Google Vertex AI/Gemini) to calculate proprietary market insights. This processing is performed internally to generate the &quot;Heat Point&quot; index.
+                                    </p>
+                                    <p>
+                                        <strong className="text-white/90">External Sharing:</strong> We do not sell or share raw user data or API data with any third-party marketing entities. The processed results (rankings and scores) are shared publicly on this website for cultural and historical archiving purposes.
+                                    </p>
+                                </div>
+                            </li>
                         </ul>
                     </section>
 
