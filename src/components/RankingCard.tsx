@@ -145,11 +145,11 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                     </div>
                     <div className="flex items-center gap-2 md:gap-4 border-t border-white/5 pt-2 w-full justify-center max-w-[200px]">
                         <div className="flex flex-col items-center">
-                            <span className="text-[5px] md:text-[6px] text-white/20 font-bold uppercase tracking-widest">VEL</span>
+                            <span className="text-[5px] md:text-[6px] text-white/20 font-bold uppercase tracking-widest">VEL *</span>
                             <span className="text-[9px] md:text-[11px] text-white/60 font-mono">+{item.growth}%</span>
                         </div>
                         <div className="flex flex-col items-center">
-                            <span className="text-[5px] md:text-[6px] text-white/20 font-bold uppercase tracking-widest">RCT</span>
+                            <span className="text-[5px] md:text-[6px] text-white/20 font-bold uppercase tracking-widest">RCT *</span>
                             <span className="text-[9px] md:text-[11px] text-white/60 font-mono">{item.engagement}%</span>
                         </div>
                         <div className="flex flex-col items-center">

@@ -103,7 +103,7 @@ export const HeatScore: React.FC<HeatScoreProps> = ({
                             repeatDelay: 3,
                         }}
                     >
-                        HEAT POINT
+                        HEAT POINT *
                     </motion.span>
                 </div>
 
