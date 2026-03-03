@@ -90,21 +90,12 @@ export const HeatScore: React.FC<HeatScoreProps> = ({
                     <span className={`${isLg ? 'text-4xl' : 'text-xl'} font-extralight text-white tracking-tighter tabular-nums`}>
                         {displayScore.toFixed(displayScore > 99 ? 0 : 1)}
                     </span>
-                    <motion.span
-                        className={`${isLg ? 'text-[10px]' : 'text-[7px]'} font-normal opacity-80`}
+                    <span
+                        className={`${isLg ? 'text-[12px]' : 'text-[9px]'} font-bold opacity-90`}
                         style={{ color }}
-                        animate={disableAnimation ? {} : {
-                            opacity: [1, 0.5, 1],
-                            skewX: [0, 10, -10, 0],
-                        }}
-                        transition={{
-                            duration: 0.2,
-                            repeat: Infinity,
-                            repeatDelay: 3,
-                        }}
                     >
                         HEAT POINT *
-                    </motion.span>
+                    </span>
                 </div>
 
                 {/* Underline pulse */}

@@ -23,8 +23,8 @@ export const RankingList: React.FC<RankingListProps> = ({ items }) => {
                 ))}
             </div>
 
-            <div className="mt-32 max-w-4xl mx-auto text-center">
-                <p className="text-[10px] md:text-xs text-white/30 leading-relaxed font-light tracking-wide px-4">
+            <div className="mt-40 max-w-4xl mx-auto text-center border-t border-white/5 pt-12">
+                <p className="text-[11px] md:text-[13px] text-white/50 leading-relaxed font-normal tracking-wide px-6">
                     Disclaimer: HEAT Point, VEL, and RCT are proprietary metrics independently calculated by HEAT using an AI-driven intelligence layer. These indices integrate public data from YouTube, Facebook, and TikTok to provide a comprehensive analysis of the Cambodian music market. These metrics are independent of, and do not replace, the official analytics provided by YouTube or any other platform.
                 </p>
             </div>
