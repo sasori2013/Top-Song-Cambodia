@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.32",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
     "@types/three": "^0.182.0",
@@ -16,6 +17,7 @@
     "dotenv": "^17.3.1",
     "form-data": "^4.0.5",
     "framer-motion": "^12.34.0",
+    "googleapis": "^171.4.0",
     "lucide-react": "^0.563.0",
     "next": "16.1.6",
     "node-fetch": "^3.3.2",
