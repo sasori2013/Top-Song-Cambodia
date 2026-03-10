@@ -343,7 +343,7 @@ export const NotificationPanel = ({ notification, onRemove }: NotificationPanelP
 
   const playHoverSound = () => {
     const audio = new Audio('/sound/se01.mp3');
-    audio.volume = 0.6;
+    audio.volume = 0.3;
     audio.play().catch(() => {});
   };
 
