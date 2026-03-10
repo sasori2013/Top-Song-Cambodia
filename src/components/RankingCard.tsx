@@ -93,9 +93,16 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                 <h3 className="text-xs md:text-sm lg:text-base font-black text-white line-clamp-1 px-1 tracking-tight">
                     {item.artist}
                 </h3>
-                <p className="text-[10px] md:text-xs text-white/50 line-clamp-1 px-2 mb-1">
-                    {cleanedTitle}
-                </p>
+                <a
+                    href={item.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline transition-all duration-300"
+                >
+                    <p className="text-[10px] md:text-xs text-white/50 group-hover/link:text-white/80 line-clamp-1 px-2 mb-1">
+                        {cleanedTitle}
+                    </p>
+                </a>
                 {/* Rank Change Status - Smart Integrated Design */}
                 <div className="mb-3 h-6 flex items-center justify-center">
                     {item.rankChange !== undefined ? (
