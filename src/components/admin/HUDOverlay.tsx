@@ -358,13 +358,13 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
 
         {notifications.length > 5 && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="mt-2 bg-black/60 backdrop-blur-md border border-white/20 px-3 py-1.5 rounded-full text-[10px] font-bold text-white/50 tracking-[0.2em] uppercase shadow-lg flex items-center gap-2"
+            className="mt-2 text-[9px] font-black text-white/30 tracking-[0.3em] uppercase flex items-center gap-2 pr-1"
           >
-            <div className="w-1 h-1 rounded-full bg-blue-500 animate-pulse" />
-            Remaining :: {notifications.length - 5} Events IN QUEUE
+            <div className="w-1 h-1 rounded-full bg-white/20 animate-pulse" />
+            + {notifications.length - 5} Events IN QUEUE
           </motion.div>
         )}
       </motion.div>
