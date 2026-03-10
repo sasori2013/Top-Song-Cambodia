@@ -128,7 +128,23 @@ interface HUDOverlayProps {
 const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, onToggleGuiInvert, onToggleCameraMode }: HUDOverlayProps) => {
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
+  const [dismissedIds, setDismissedIds] = React.useState<Set<string>>(new Set());
   const [micLevels, setMicLevels] = React.useState<number[]>(Array(20).fill(20));
+
+  // Load dismissed IDs on mount
+  React.useEffect(() => {
+    const saved = localStorage.getItem('hud_dismissed_notifications');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setDismissedIds(new Set(parsed));
+        }
+      } catch (e) {
+        console.error("Failed to parse dismissed notifications:", e);
+      }
+    }
+  }, []);
   const [resourceUsage, setResourceUsage] = React.useState({
     youtubeQuota: 74.2,
     geminiUsage: 42.8,
@@ -225,7 +241,9 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
         const res = await fetch('/api/admin/logs');
         const data = await res.json();
         if (data.logs && data.logs.length > 0) {
-          setNotifications(data.logs);
+          // Filter out dismissed ones
+          const filtered = data.logs.filter((log: any) => !dismissedIds.has(log.id));
+          setNotifications(filtered);
         }
       } catch (err) {
         console.error("Failed to fetch logs:", err);
@@ -394,7 +412,16 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
             <NotificationPanel 
               key={notif.id} 
               notification={notif} 
-              onRemove={(id) => setNotifications(prev => prev.filter(n => n.id !== id))}
+              onRemove={(id) => {
+                setNotifications(prev => prev.filter(n => n.id !== id));
+                // Persist dismissal
+                setDismissedIds(prevSet => {
+                  const next = new Set(prevSet);
+                  next.add(id);
+                  localStorage.setItem('hud_dismissed_notifications', JSON.stringify(Array.from(next)));
+                  return next;
+                });
+              }}
             />
           ))}
         </AnimatePresence>

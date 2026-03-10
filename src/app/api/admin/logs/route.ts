@@ -28,6 +28,11 @@ export async function GET() {
     const recentLogs: NotificationItem[] = [];
     const MAX_LOGS_TO_RETURN = 20;
 
+    // Get "today" in UTC+7 (Phnom Penh) or just server Local
+    const nowLocal = new Date();
+    // Simple date string for comparison "YYYY-MM-DD"
+    const todayStr = nowLocal.toLocaleDateString('en-CA'); // 'en-CA' gives YYYY-MM-DD
+
     for (let i = allRows.length - 1; i >= 1; i--) {
       const row = allRows[i];
       if (!row || row.length < 2) continue;
@@ -36,6 +41,22 @@ export async function GET() {
       const message = row[1] ? row[1].toString().trim() : '';
       
       if (!message) continue;
+
+      // Date filtering: Only keep today's logs
+      let logDate = new Date();
+      if (timestampStr) {
+        const parsed = new Date(timestampStr);
+        if (!isNaN(parsed.getTime())) {
+          logDate = parsed;
+        }
+      }
+
+      const logDayStr = logDate.toLocaleDateString('en-CA');
+      if (logDayStr !== todayStr) {
+        // Since we process from newest to oldest, once we hit a different day, we can stop
+        // unless the spreadsheet is out of order (unlikely for a log)
+        break; 
+      }
 
       // Filter: We ONLY want messages that are meant for Telegram (they start with emojis usually)
       // Main.js sends: ✅, ❌, ⚠️, 🏐, etc.
