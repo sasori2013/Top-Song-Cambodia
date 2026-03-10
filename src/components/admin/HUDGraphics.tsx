@@ -461,7 +461,7 @@ export const BlinkingIndicator = ({ label = "TX/RX", color = "#000", interval = 
   }, [interval]);
 
   return (
-    <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest" style={{ color }}>
+    <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-black">
       <div 
         className={`w-1.5 h-1.5 rounded-sm transition-opacity duration-75 ${isVisible ? 'opacity-100' : 'opacity-20'}`} 
         style={{ backgroundColor: color }} 

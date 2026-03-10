@@ -409,16 +409,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
           </motion.div>
         )}
       </motion.div>
-      {/* Settings Button */}
-      <div className="fixed right-12 bottom-[100px] z-[200] pointer-events-auto">
-        <button 
-          onClick={() => setSettingsOpen(true)}
-          className="bg-black/80 text-white font-mono text-[10px] uppercase tracking-[0.3em] px-3 py-1.5 border border-white/20 hover:bg-black transition-colors shadow-2xl flex items-center gap-2"
-        >
-          <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-          [ SYS.SETTINGS ]
-        </button>
-      </div>
+
 
       <AnimatePresence>
         {settingsOpen && (
