@@ -93,7 +93,9 @@ const MartianBranding = ({ className = "" }: { className?: string }) => (
       <TypewriterText text="AUTH :: ADMIN" delay={0.03} />
     </div>
     <div className="text-2xl font-black tracking-wider text-black leading-none uppercase">KENICHIRO TAKAMATSU</div>
-    <div className="text-[10px] tracking-[0.5em] text-black opacity-60 mt-0.5">FOUNDER OF THE HEAT // ROOT ACCESS GRANTED</div>
+    <div className="hidden [@media(min-height:801px)]:block text-[10px] tracking-[0.5em] text-black opacity-60 mt-0.5">
+      FOUNDER OF THE HEAT // ROOT ACCESS GRANTED
+    </div>
   </div>
 );
 
@@ -256,7 +258,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
 
       <div className="absolute left-1/2 -translate-x-1/2 top-12 flex flex-col items-center z-50 w-full pointer-events-none">
         <img src="/heat-logo.png" alt=".HEAT Logo" className="object-contain opacity-90" style={{ filter: 'brightness(0)', height: '17px' }} />
-        <div className="hidden [@media(max-height:800px)]:flex flex-col items-center mt-8 w-full">
+        <div className="hidden [@media(max-height:800px)]:flex flex-col items-center mt-1 w-full scale-90 origin-top">
           <MartianBranding className="items-center text-center" />
         </div>
       </div>
@@ -305,7 +307,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
         </div>
 
         <div className="flex-1 flex justify-end">
-           <div className="flex flex-col items-end gap-1 text-right text-[15px] font-bold text-black uppercase tracking-[0.2em] leading-relaxed">
+           <div className="flex flex-col items-end gap-1 text-right text-[15px] font-bold text-black uppercase tracking-[0.2em] leading-relaxed -mt-6">
               <div suppressHydrationWarning className="flex gap-6 tabular-nums">
                 <span>{time?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true })}</span>
                 <span>
