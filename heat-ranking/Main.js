@@ -984,15 +984,42 @@ function debugFetchLatestFbPosts() {
 }
 
 /**
- * DEBUG: List all active triggers
+ * API使用量を記録するシステム
+ * @param {string} service "YouTube" | "Gemini"
+ * @param {number} usedAmount 消費したクォータまたはトークン数
  */
-function debugListTriggers() {
-    const triggers = ScriptApp.getProjectTriggers();
-    const list = triggers.map(t => ({
-        handler: t.getHandlerFunction(),
-        eventType: t.getEventType().toString(),
-        id: t.getUniqueId()
-    }));
-    console.log(JSON.stringify(list, null, 2));
+function updateApiUsage_(service, usedAmount) {
+    try {
+        const ss = SpreadsheetApp.getActiveSpreadsheet();
+        let sh = ss.getSheetByName('SYS_USAGE');
+        if (!sh) {
+            sh = ss.insertSheet('SYS_USAGE');
+            sh.appendRow(['Service', 'Current', 'Max', 'TokenCount']);
+            sh.appendRow(['YouTube', 0, 10000, 0]);
+            sh.appendRow(['Gemini', 0, 1500, 0]); // 1500 RPD for free tier
+        }
+        
+        const data = sh.getDataRange().getValues();
+        let rowIndex = -1;
+        for (let i = 1; i < data.length; i++) {
+            if (data[i][0] === service) {
+                rowIndex = i + 1;
+                break;
+            }
+        }
+        
+        if (rowIndex !== -1) {
+            const current = Number(data[rowIndex-1][1]) || 0;
+            const currentToken = Number(data[rowIndex-1][3]) || 0;
+            
+            if (service === 'YouTube') {
+                sh.getRange(rowIndex, 2).setValue(current + usedAmount);
+            } else if (service === 'Gemini') {
+                sh.getRange(rowIndex, 2).setValue(current + 1); // 1 request
+                sh.getRange(rowIndex, 4).setValue(currentToken + usedAmount); // add tokens
+            }
+        }
+    } catch (e) {
+        console.error("Failed to update API usage: " + e.message);
+    }
 }
-// force push

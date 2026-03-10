@@ -97,6 +97,7 @@ function updateSongs() {
     let needsSearchFallback = false;
     try {
       const chanRes = YouTube.Channels.list('contentDetails', { id: t.channelId });
+      updateApiUsage_('YouTube', 1); // 1 unit
       if (chanRes && chanRes.items && chanRes.items.length > 0) {
         const uploadsPlaylistId = chanRes.items[0].contentDetails.relatedPlaylists.uploads;
         if (!uploadsPlaylistId) {
@@ -106,6 +107,7 @@ function updateSongs() {
             playlistId: uploadsPlaylistId,
             maxResults: 30
           });
+          updateApiUsage_('YouTube', 1); // PlaylistItems.list cost 1 unit
           if (plist && plist.items) {
             plist.items.forEach(it => videoIds.push(it.contentDetails.videoId));
           }
@@ -131,6 +133,7 @@ function updateSongs() {
           order: 'date',
           maxResults: 5
         });
+        updateApiUsage_('YouTube', 100); // Search.list cost 100 units
         if (searchRes && searchRes.items) {
           searchRes.items.forEach(it => {
             if (it.id && it.id.videoId) videoIds.push(it.id.videoId);
@@ -269,6 +272,7 @@ function processVideoIds_(ids, artistInfo, shS, existingSet, forceIgnoreFilters 
     id: ids.join(','),
     maxResults: ids.length
   });
+  updateApiUsage_('YouTube', 1); // 1 unit
 
   const toAppend = [];
   const vitems = (vids && vids.items) ? vids.items : [];
@@ -1100,6 +1104,14 @@ function callGeminiApi_(prompt) {
         logToSheet_("Gemini API Error: Unexpected response structure : " + resText);
         return null;
       }
+      
+      // トークン使用量の記録
+      if (resJson.usageMetadata && resJson.usageMetadata.totalTokenCount) {
+        updateApiUsage_('Gemini', resJson.usageMetadata.totalTokenCount);
+      } else {
+        updateApiUsage_('Gemini', 0); // Count request even if tokens missing
+      }
+      
       return resJson.candidates[0].content.parts[0].text;
     }
 
@@ -1264,6 +1276,7 @@ function fetchComments_(videoId) {
       if (nextPageToken) options.pageToken = nextPageToken;
 
       const res = YouTube.CommentThreads.list('snippet', options);
+      updateApiUsage_('YouTube', 1); // 1 unit
       if (!res || !res.items || res.items.length === 0) break;
 
       res.items.forEach(it => {

@@ -14,6 +14,7 @@ import {
   NotificationPanel,
   SmoothWaveVisualizer,
   FaceTargetCircle,
+  ResourceMonitor,
   type NotificationItem
 } from './HUDGraphics';
 
@@ -120,6 +121,28 @@ interface HUDOverlayProps {
 const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
   const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
   const [micLevels, setMicLevels] = React.useState<number[]>(Array(20).fill(20));
+  const [resourceUsage, setResourceUsage] = React.useState({
+    youtubeQuota: 74.2,
+    geminiUsage: 42.8,
+    tokenCount: 28401
+  });
+
+  // Fetch usage data periodically
+  const fetchUsage = async () => {
+    try {
+      const res = await fetch('/api/admin/usage');
+      const data = await res.json();
+      if (data && !data.error) {
+        setResourceUsage({
+          youtubeQuota: data.youtube.percentage,
+          geminiUsage: data.gemini.percentage,
+          tokenCount: data.gemini.tokenCount
+        });
+      }
+    } catch (e) {
+      console.error("Failed to fetch usage:", e);
+    }
+  };
 
   // Initialize notifications on mount to avoid hydration mismatch from Date.now()
   React.useEffect(() => {
@@ -130,6 +153,10 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
       { id: 'log4', type: 'expired', message: 'TRACK_EXPIRED: 3 entries removed.', timestamp: new Date(Date.now() - 14400000) },
       { id: 'log5', type: 'warning', message: 'High latency detected during GAS synchronization.', timestamp: new Date(Date.now() - 18000000) }
     ]);
+    
+    fetchUsage();
+    const interval = setInterval(fetchUsage, 60000); // Update every minute
+    return () => clearInterval(interval);
   }, []);
 
   // Microphone Audio Analyzer
@@ -298,12 +325,20 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
     <>
       {renderBaseLayout(isFaceDetected, rectData)}
       <motion.div 
-        className="fixed left-12 z-[200] flex flex-col gap-1 pointer-events-none"
+        className="fixed left-12 z-[200] flex flex-col gap-8 pointer-events-none"
         style={{ top: '50%', transform: 'translateY(-50%)' }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
+        <div className="mb-4">
+           <ResourceMonitor 
+             youtubeQuota={resourceUsage.youtubeQuota} 
+             geminiUsage={resourceUsage.geminiUsage} 
+             tokenCount={resourceUsage.tokenCount} 
+           />
+        </div>
+
         <div className="flex flex-col gap-3 relative z-10 transition-all duration-500">
            <MetricWithCircle 
              title="Production" 
