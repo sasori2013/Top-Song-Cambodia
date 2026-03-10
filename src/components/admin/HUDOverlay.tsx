@@ -12,6 +12,7 @@ import {
   BlinkingIndicator, 
   MillisecondTimer, 
   NotificationPanel,
+  SmoothWaveVisualizer,
   type NotificationItem
 } from './HUDGraphics';
 
@@ -84,7 +85,7 @@ const MetricWithCircle = ({ title, value, circleLabel, rotationDuration, dashArr
 );
 
 const MartianBranding = () => (
-  <div className="flex flex-col gap-0 border-black mt-4">
+  <div className="flex flex-col gap-0 border-black mt-1">
     <div className="text-xs font-bold tracking-[0.3em] uppercase text-black mb-1 opacity-70">
       <TypewriterText text="AUTH :: ADMIN" delay={0.03} />
     </div>
@@ -279,7 +280,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
                 <BlinkingIndicator label="RX/TX" color="#000" interval={600} />
               </div>
               <div className="text-[8px] opacity-40 uppercase tracking-widest text-black mt-3">REAL-TIME DB SYNC // AUDIO ACTIVE</div>
-              <BarGraph bars={20} height={20} width={280} color="#000" heights={micLevels} />
+              <SmoothWaveVisualizer width={280} height={40} color="#000" levels={micLevels} />
             </div>
           </div>
         </div>

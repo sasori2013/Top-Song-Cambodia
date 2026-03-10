@@ -67,6 +67,78 @@ export const BarGraph = React.memo(({ width = 100, height = 60, bars = 10, color
 
 BarGraph.displayName = 'BarGraph';
 
+interface SmoothWaveVisualizerProps {
+  width?: number | string;
+  height?: number | string;
+  color?: string;
+  levels?: number[];
+}
+
+export const SmoothWaveVisualizer = React.memo(({ width = 280, height = 50, color = "#000", levels }: SmoothWaveVisualizerProps) => {
+  const [phase, setPhase] = React.useState(0);
+  const w = typeof width === 'number' ? width : 280;
+  const h = typeof height === 'number' ? height : 50;
+  
+  React.useEffect(() => {
+    let frame: number;
+    const animate = () => {
+      setPhase(p => p + 0.08);
+      frame = requestAnimationFrame(animate);
+    };
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  const avgLevel = levels ? levels.reduce((a, b) => a + b, 0) / levels.length : 0;
+  // Master amplitude: small "breathing" base + dynamic audio part
+  const baseAmplitude = h * 0.2;
+  const dynamicAmplitude = (avgLevel / 100) * (h * 0.5);
+  const amplitude = baseAmplitude + dynamicAmplitude;
+
+  const generateWavePath = (phaseOffset: number, frequency: number, ampScale: number) => {
+    const points = [];
+    const step = 3; // Finer steps for smoother lines
+    const midY = h / 2;
+    
+    for (let x = 0; x <= w; x += step) {
+      // Bell curve envelope to pin ends to zero
+      const envelope = Math.pow(Math.sin((x / w) * Math.PI), 2);
+      const y = midY + Math.sin(x * frequency + phase + phaseOffset) * amplitude * ampScale * envelope;
+      points.push(`${x},${y}`);
+    }
+    return `M ${points.join(' L ')}`;
+  };
+
+  return (
+    <div className="relative opacity-80 overflow-visible" style={{ width, height }}>
+      <svg width={width} height={height} viewBox={`0 0 ${w} ${h}`} className="overflow-visible">
+        {/* We draw 15 layers of thin lines to create that "thread" effect from the image */}
+        {Array.from({ length: 15 }).map((_, i) => {
+          const shift = i * 0.2;
+          const freq = 0.02 + (i * 0.001);
+          const opacity = 0.9 - (i * 0.04);
+          const scale = 1.0 - (i * 0.03);
+          
+          return (
+            <motion.path
+              key={i}
+              d={generateWavePath(shift, freq, scale)}
+              fill="none"
+              stroke={color}
+              strokeWidth="0.8"
+              opacity={opacity}
+              transition={{ type: "tween", ease: "linear" }}
+            />
+          );
+        })}
+      </svg>
+    </div>
+  );
+});
+
+SmoothWaveVisualizer.displayName = 'SmoothWaveVisualizer';
+
+
 interface DotGridProps {
   rows?: number;
   cols?: number;
