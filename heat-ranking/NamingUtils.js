@@ -99,12 +99,28 @@ function cleanupNaming() {
     // 原本データなので、ここでは明らかな付加情報の削除に留める
     if (shS) {
         const data = shS.getDataRange().getValues();
+        const formulas = shS.getDataRange().getFormulas();
+        
         for (let i = 1; i < data.length; i++) {
+            const videoId = String(data[i][0] || "").trim(); // videoId is col 1
             const artist = String(data[i][1] || "").trim(); // artist is col 2
-            const originalTitle = String(data[i][2] || "").trim(); // title is col 3
+            const originalTitle = String(data[i][2] || "").trim(); // displayed title
+            const originalFormula = formulas[i][2]; // col 3 formula
+            
             const cleanedTitle = cleanSongTitle(originalTitle, artist);
 
-            if (originalTitle && originalTitle !== cleanedTitle) {
+            // 全曲タイトルにリンクを張る方針なので、常にHYPERLINK数式を作成
+            if (videoId && cleanedTitle) {
+                const videoUrl = "https://www.youtube.com/watch?v=" + videoId;
+                const targetFormula = `=HYPERLINK("${videoUrl}", "${cleanedTitle.replace(/"/g, '""')}")`;
+                
+                // 数式が変わった場合、または元が数式でなかった場合に更新
+                if (originalFormula !== targetFormula) {
+                    shS.getRange(i + 1, 3).setFormula(targetFormula);
+                    songCleanCount++;
+                }
+            } else if (originalTitle && originalTitle !== cleanedTitle) {
+                // videoIdがない場合のフォールバック（通常はないはず）
                 shS.getRange(i + 1, 3).setValue(cleanedTitle);
                 songCleanCount++;
             }

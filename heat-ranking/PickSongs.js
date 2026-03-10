@@ -317,7 +317,10 @@ function processVideoIds_(ids, artistInfo, shS, existingSet, forceIgnoreFilters 
     }
 
     // 合格（原本データ保護のため、SONGSシートにはクリーンアップせずそのまま保存）
-    toAppend.push([v.id, artistInfo.name, title, publishedAt]);
+    // 曲名にYouTubeへのハイパーリンクを付与 (スプレッドシート上)
+    const videoUrl = "https://www.youtube.com/watch?v=" + v.id;
+    const linkedTitle = '=HYPERLINK("' + videoUrl + '", "' + title.replace(/"/g, '""') + '")';
+    toAppend.push([v.id, artistInfo.name, linkedTitle, publishedAt]);
     Logger.log(`✅ MATCHED: [${title}]`);
   }
 
