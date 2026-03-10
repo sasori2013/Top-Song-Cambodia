@@ -343,8 +343,14 @@ export const NotificationPanel = ({ notification, onRemove }: NotificationPanelP
 
   const playHoverSound = () => {
     const audio = new Audio('/sound/se01.mp3');
-    audio.volume = 0.4;
-    audio.play().catch(() => {}); // Ignore errors if browser blocks autoplay
+    audio.volume = 0.6;
+    audio.play().catch(() => {});
+  };
+
+  const playDeleteSound = () => {
+    const audio = new Audio('/sound/delete.mp3');
+    audio.volume = 0.5;
+    audio.play().catch(() => {});
   };
 
   return (
@@ -361,7 +367,10 @@ export const NotificationPanel = ({ notification, onRemove }: NotificationPanelP
         zIndex: 50,
         transition: { duration: 0.2, ease: "easeOut" } 
       }}
-      onClick={() => onRemove?.(notification.id)}
+      onClick={() => {
+        playDeleteSound();
+        onRemove?.(notification.id);
+      }}
       transition={{ 
         type: "spring", 
         stiffness: 300, 
