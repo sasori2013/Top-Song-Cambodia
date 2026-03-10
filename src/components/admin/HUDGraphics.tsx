@@ -75,11 +75,13 @@ interface SmoothWaveVisualizerProps {
 }
 
 export const SmoothWaveVisualizer = React.memo(({ width = 280, height = 50, color = "#000", levels }: SmoothWaveVisualizerProps) => {
+  const [mounted, setMounted] = React.useState(false);
   const [phase, setPhase] = React.useState(0);
   const w = typeof width === 'number' ? width : 280;
   const h = typeof height === 'number' ? height : 50;
   
   React.useEffect(() => {
+    setMounted(true);
     let frame: number;
     const animate = () => {
       setPhase(p => p + 0.08);
@@ -88,6 +90,8 @@ export const SmoothWaveVisualizer = React.memo(({ width = 280, height = 50, colo
     frame = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(frame);
   }, []);
+
+  if (!mounted) return <div style={{ width, height }} />;
 
   const avgLevel = levels ? levels.reduce((a, b) => a + b, 0) / levels.length : 0;
   // Master amplitude: small "breathing" base + dynamic audio part
@@ -139,9 +143,11 @@ export const SmoothWaveVisualizer = React.memo(({ width = 280, height = 50, colo
 SmoothWaveVisualizer.displayName = 'SmoothWaveVisualizer';
 
 export const FaceTargetCircle = React.memo(({ size = 200, color = "#000", levels }: { size?: number | string, color?: string, levels?: number[] }) => {
+  const [mounted, setMounted] = React.useState(false);
   const [targetRotate, setTargetRotate] = React.useState(0);
   
   React.useEffect(() => {
+    setMounted(true);
     // Periodically pick a new random rotation target to feel "alive"
     const interval = setInterval(() => {
       const change = (Math.random() - 0.5) * 120; // Rotate up to 60 deg either way
@@ -150,6 +156,8 @@ export const FaceTargetCircle = React.memo(({ size = 200, color = "#000", levels
     
     return () => clearInterval(interval);
   }, []);
+
+  if (!mounted) return null;
 
   return (
     <motion.div 
@@ -558,7 +566,7 @@ export const NotificationPanel = ({ notification, onRemove }: NotificationPanelP
         <div className={`text-[10px] font-bold uppercase tracking-[0.2em] ${colors.text}`}>
           SYS_EVENT :: {notification.type}
         </div>
-        <div className="text-[10px] opacity-40 font-mono text-white/50">
+        <div suppressHydrationWarning className="text-[10px] opacity-40 font-mono text-white/50">
           {new Date(notification.timestamp).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
         </div>
       </div>
@@ -602,7 +610,10 @@ export const SparklineTrend = ({
   value = "+12.4%", 
   details 
 }: SparklineTrendProps) => {
-  if (!data || data.length === 0) return null;
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+
+  if (!mounted || !data || data.length === 0) return null;
 
   const min = Math.min(...data);
   const max = Math.max(...data);

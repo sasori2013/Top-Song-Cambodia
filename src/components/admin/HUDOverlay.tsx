@@ -118,14 +118,19 @@ interface HUDOverlayProps {
 }
 
 const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
-  const [notifications, setNotifications] = React.useState<NotificationItem[]>([
-    { id: 'log1', type: 'success', message: 'FB_POST: Successfully published daily ranking schedule.', timestamp: new Date(Date.now() - 3600000) },
-    { id: 'log2', type: 'info', message: 'System diagnostic cycle complete.', timestamp: new Date(Date.now() - 7200000) },
-    { id: 'log3', type: 'success', message: 'TRACK_ADD: New release detected and indexed.', timestamp: new Date(Date.now() - 10800000) },
-    { id: 'log4', type: 'expired', message: 'TRACK_EXPIRED: 3 entries removed.', timestamp: new Date(Date.now() - 14400000) },
-    { id: 'log5', type: 'warning', message: 'High latency detected during GAS synchronization.', timestamp: new Date(Date.now() - 18000000) }
-  ]);
+  const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
   const [micLevels, setMicLevels] = React.useState<number[]>(Array(20).fill(20));
+
+  // Initialize notifications on mount to avoid hydration mismatch from Date.now()
+  React.useEffect(() => {
+    setNotifications([
+      { id: 'log1', type: 'success', message: 'FB_POST: Successfully published daily ranking schedule.', timestamp: new Date(Date.now() - 3600000) },
+      { id: 'log2', type: 'info', message: 'System diagnostic cycle complete.', timestamp: new Date(Date.now() - 7200000) },
+      { id: 'log3', type: 'success', message: 'TRACK_ADD: New release detected and indexed.', timestamp: new Date(Date.now() - 10800000) },
+      { id: 'log4', type: 'expired', message: 'TRACK_EXPIRED: 3 entries removed.', timestamp: new Date(Date.now() - 14400000) },
+      { id: 'log5', type: 'warning', message: 'High latency detected during GAS synchronization.', timestamp: new Date(Date.now() - 18000000) }
+    ]);
+  }, []);
 
   // Microphone Audio Analyzer
   React.useEffect(() => {
