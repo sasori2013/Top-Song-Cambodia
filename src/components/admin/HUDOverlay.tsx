@@ -13,6 +13,7 @@ import {
   MillisecondTimer, 
   NotificationPanel,
   SmoothWaveVisualizer,
+  FaceTargetCircle,
   type NotificationItem
 } from './HUDGraphics';
 
@@ -220,19 +221,20 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
       {showFaceBox && rect && (
         <motion.div
             animate={{
-              left: `${rect.left}%`,
-              top: `${rect.top}%`,
-              width: `${rect.width}%`,
-              height: `${rect.height}%`,
-              opacity: 0.3
+              left: `${rect.left + rect.width / 2}%`,
+              top: `${rect.top + rect.height / 2}%`,
+              opacity: 1
             }}
-            transition={{ type: 'spring', damping: 30, stiffness: 200 }}
-            className="absolute"
+            transition={{ type: 'spring', damping: 35, stiffness: 150 }}
+            className="absolute -translate-x-1/2 -translate-y-1/2"
           >
-            <div className="absolute -top-5 left-0 text-[8px] text-black uppercase tracking-widest">USER SCAN LOCKED</div>
-            <div className="absolute -bottom-5 right-0 text-[8px] text-black uppercase tracking-widest">ENTRIES: {sheetData.totalEntries}</div>
-            <div className="absolute top-0 left-0 w-3 h-3 border-t border-l border-black" />
-            <div className="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-black" />
+            <FaceTargetCircle size={Math.max(rect.width, rect.height) * 12} color="#000" />
+            <div className="absolute -top-12 left-1/2 -translate-x-1/2 text-[8px] text-black uppercase tracking-[0.4em] whitespace-nowrap opacity-60 bg-white/20 px-2 py-0.5 backdrop-blur-sm">
+              USER_SCAN_LOCKED // ID: {sheetData.totalEntries}
+            </div>
+            {/* Minimal corner markers still existing but outside the circle */}
+            <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-black opacity-20 -translate-x-8 -translate-y-8" />
+            <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-black opacity-20 translate-x-8 translate-y-8" />
           </motion.div>
       )}
 

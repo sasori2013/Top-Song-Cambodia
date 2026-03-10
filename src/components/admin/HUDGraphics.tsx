@@ -138,6 +138,111 @@ export const SmoothWaveVisualizer = React.memo(({ width = 280, height = 50, colo
 
 SmoothWaveVisualizer.displayName = 'SmoothWaveVisualizer';
 
+export const FaceTargetCircle = React.memo(({ size = 200, color = "#000" }: { size?: number | string, color?: string }) => {
+  const [targetRotate, setTargetRotate] = React.useState(0);
+  
+  React.useEffect(() => {
+    // Periodically pick a new random rotation target to feel "alive"
+    const interval = setInterval(() => {
+      const change = (Math.random() - 0.5) * 120; // Rotate up to 60 deg either way
+      setTargetRotate(prev => prev + change);
+    }, 2000 + Math.random() * 3000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <motion.div 
+      style={{ width: size, height: size }}
+      className="relative flex items-center justify-center pointer-events-none"
+      initial={{ scale: 0, opacity: 0 }}
+      animate={{ 
+        scale: 1, 
+        opacity: 0.8,
+        rotate: targetRotate,
+      }}
+      transition={{
+        scale: { type: "spring", damping: 20 },
+        opacity: { duration: 0.5 },
+        rotate: {
+          duration: 2.5,
+          ease: "easeInOut"
+        }
+      }}
+    >
+      <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
+        {/* Living pulse effect */}
+        <motion.circle 
+          cx="50" cy="50" r="40" 
+          fill="none" stroke={color} 
+          strokeWidth="0.5" opacity="0.1"
+          animate={{ r: [39, 41, 39], opacity: [0.1, 0.2, 0.1] }}
+          transition={{ duration: 4, repeat: Infinity }}
+        />
+
+        {/* Reticle ticks */}
+        {Array.from({ length: 80 }).map((_, i) => {
+          const angle = (i * 360) / 80;
+          let length = 1.5;
+          let strokeWidth = 0.5;
+          let show = true;
+
+          // Top long marker (12 o'clock)
+          if (i === 0) {
+            length = 15;
+            strokeWidth = 1.5;
+          }
+          // Right dash (3 o'clock)
+          else if (i === 20) {
+            length = 6;
+            strokeWidth = 3;
+          }
+          // Bottom-left heavy indices (around 7-8 o'clock)
+          else if (i === 55 || i === 57) {
+            length = 12;
+            strokeWidth = 2;
+          }
+          // Secondary markers
+          else if (i % 10 === 0) {
+            length = 4;
+            strokeWidth = 1;
+          }
+          // Randomly hide some to look "broken/tech"
+          else if (i % 3 === 0 && (i < 15 || i > 65)) {
+            show = false;
+          }
+
+          if (!show) return null;
+
+          return (
+            <line 
+              key={i}
+              x1="50" y1={50 - 45}
+              x2="50" y2={50 - 45 - length}
+              stroke={color}
+              strokeWidth={strokeWidth}
+              transform={`rotate(${angle} 50 50)`}
+              opacity={i % 2 === 0 ? 0.8 : 0.4}
+            />
+          );
+        })}
+
+        {/* Small corner accents internally */}
+        <path d="M 35 50 L 30 50 M 65 50 L 70 50" stroke={color} strokeWidth="0.5" opacity="0.3" />
+        <path d="M 50 35 L 50 30 M 50 65 L 50 70" stroke={color} strokeWidth="0.5" opacity="0.3" />
+      </svg>
+      
+      {/* Additional jittering outer ring */}
+      <motion.div 
+        className="absolute inset-0 border border-black opacity-10 rounded-full"
+        animate={{ scale: [1, 1.02, 0.98, 1], opacity: [0.1, 0.15, 0.05, 0.1] }}
+        transition={{ duration: 0.1, repeat: Infinity, repeatDelay: Math.random() * 2 }}
+      />
+    </motion.div>
+  );
+});
+
+FaceTargetCircle.displayName = 'FaceTargetCircle';
 
 interface DotGridProps {
   rows?: number;
