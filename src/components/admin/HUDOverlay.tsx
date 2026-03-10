@@ -15,6 +15,7 @@ import {
   SmoothWaveVisualizer,
   FaceTargetCircle,
   ResourceMonitor,
+  TechBracket,
   type NotificationItem
 } from './HUDGraphics';
 

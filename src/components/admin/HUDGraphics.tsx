@@ -428,14 +428,14 @@ export const ScanlineOverlay = () => (
   </div>
 );
 
-export const TechBracket = ({ position = "top-left", size = 12 }: { position?: string, size?: number }) => {
+export const TechBracket = ({ position = "top-left", size = 12, color }: { position?: string, size?: number, color?: string }) => {
   const styles: any = {
     "top-left": "top-0 left-0 border-t-2 border-l-2",
     "top-right": "top-0 right-0 border-t-2 border-r-2",
     "bottom-left": "bottom-0 left-0 border-b-2 border-l-2",
     "bottom-right": "bottom-0 right-0 border-b-2 border-r-2"
   };
-  return <div className={`absolute ${styles[position]} border-black/30`} style={{ width: size, height: size }} />;
+  return <div className={`absolute ${styles[position]} ${!color ? 'border-black/30' : ''}`} style={{ width: size, height: size, ...(color ? { borderColor: color } : {}) }} />;
 };
 
 export const BitStrip = ({ count = 8 }: { count?: number }) => (
