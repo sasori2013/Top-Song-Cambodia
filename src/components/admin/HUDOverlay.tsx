@@ -228,7 +228,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
             transition={{ type: 'spring', damping: 35, stiffness: 150 }}
             className="absolute -translate-x-1/2 -translate-y-1/2"
           >
-            <FaceTargetCircle size={Math.max(rect.width, rect.height) * 12} color="#000" />
+            <FaceTargetCircle size={Math.max(rect.width, rect.height) * 12} color="#000" levels={micLevels} />
             <div className="absolute -top-12 left-1/2 -translate-x-1/2 text-[8px] text-black uppercase tracking-[0.4em] whitespace-nowrap opacity-60 bg-white/20 px-2 py-0.5 backdrop-blur-sm">
               USER_SCAN_LOCKED // ID: {sheetData.totalEntries}
             </div>

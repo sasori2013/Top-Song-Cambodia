@@ -138,7 +138,7 @@ export const SmoothWaveVisualizer = React.memo(({ width = 280, height = 50, colo
 
 SmoothWaveVisualizer.displayName = 'SmoothWaveVisualizer';
 
-export const FaceTargetCircle = React.memo(({ size = 200, color = "#000" }: { size?: number | string, color?: string }) => {
+export const FaceTargetCircle = React.memo(({ size = 200, color = "#000", levels }: { size?: number | string, color?: string, levels?: number[] }) => {
   const [targetRotate, setTargetRotate] = React.useState(0);
   
   React.useEffect(() => {
@@ -158,58 +158,55 @@ export const FaceTargetCircle = React.memo(({ size = 200, color = "#000" }: { si
       initial={{ scale: 0, opacity: 0 }}
       animate={{ 
         scale: 1, 
-        opacity: 0.8,
+        opacity: 0.4,
         rotate: targetRotate,
       }}
       transition={{
         scale: { type: "spring", damping: 20 },
-        opacity: { duration: 0.5 },
+        opacity: { duration: 0.8 },
         rotate: {
-          duration: 2.5,
+          duration: 3.5,
           ease: "easeInOut"
         }
       }}
     >
       <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
-        {/* Living pulse effect */}
-        <motion.circle 
-          cx="50" cy="50" r="40" 
-          fill="none" stroke={color} 
-          strokeWidth="0.5" opacity="0.1"
-          animate={{ r: [39, 41, 39], opacity: [0.1, 0.2, 0.1] }}
-          transition={{ duration: 4, repeat: Infinity }}
-        />
+        {/* Subtle base circle */}
+        <circle cx="50" cy="50" r="42" fill="none" stroke={color} strokeWidth="0.5" opacity="0.05" />
 
-        {/* Reticle ticks */}
-        {Array.from({ length: 80 }).map((_, i) => {
-          const angle = (i * 360) / 80;
-          let length = 1.5;
+        {/* Simplified reticle ticks */}
+        {Array.from({ length: 60 }).map((_, i) => {
+          const angle = (i * 360) / 60;
+          let length = 1;
           let strokeWidth = 0.5;
-          let show = true;
+          let show = false;
 
-          // Top long marker (12 o'clock)
-          if (i === 0) {
-            length = 15;
-            strokeWidth = 1.5;
-          }
-          // Right dash (3 o'clock)
-          else if (i === 20) {
-            length = 6;
-            strokeWidth = 3;
-          }
-          // Bottom-left heavy indices (around 7-8 o'clock)
-          else if (i === 55 || i === 57) {
-            length = 12;
-            strokeWidth = 2;
-          }
-          // Secondary markers
-          else if (i % 10 === 0) {
-            length = 4;
+          // Audio reactivity for all ticks
+          const micIndex = i % (levels?.length || 1);
+          const micValue = levels ? levels[micIndex] : 0;
+          const audioLength = (micValue / 100) * 15;
+
+          // Only show specific key markers for a cleaner look
+          if (i === 0) { // Top
+            length = 10 + audioLength * 0.5;
             strokeWidth = 1;
-          }
-          // Randomly hide some to look "broken/tech"
-          else if (i % 3 === 0 && (i < 15 || i > 65)) {
-            show = false;
+            show = true;
+          } else if (i === 15) { // Right
+            length = 4 + audioLength;
+            strokeWidth = 2;
+            show = true;
+          } else if (i === 42 || i === 44) { // Bottom-left style
+            length = 8 + audioLength * 0.3;
+            strokeWidth = 1;
+            show = true;
+          } else if (i % 5 === 0) { // Every 30 degrees (thin ticks)
+            length = 2 + audioLength;
+            strokeWidth = 0.5;
+            show = true;
+          } else if (micValue > 15) { // Dynamic ticks based on sound
+            length = audioLength * 0.8;
+            strokeWidth = 0.3;
+            show = true;
           }
 
           if (!show) return null;
@@ -222,21 +219,21 @@ export const FaceTargetCircle = React.memo(({ size = 200, color = "#000" }: { si
               stroke={color}
               strokeWidth={strokeWidth}
               transform={`rotate(${angle} 50 50)`}
-              opacity={i % 2 === 0 ? 0.8 : 0.4}
+              opacity={micValue > 15 ? (micValue / 100) * 0.8 : 0.6}
             />
           );
         })}
 
-        {/* Small corner accents internally */}
-        <path d="M 35 50 L 30 50 M 65 50 L 70 50" stroke={color} strokeWidth="0.5" opacity="0.3" />
-        <path d="M 50 35 L 50 30 M 50 65 L 50 70" stroke={color} strokeWidth="0.5" opacity="0.3" />
+        {/* Minimal center indicators */}
+        <line x1="48" y1="50" x2="52" y2="50" stroke={color} strokeWidth="0.5" opacity="0.1" />
+        <line x1="50" y1="48" x2="50" y2="52" stroke={color} strokeWidth="0.5" opacity="0.1" />
       </svg>
       
-      {/* Additional jittering outer ring */}
+      {/* Very subtle breathing outer glow */}
       <motion.div 
-        className="absolute inset-0 border border-black opacity-10 rounded-full"
-        animate={{ scale: [1, 1.02, 0.98, 1], opacity: [0.1, 0.15, 0.05, 0.1] }}
-        transition={{ duration: 0.1, repeat: Infinity, repeatDelay: Math.random() * 2 }}
+        className="absolute inset-0 border border-black opacity-5 rounded-full"
+        animate={{ scale: [1, 1.05, 1], opacity: [0.03, 0.08, 0.03] }}
+        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
       />
     </motion.div>
   );
