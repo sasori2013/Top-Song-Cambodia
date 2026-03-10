@@ -277,7 +277,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
       )}
 
       <div className="flex justify-between items-start">
-        <div className="p-4 w-auto">
+        <div className="w-auto">
           <div className="flex flex-col gap-0.5 relative">
             <div className="absolute -top-3 left-0">
                <BlinkingIndicator label="DB.SYNC" color="#000" interval={1200} />
@@ -297,7 +297,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
           </div>
         </div>
 
-        <div className="flex-1 flex justify-end px-8 pt-6">
+        <div className="flex-1 flex justify-end">
            <div className="flex flex-col items-end gap-1 text-right text-[15px] font-bold text-black uppercase tracking-[0.2em] leading-relaxed">
               <div suppressHydrationWarning className="flex gap-6 tabular-nums">
                 <span>{time?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true })}</span>
@@ -370,15 +370,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
            />
         </div>
       </motion.div>
-      <motion.div 
-        className="fixed right-12 bottom-12 z-[200] pointer-events-none text-base font-bold text-black tracking-[0.3em] uppercase opacity-80"
-        animate={{ 
-          opacity: [0.3, 0.8, 0.3] 
-        }}
-        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-      >
-        SYSTEM MONITORING // <span className="opacity-50">TRACKING ACTIVE</span>
-      </motion.div>
+
 
       {/* RHS Notifications Area */}
       <motion.div 
