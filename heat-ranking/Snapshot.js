@@ -90,7 +90,7 @@ function snapshotStats() {
 
   // 取得不可だった動画があればTelegramへ通知
   if (missingVideos.length > 0) {
-    let msg = `⚠️ 【警告】YouTubeから取得できない動画が ${missingVideos.length} 件ありました。\n` +
+    let msg = `【警告】YouTubeから取得できない動画が ${missingVideos.length} 件ありました。\n` +
       `※削除されたか非公開になった可能性があります。\n\n`;
     missingVideos.forEach(v => {
       msg += `- ${v.title}\n  https://youtu.be/${v.id}\n`;

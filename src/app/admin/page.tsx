@@ -8,7 +8,7 @@ import '../admin.css';
 
 export default function AdminPage() {
   const [faceData, setFaceData] = useState(null);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [sheetData, setSheetData] = useState({
     totalProduction: 0,
     totalArtist: 0,
@@ -72,7 +72,7 @@ export default function AdminPage() {
       setSheetData(data);
     };
     loadData();
-    const interval = setInterval(loadData, 10000);
+    const interval = setInterval(loadData, 3600000); // Once per hour
     return () => clearInterval(interval);
   }, []);
 

@@ -334,7 +334,7 @@ const TG_CONFIG = {
  * テスト用: Telegram通知を今すぐテスト
  */
 function testTelegramNotification() {
-    sendTelegramNotification_('🏐 【テスト】YouTubeランキング通知テスト\n\nこのメッセージが届けば設定は完璧です！');
+    sendTelegramNotification_('テスト: YouTubeランキング通知テスト\n\nこのメッセージが届けば設定は完璧です！');
 }
 
 /**
@@ -346,13 +346,13 @@ function autoGenerateFridayRanking() {
         autoGenerateWeeklyRanking();
 
         // 2. 通知 (Telegram)
-        sendTelegramNotification_('✅ 【完了】今週のランキング(候補)が生成されました\n\n' +
+        sendTelegramNotification_('完了: 今週のランキング(候補)が生成されました\n\n' +
             '今週のランキング候補（Top 15）の自動生成が完了しました。\n' +
             'スプレッドシートを開いて確認し、Top 10を確定させた後、脚本生成を実行してください。');
 
         Logger.log('Friday Auto Ranking Done.');
     } catch (e) {
-        sendTelegramNotification_('⚠️ 【エラー】YouTubeランキング自動作成中\n\nエラー内容:\n' + e.toString());
+        sendTelegramNotification_('エラー: YouTubeランキング自動作成中\n\nエラー内容:\n' + e.toString());
     }
 }
 
@@ -391,13 +391,14 @@ function sendTelegramNotification_(text) {
  * Facebook への自動投稿を一括実行
  */
 function autoPostToFacebook() {
-    logToSheet_('【実行】autoPostToFacebook 開始');
+    logToSheet_('実行: autoPostToFacebook 開始');
     const PAGE_ID = '971418716059046';
     const props = PropertiesService.getScriptProperties();
     const token = props.getProperty('FB_ACCESS_TOKEN');
 
     if (!token) {
-        sendTelegramNotification_('❌ 【エラー】FB投稿失敗: アクセストークンが未設定です。');
+        logToSheet_('FB_POST: エラー - アクセストークンが未設定です');
+        sendTelegramNotification_('エラー: FB投稿失敗: アクセストークンが未設定です。');
         return;
     }
 
@@ -430,7 +431,7 @@ function autoPostToFacebook() {
             `insight=${encodeURIComponent(r1.shortInsight || '')}`,
             `date=${encodeURIComponent(dateStr)}`
         ].join('&');
-        logToSheet_('Uploading Rank 1 photo...');
+        logToSheet_('FB_POST: Rank 1 photo upload starting...');
         photoIds.push(uploadPhotoToFb_(r1Url, PAGE_ID, token));
 
         // 1.2 Multi images (2-4, 5-7, 8-10)
@@ -444,7 +445,7 @@ function autoPostToFacebook() {
             }));
             if (items.length > 0) {
                 const multiUrl = `${baseUrl}?template=multi&items=${encodeURIComponent(JSON.stringify(items))}&date=${encodeURIComponent(dateStr)}`;
-                logToSheet_(`Uploading Multi photo ${i + 1}/3...`);
+                logToSheet_(`FB_POST: Multi photo ${i + 1}/3 uploading...`);
                 photoIds.push(uploadPhotoToFb_(multiUrl, PAGE_ID, token));
             }
         }
@@ -455,10 +456,10 @@ function autoPostToFacebook() {
         // 英語のAIインサイトを組み込む
         let insightText = '';
         if (r1.aiInsight && r1.aiInsight !== '-') {
-            insightText = `\n\n🤖 HEAT AI Insight:\n${r1.aiInsight}`;
+            insightText = `\n\nHEAT AI Insight:\n${r1.aiInsight}`;
         }
 
-        const message = `HEAT (BETA) - Cambodia Daily Ranking\n${dateStr}\n\n👑 #1 ${r1.artist} – ${r1.title}\n🔥 ${Math.round(r1.heatScore)} HEAT POINT (${r1MessageChange})${insightText}\n\n👉 Full Top 20 ranking in the first comment 👇`;
+        const message = `HEAT (BETA) - Cambodia Daily Ranking\n${dateStr}\n\n#1 ${r1.artist} – ${r1.title}\n${Math.round(r1.heatScore)} HEAT POINT (${r1MessageChange})${insightText}\n\nFull Top 20 ranking in the first comment`;
 
         const feedUrl = `https://graph.facebook.com/v19.0/${PAGE_ID}/feed`;
         const payload = {
@@ -471,13 +472,13 @@ function autoPostToFacebook() {
             payload[`attached_media[${i}]`] = JSON.stringify({ media_fbid: id });
         });
 
-        logToSheet_('Sending feed post request...');
+        logToSheet_('FB_POST: Sending final feed post with attached media...');
         const res = UrlFetchApp.fetch(feedUrl, {
             method: 'post',
             payload: payload,
             muteHttpExceptions: true
         });
-        logToSheet_(`Feed post result: ${res.getResponseCode()} - ${res.getContentText().substring(0, 100)}`);
+        logToSheet_(`FB_POST: Feed post result: ${res.getResponseCode()}`);
 
         const postCode = res.getResponseCode();
         const postBody = res.getContentText();
@@ -540,7 +541,8 @@ function autoPostToFacebook() {
         }
 
         // 4. Telegram 通知
-        sendTelegramNotification_(`✅ 【成功】Facebookへの自動投稿が完了しました！\n日付: ${dateStr}\n#1: ${r1.artist}`);
+        logToSheet_(`FB_POST: Successfully published daily ranking schedule for ${r1.artist}`);
+        sendTelegramNotification_(`【成功】Facebookへの自動投稿が完了しました！\n日付: ${dateStr}\n#1: ${r1.artist}`);
 
     } catch (e) {
         console.error(e);
@@ -548,7 +550,7 @@ function autoPostToFacebook() {
         if (e.message.includes('code 403')) {
             errorMsg = "Facebook permission error (403). The token might be missing 'pages_manage_posts' or 'pages_read_engagement' scopes.";
         }
-        sendTelegramNotification_(`❌ 【エラー】Facebook自動投稿に失敗しました。\nエラー: ${errorMsg}`);
+        sendTelegramNotification_(`【エラー】Facebook自動投稿に失敗しました。\nエラー: ${errorMsg}`);
     }
 }
 

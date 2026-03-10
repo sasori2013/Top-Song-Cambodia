@@ -177,19 +177,20 @@ function updateSongs() {
   const skippedCount = artists.length - 1 - total; // 無名/IDなし
 
   // [変更] 新曲がなくても常に通知を送るように変更（ユーザーの要望）
-  let msg = `📊 【報告】YouTubeデータ更新完了\n\n`;
-  msg += `✨ 新規追加: ${addedCount} 曲\n`;
-  msg += `🗑️ 期限切れ削除: ${deletedCount} 曲\n\n`;
-  msg += `✅ 正常処理: ${successCount} 名\n`;
+  let msg = `【報告】YouTubeデータ更新完了\n\n`;
+  msg += `新規追加: ${addedCount} 曲\n`;
+  msg += `期限切れ削除: ${deletedCount} 曲\n\n`;
+  msg += `正常処理: ${successCount} 名\n`;
 
-  if (failures.length > 0) msg += `❌ 失敗: ${failures.length} 名\n`;
-  if (skippedCount > 0) msg += `⏭️ IDなし(スキップ): ${skippedCount} 名\n`;
+  if (failures.length > 0) msg += `失敗: ${failures.length} 名\n`;
+  if (skippedCount > 0) msg += `IDなし(スキップ): ${skippedCount} 名\n`;
 
   if (failures.length > 0) {
     msg += `\n【失敗リスト】\n- ` + failures.join('\n- ');
   }
 
   msg += `\n\n最新の状況をスプレッドシートで確認してください。`;
+  logToSheet_(`SYNC: Update cycle completed. Added: ${addedCount}, Deleted: ${deletedCount}`);
   sendTelegramNotification_(msg);
 
   Logger.log(`Update cycle completed. Added: ${addedCount}, Deleted: ${deletedCount}, Success: ${successCount}/${total}`);
@@ -1284,3 +1285,6 @@ function fetchComments_(videoId) {
     return "";
   }
 }
+
+// System Initialization Log
+logToSheet_('SYSTEM: Notification log recording pushed and active from ' + new Date().toLocaleString());

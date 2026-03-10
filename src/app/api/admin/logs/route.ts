@@ -26,7 +26,7 @@ export async function GET() {
 
     // Process from the bottom (newest) to top
     const recentLogs: NotificationItem[] = [];
-    const MAX_LOGS_TO_RETURN = 5;
+    const MAX_LOGS_TO_RETURN = 20;
 
     for (let i = allRows.length - 1; i >= 1; i--) {
       const row = allRows[i];
@@ -47,31 +47,41 @@ export async function GET() {
         message.includes('❌') || 
         message.includes('⚠️') || 
         message.includes('🏐') ||
+        message.includes('📊') ||
+        message.includes('🚀') ||
+        message.includes('【実行】') ||
+        message.includes('【完了】') ||
+        message.includes('【成功】') ||
+        message.includes('FB_POST') ||
         message.includes('TRACK_ADD') ||
         message.includes('TRACK_EXPIRED') ||
-        message.includes('System check');
+        message.includes('SYNC') ||
+        message.includes('System check') ||
+        message.includes('DATABASE');
 
       if (!isImportant) {
         continue;
       }
 
-      if (message.includes('❌') || message.includes('エラー')) {
+      if (message.includes('❌') || message.includes('エラー') || message.includes('FAILURE')) {
         type = 'error';
-      } else if (message.includes('✅') || message.includes('成功') || message.includes('TRACK_ADD')) {
+      } else if (message.includes('✅') || message.includes('成功') || message.includes('TRACK_ADD') || message.includes('【完了】')) {
         type = 'success';
-      } else if (message.includes('⚠️') || message.includes('警告')) {
+      } else if (message.includes('⚠️') || message.includes('警告') || message.includes('WARNING')) {
         type = 'warning';
       } else if (message.includes('TRACK_EXPIRED')) {
         type = 'expired';
+      } else if (message.includes('【実行】') || message.includes('SYNC') || message.includes('🚀')) {
+        type = 'info';
       }
 
-      // Clean up the message (remove the prefixes to make it fit better on the HUD)
+      // Clean up the message (remove the prefixes and emojis to make it fit better on the HUD)
       let cleanMessage = message
-        .replace('✅ 【完了】', '')
-        .replace('✅ 【成功】', '')
-        .replace('❌ 【エラー】', '')
-        .replace('⚠️ 【エラー】', '')
-        .replace('🏐 【テスト】', 'TEST:')
+        .replace(/[\u{1F300}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '') // Remove emojis
+        .replace('【完了】', '')
+        .replace('【成功】', '')
+        .replace('【エラー】', '')
+        .replace('【テスト】', 'TEST:')
         .trim();
 
       // Only take the first few lines if it's very long

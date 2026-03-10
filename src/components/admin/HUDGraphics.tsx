@@ -205,12 +205,12 @@ interface DataStreamProps {
   opacity?: number;
 }
 
-export const DataStream = ({ color = "#000", opacity = 0.05 }: DataStreamProps) => {
+export const DataStream = ({ color = "#000", opacity = 0.08 }: DataStreamProps) => {
   const columns = 3;
   const rows = 15;
   
   const generateHex = () => Math.floor(Math.random() * 0xffffff).toString(16).toUpperCase().padStart(6, '0');
-  const generateID = () => `FETCHING_ID: ${Math.floor(Math.random() * 9000 + 1000)}`;
+  const generateID = () => `ID_${Math.floor(Math.random() * 9000 + 1000)}`;
 
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none select-none flex justify-around p-4" style={{ opacity }}>
@@ -233,6 +233,36 @@ export const DataStream = ({ color = "#000", opacity = 0.05 }: DataStreamProps) 
     </div>
   );
 };
+
+export const ScanlineOverlay = () => (
+  <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+    <div className="absolute inset-0 opacity-[0.05]" 
+         style={{ backgroundImage: 'linear-gradient(0deg, #000 1px, transparent 1px)', backgroundSize: '100% 4px' }} />
+    <motion.div 
+      animate={{ y: ['0%', '100%'] }}
+      transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+      className="absolute inset-x-0 h-[20%] bg-gradient-to-b from-transparent via-black/5 to-transparent opacity-20"
+    />
+  </div>
+);
+
+export const TechBracket = ({ position = "top-left", size = 12 }: { position?: string, size?: number }) => {
+  const styles: any = {
+    "top-left": "top-0 left-0 border-t-2 border-l-2",
+    "top-right": "top-0 right-0 border-t-2 border-r-2",
+    "bottom-left": "bottom-0 left-0 border-b-2 border-l-2",
+    "bottom-right": "bottom-0 right-0 border-b-2 border-r-2"
+  };
+  return <div className={`absolute ${styles[position]} border-black/30`} style={{ width: size, height: size }} />;
+};
+
+export const BitStrip = ({ count = 8 }: { count?: number }) => (
+  <div className="flex gap-1 opacity-20">
+    {Array.from({ length: count }).map((_, i) => (
+      <div key={i} className={`w-1 h-1 ${Math.random() > 0.5 ? 'bg-black' : 'bg-transparent border border-black/30'}`} />
+    ))}
+  </div>
+);
 // --- New Live Activity Components ---
 
 export const BlinkingIndicator = ({ label = "TX/RX", color = "#000", interval = 800 }) => {
@@ -295,9 +325,10 @@ export interface NotificationItem {
 
 interface NotificationPanelProps {
   notification: NotificationItem;
+  onRemove?: (id: string) => void;
 }
 
-export const NotificationPanel = ({ notification }: NotificationPanelProps) => {
+export const NotificationPanel = ({ notification, onRemove }: NotificationPanelProps) => {
   const getColors = (type: string) => {
     switch (type) {
       case 'error': return { border: 'border-red-500/50', glow: 'bg-red-500/10', text: 'text-red-400' };
@@ -312,22 +343,36 @@ export const NotificationPanel = ({ notification }: NotificationPanelProps) => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: 50, filter: 'blur(4px)' }}
+      layout
+      initial={{ opacity: 0, x: 50, filter: 'blur(10px)' }}
       animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
-      exit={{ opacity: 0, scale: 0.9, filter: 'blur(4px)' }}
-      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+      exit={{ opacity: 0, x: 100, scale: 0.95, filter: 'blur(5px)' }}
+      whileHover={{ 
+        scale: 1.1, 
+        x: -15,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        zIndex: 50,
+        transition: { duration: 0.2, ease: "easeOut" } 
+      }}
+      onClick={() => onRemove?.(notification.id)}
+      transition={{ 
+        type: "spring", 
+        stiffness: 300, 
+        damping: 30,
+        layout: { duration: 0.4, type: "spring", stiffness: 200, damping: 25 }
+      }}
       // Use Tailwind backdrop-blur for frosted glass effect
-      className={`relative w-80 p-3 mb-3 border backdrop-blur-md bg-black/40 ${colors.border} ${colors.glow} flex flex-col gap-1 overflow-hidden shrink-0`}
+      className={`relative w-[300px] p-3 mb-2.5 border backdrop-blur-md bg-black/40 ${colors.border} ${colors.glow} flex flex-col gap-1 overflow-hidden shrink-0 cursor-pointer pointer-events-auto shadow-2xl`}
     >
-      <div className="flex justify-between items-center px-1 border-b border-white/10 pb-1 mb-1">
-        <div className={`text-[10px] font-bold uppercase tracking-widest ${colors.text}`}>
+      <div className="flex justify-between items-center px-1 border-b border-white/5 pb-1.5 mb-1">
+        <div className={`text-[10px] font-bold uppercase tracking-[0.2em] ${colors.text}`}>
           SYS_EVENT :: {notification.type}
         </div>
-        <div className="text-[9px] opacity-40 font-mono text-white/60">
-          {notification.timestamp.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+        <div className="text-[10px] opacity-40 font-mono text-white/50">
+          {new Date(notification.timestamp).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
         </div>
       </div>
-      <div className="text-sm text-white/90 leading-snug px-1 py-0.5">
+      <div className="text-[13px] text-white/90 leading-tight px-1 py-0.5">
         {notification.message}
       </div>
       
@@ -337,5 +382,409 @@ export const NotificationPanel = ({ notification }: NotificationPanelProps) => {
       <div className="absolute bottom-0 left-0 w-2 h-2 border-b border-l border-white/30" />
       <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-white/30" />
     </motion.div>
+  );
+};
+// --- Sparkline Trend Graph Component ---
+
+export interface SparklineTrendProps {
+  data: number[];
+  projectionIndex?: number; // Index where the thick black line stops and thin gray starts
+  width?: number;
+  height?: number;
+  color?: string;
+  label?: string;
+  value?: string;
+  details?: {
+    views: number;
+    shares: number;
+    likes: number;
+    comments: number;
+  };
+}
+
+export const SparklineTrend = ({ 
+  data, 
+  projectionIndex = Math.floor(data.length * 0.6), 
+  width = 280, 
+  height = 60, 
+  color = "#000", 
+  label = "14-DAY ACTIVITY TREND", 
+  value = "+12.4%", 
+  details 
+}: SparklineTrendProps) => {
+  if (!data || data.length === 0) return null;
+
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+
+  // Helper to generate bezier curves
+  const generateCurve = (points: {x: number, y: number}[]) => {
+    if (points.length === 0) return "";
+    let path = `M ${points[0].x},${points[0].y}`;
+    for (let i = 0; i < points.length - 1; i++) {
+        const xMid = (points[i].x + points[i + 1].x) / 2;
+        path += ` C ${xMid},${points[i].y} ${xMid},${points[i + 1].y} ${points[i + 1].x},${points[i + 1].y}`;
+    }
+    return path;
+  };
+
+  const getPoints = (arr: number[], offsetIndex: number) => {
+    return arr.map((val, i) => {
+      const globalIndex = i + offsetIndex;
+      const x = (globalIndex / (data.length - 1)) * width;
+      const y = height - ((val - min) / range) * height;
+      return { x, y };
+    });
+  };
+
+  const pastData = data.slice(0, projectionIndex + 1);
+  const futureData = data.slice(projectionIndex);
+
+  const pastPoints = getPoints(pastData, 0);
+  const futurePoints = getPoints(futureData, projectionIndex);
+
+  const pastLinePath = generateCurve(pastPoints);
+  const futureLinePath = generateCurve(futurePoints);
+
+  const pastAreaPath = pastLinePath 
+    ? `${pastLinePath} L ${pastPoints[pastPoints.length - 1].x},${height} L 0,${height} Z`
+    : "";
+
+  return (
+    <div className="flex flex-col w-full font-mono relative group" style={{ width }}>
+      <ScanlineOverlay />
+      <TechBracket position="top-left" />
+      <TechBracket position="top-right" />
+      
+      <div className="flex justify-between items-end mb-6 pr-2 border-b-2 border-black/20 pb-3 relative z-10">
+        <div className="flex flex-col">
+          <div className="text-[9px] tracking-[0.4em] opacity-40 font-black mb-1">ANALYSIS_STRM // 0xAF42</div>
+          <div className="text-base tracking-[0.2em] font-black text-black uppercase" style={{ color }}>
+            <span className="opacity-30 mr-1">[</span>{label}<span className="opacity-30 ml-1">]</span>
+          </div>
+        </div>
+        <div className="flex flex-col items-end">
+          <BitStrip count={12} />
+          <div className="text-5xl font-black tracking-tighter tabular-nums text-black mt-1" style={{ color }}>{value}</div>
+        </div>
+      </div>
+      
+      <div className="relative mb-6 p-4 bg-white/5 rounded-sm overflow-hidden" style={{ width, height }}>
+        <svg width={width} height={height} className="absolute inset-0 overflow-visible z-10">
+          {/* Background Vertical Grid Lines */}
+          <line x1={width * 0.25} y1="0" x2={width * 0.25} y2={height} stroke={color} strokeWidth="1" strokeDasharray="3 4" opacity="0.1" />
+          <line x1={width * 0.5} y1="0" x2={width * 0.5} y2={height} stroke={color} strokeWidth="1" strokeDasharray="3 4" opacity="0.1" />
+          <line x1={width * 0.75} y1="0" x2={width * 0.75} y2={height} stroke={color} strokeWidth="1" strokeDasharray="3 4" opacity="0.1" />
+
+          {/* Past Area - Filled */}
+          {pastAreaPath && <path d={pastAreaPath} fill={color} opacity="0.1" />}
+
+          {/* Future Line - Thin and dim */}
+          {futureLinePath && (
+            <path
+              d={futureLinePath}
+              fill="none"
+              stroke={color}
+              strokeWidth="1.5"
+              className="opacity-20"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeDasharray="4 4"
+            />
+          )}
+
+          {/* Past Line - Thick and dark */}
+          {pastLinePath && (
+            <path
+              d={pastLinePath}
+              fill="none"
+              stroke={color}
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+
+          {/* SCANNING LINE */}
+          <motion.line
+            animate={{ x: [0, width] }}
+            transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+            y1="0"
+            y2={height}
+            stroke={color}
+            strokeWidth="2"
+            className="opacity-30"
+          />
+
+          {/* Current Value Dot */}
+          <circle
+            cx={width}
+            cy={height - ((data[data.length - 1] - min) / range) * height}
+            r="4"
+            fill={color}
+          />
+        </svg>
+      </div>
+
+      {details && (
+        <div className="flex flex-col w-full mt-4 relative z-10">
+          <div className="w-full h-1 bg-black/5 mb-6 flex justify-between">
+            <div className="h-full bg-black/40 w-1/3" />
+            <div className="text-[8px] -top-5 relative opacity-30 font-black tracking-widest">METRIC_CORRELATION_SYNC</div>
+          </div>
+          
+          <div className="grid grid-cols-4 gap-4 w-full pr-4">
+            {Object.entries(details).map(([key, val]: any) => (
+              <div key={key} className="flex flex-col gap-1.5 border-l border-black/10 pl-3">
+                <span className="text-[10px] uppercase tracking-[0.2em] text-black/40 font-black">
+                  {key.substring(0,3)}
+                </span>
+                <span className="text-xl font-mono tracking-tighter font-black text-black">
+                  {val.toLocaleString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="absolute bottom-2 right-2 text-[8px] opacity-20 font-black tracking-[0.5em]">SYSTEM_STABLE // 00.9s</div>
+    </div>
+  );
+};
+
+// --- Activity Heatmap Component ---
+
+export interface ActivityHeatmapProps {
+  days?: number;
+  color?: string;
+  label?: string;
+}
+
+export const ActivityHeatmap = ({ days = 30, color = "#000", label = "ACTIVITY DENSITY" }: ActivityHeatmapProps) => {
+  // Generate random activity data for the grid
+  const gridData = React.useMemo(() => {
+    return Array.from({ length: days }).map(() => Math.random());
+  }, [days]);
+
+  return (
+    <div className="flex flex-col gap-2 w-full">
+      <div className="text-xs uppercase tracking-[0.2em] font-bold opacity-70" style={{ color }}>{label}</div>
+      <div className="flex flex-wrap gap-1">
+        {gridData.map((val, i) => {
+          // Determine opacity based on random value simulating activity level
+          let opacity = 0.05; // Base (empty/low)
+          if (val > 0.8) opacity = 0.8;
+          else if (val > 0.5) opacity = 0.5;
+          else if (val > 0.2) opacity = 0.2;
+
+          return (
+            <motion.div
+              key={i}
+              className="w-4 h-4 rounded-sm"
+              style={{ backgroundColor: color, opacity }}
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity, scale: 1 }}
+              transition={{ delay: i * 0.02, duration: 0.5 }}
+              whileHover={{ scale: 1.5, opacity: 1, zIndex: 10 }}
+            />
+          );
+        })}
+      </div>
+      <div className="flex justify-between items-center mt-1 text-[9px] font-mono opacity-50 uppercase tracking-widest" style={{ color }}>
+        <span>T-{days} DAYS</span>
+        <span>CURRENT SYSTEM TIME</span>
+      </div>
+    </div>
+  );
+};
+
+// --- Data Stream Widget Component ---
+
+export interface DataStreamWidgetProps {
+  color?: string;
+  label?: string;
+  countLabel?: string;
+  baseCount?: number;
+}
+
+export const DataStreamWidget = ({ color = "#000", label = "RAW DB INGEST", countLabel = "TOTAL ENTRIES PROCESSED", baseCount = 14028491 }: DataStreamWidgetProps) => {
+  const [giantCount, setGiantCount] = React.useState(baseCount);
+
+  React.useEffect(() => {
+    setGiantCount(baseCount);
+  }, [baseCount]);
+
+  React.useEffect(() => {
+    // Aggressively increment the counter to look active
+    const interval = setInterval(() => {
+      setGiantCount(prev => prev + Math.floor(Math.random() * 47));
+    }, 70);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="flex flex-col gap-4 w-full h-full border-2 border-opacity-10 p-6 relative overflow-hidden group" style={{ borderColor: color }}>
+      <ScanlineOverlay />
+      <TechBracket position="top-left" />
+      <TechBracket position="top-right" />
+      
+      <div className="flex justify-between items-center relative z-20">
+        <div className="text-[10px] uppercase tracking-[0.3em] font-black text-black bg-white/20 backdrop-blur-[2px] px-2 py-1 rounded-sm shadow-sm" style={{ color }}>
+          <span className="opacity-30 mr-1">[</span>{label}<span className="opacity-30 ml-1">]</span>
+        </div>
+        <div className="flex items-center gap-2">
+           <div className="w-1.5 h-1.5 rounded-full bg-black animate-pulse opacity-40" />
+           <span className="text-[8px] font-black opacity-30 tracking-widest uppercase">STREAM_ACTIVE</span>
+        </div>
+      </div>
+      
+      {/* Massive Counter */}
+      <div className="flex flex-col relative z-20 my-auto bg-white/80 p-5 backdrop-blur-md rounded-sm shadow-xl border border-black/10 scale-95 origin-left">
+        <div className="flex justify-between items-center mb-2">
+          <div className="text-[9px] uppercase tracking-[0.2em] text-black font-black opacity-40" style={{ color }}>
+            {countLabel}
+          </div>
+          <BitStrip count={4} />
+        </div>
+        <div className="text-6xl font-black tracking-tighter tabular-nums text-black leading-none" style={{ color }}>
+          {giantCount.toLocaleString()}
+        </div>
+      </div>
+
+      {/* Falling Data Stream Background - Pushed down to avoid title overlap */}
+      <div className="absolute inset-x-0 bottom-0 top-14 pointer-events-none opacity-20 z-0" style={{ maskImage: 'linear-gradient(to bottom, transparent, black 5%, black 85%, transparent)' }}>
+         <DataStream color={color} opacity={1} />
+      </div>
+      <div className="absolute bottom-1 right-2 text-[7px] opacity-10 font-black tracking-[0.4em] uppercase">LINK_STATUS: STABLE_0xFF2A</div>
+    </div>
+  );
+};
+
+// --- Demographics Widget Component ---
+
+export const DemographicsWidget = ({ color = "#000", totalEntries = 0 }: { color?: string, totalEntries?: number }) => {
+  // Use totalEntries to add slight variations to the static percentages so they look dynamic
+  const baseMale = 58;
+  const variance = (totalEntries % 5) / 10;
+  const malePercent = (baseMale + variance).toFixed(1);
+  const femalePercent = (100 - (baseMale + variance)).toFixed(1);
+  return (
+    <div className="flex flex-col gap-8 w-full h-full border-2 border-opacity-10 p-8 rounded-sm relative overflow-hidden group" style={{ borderColor: color }}>
+      <ScanlineOverlay />
+      <TechBracket position="top-left" />
+      <TechBracket position="top-right" />
+      <div className="absolute inset-0 bg-current opacity-5 pointer-events-none" style={{ color }} />
+      
+      <div className="flex justify-between items-center border-b border-black/10 pb-2 relative z-10">
+        <div className="text-sm uppercase tracking-[0.2em] font-black text-black" style={{ color }}>
+          <span className="opacity-30 mr-1">[</span>AUDIENCE DEMOGRAPHICS<span className="opacity-30 ml-1">]</span>
+        </div>
+        <BitStrip count={6} />
+      </div>
+      
+      <div className="flex flex-col gap-10 relative z-10 mt-2">
+        <div className="flex justify-between items-end">
+          {/* Gender Breakdown */}
+          <div className="flex flex-col w-[45%]">
+            <div className="flex justify-between items-end mb-1">
+              <span className="text-[9px] tracking-[0.3em] text-black font-black opacity-40" style={{ color }}>GNDR_B_DN</span>
+              <span className="text-xs font-mono tracking-tighter font-black" style={{ color }}>58 / 42%</span>
+            </div>
+            <div className="h-1.5 w-full flex bg-black/5">
+              <div className="h-full opacity-90" style={{ width: '58%', backgroundColor: color }} />
+              <div className="h-full opacity-20" style={{ width: '42%', backgroundColor: color }} />
+            </div>
+          </div>
+
+          {/* Age breakdown */}
+          <div className="flex flex-col w-[45%]">
+            <div className="flex justify-between items-end mb-1">
+              <span className="text-[9px] tracking-[0.3em] text-black font-black opacity-40" style={{ color }}>AGE_18_24</span>
+              <span className="text-xs font-mono tracking-tighter font-black" style={{ color }}>42.5%</span>
+            </div>
+            <div className="h-1.5 w-full bg-black/5">
+              <div className="h-full opacity-80" style={{ width: '42.5%', backgroundColor: color }} />
+            </div>
+          </div>
+        </div>
+        
+        <div className="flex justify-between items-end">
+          <div className="flex flex-col w-[45%]">
+            <div className="flex justify-between items-end mb-1">
+              <span className="text-[9px] tracking-[0.3em] text-black font-black opacity-40" style={{ color }}>TRFC_SGST</span>
+              <span className="text-xs font-mono tracking-tighter font-black" style={{ color }}>64.2%</span>
+            </div>
+            <div className="h-1.5 w-full bg-black/5">
+              <div className="h-full opacity-90" style={{ width: '64.2%', backgroundColor: color }} />
+            </div>
+          </div>
+          
+          <div className="flex flex-col w-[45%]">
+            <div className="flex justify-between items-end mb-1">
+              <span className="text-[9px] tracking-[0.3em] text-black font-black opacity-40" style={{ color }}>AGE_25_34</span>
+              <span className="text-xs font-mono tracking-tighter font-black" style={{ color }}>31.8%</span>
+            </div>
+            <div className="h-1.5 w-full bg-black/5">
+              <div className="h-full opacity-50" style={{ width: '31.8%', backgroundColor: color }} />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="absolute bottom-2 right-2 text-[6px] opacity-10 font-black tracking-widest uppercase italic">Target_Region: Tokyo/Aichi/Osaka</div>
+    </div>
+  );
+};
+
+// --- Regional Data Widget Component ---
+
+export const RegionalDataWidget = ({ color = "#000", totalEntries = 0 }: { color?: string, totalEntries?: number }) => {
+  const baseDomestic = 82.4;
+  const variance = (totalEntries % 3) / 10;
+  const domestic = (baseDomestic + variance).toFixed(1);
+  const overseas = (100 - (baseDomestic + variance)).toFixed(1);
+
+  return (
+    <div className="flex flex-col justify-between gap-4 w-full h-full border-2 border-opacity-10 p-6 rounded-sm relative overflow-hidden group" style={{ borderColor: color }}>
+      <ScanlineOverlay />
+      <TechBracket position="top-left" />
+      <TechBracket position="bottom-right" />
+      <div className="absolute inset-0 bg-current opacity-5 pointer-events-none" style={{ color }} />
+      
+      <div className="flex justify-between items-center border-b border-black/10 pb-2 relative z-10">
+        <div className="text-sm uppercase tracking-[0.2em] font-black text-black" style={{ color }}>
+          <span className="opacity-30 mr-1">[</span>REGIONAL REACH<span className="opacity-30 ml-1">]</span>
+        </div>
+        <BitStrip count={8} />
+      </div>
+
+      <div className="flex flex-col gap-6 relative z-10 my-auto">
+        <div className="flex items-end justify-between border-l-4 border-black/40 pl-4 py-2 bg-white/5 relative">
+          <div className="absolute -left-1 top-0 w-1 h-3 bg-black/60" />
+          <div className="flex flex-col">
+            <span className="text-[9px] tracking-[0.4em] font-black opacity-40 uppercase">DOMESTIC_LOCAL</span>
+            <div className="text-5xl font-black tracking-tighter tabular-nums leading-none mt-1">
+              {domestic}<span className="text-xl opacity-30 ml-1 font-mono">%</span>
+            </div>
+          </div>
+          <div className="text-[8px] font-mono font-black opacity-20 text-right uppercase tracking-widest">
+            NODE_SYNC_A1<br/>STABLE_LINK
+          </div>
+        </div>
+
+        <div className="flex items-end justify-between border-l-4 border-black/10 pl-4 py-2 opacity-70">
+          <div className="flex flex-col">
+            <span className="text-[9px] tracking-[0.4em] font-black opacity-40 uppercase">OVERSEAS_RELAY</span>
+            <div className="text-4xl font-black tracking-tighter tabular-nums leading-none mt-1">
+              {overseas}<span className="text-xl opacity-30 ml-1 font-mono">%</span>
+            </div>
+          </div>
+          <div className="text-[8px] font-mono font-black opacity-10 text-right uppercase tracking-widest">
+            GLOBAL_EXT<br/>RT_PENDING
+          </div>
+        </div>
+      </div>
+      <div className="absolute bottom-1 left-2 text-[7px] opacity-20 font-black tracking-[0.6em] uppercase italic">SIGNAL: SAT_X_98.2</div>
+    </div>
   );
 };

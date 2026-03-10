@@ -3,7 +3,17 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { AnimatePresence } from 'framer-motion';
-import { BarGraph, DotGrid, MetricCircle, AnimatedCounter, TypewriterText, BlinkingIndicator, MillisecondTimer, NotificationPanel, NotificationItem } from './HUDGraphics';
+import { 
+  BarGraph, 
+  DotGrid, 
+  MetricCircle, 
+  AnimatedCounter, 
+  TypewriterText, 
+  BlinkingIndicator, 
+  MillisecondTimer, 
+  NotificationPanel,
+  type NotificationItem
+} from './HUDGraphics';
 
 interface TelemetryBlockProps {
   title: string;
@@ -17,7 +27,7 @@ const TelemetryBlock = ({ title, value, sub, align = "left" }: TelemetryBlockPro
     <div className="text-[9px] opacity-40 tracking-widest mb-1">
       {title.toUpperCase().replace(/_/g, ' ')}
     </div>
-    <div className="text-xl font-bold leading-none uppercase text-black">
+    <div className="text-xl font-bold leading-none uppercase text-black" suppressHydrationWarning>
       {value}{sub ? ` - ${sub}` : ""}
     </div>
   </div>
@@ -30,23 +40,44 @@ interface MetricWithCircleProps {
   rotationDuration: string;
   dashArray: string;
   glowOnUpdate?: boolean;
+  increase?: number;
+  subMetrics?: { label: string; value: number | string }[];
 }
 
-const MetricWithCircle = ({ title, value, circleLabel, rotationDuration, dashArray, glowOnUpdate = false }: MetricWithCircleProps) => (
-  <div className="flex flex-col items-start uppercase">
-    <div className="text-sm font-bold text-black tracking-widest mb-2">
+const MetricWithCircle = ({ title, value, circleLabel, rotationDuration, dashArray, glowOnUpdate = false, increase, subMetrics }: MetricWithCircleProps) => (
+  <div className="flex flex-col items-start uppercase w-[240px] py-0.5">
+    <div className="text-[11px] font-black text-black tracking-[0.2em] mb-1 flex items-center gap-2">
       {title.toUpperCase()}
+      {increase !== undefined && (
+        <span className="text-[10px] font-black bg-black text-white px-1.5 py-0.5 rounded-sm tracking-tighter shadow-sm">
+          +{increase}
+        </span>
+      )}
     </div>
-    <div className="flex items-center gap-6">
+    <div className="flex items-center gap-4">
       <MetricCircle 
         label={circleLabel} 
-        size={60} 
+        size={70} 
         color="#000" 
         rotationDuration={rotationDuration} 
         dashArray={dashArray} 
       />
-      <div className="text-6xl font-black text-black leading-none uppercase">
-        <AnimatedCounter value={value} color="#000" glowOnUpdate={glowOnUpdate} />
+      <div className="flex flex-col justify-center">
+        <div className="text-5xl font-black text-black leading-none uppercase -mt-2 tracking-tighter tabular-nums scale-y-110 origin-bottom">
+          <AnimatedCounter value={value} color="#000" glowOnUpdate={glowOnUpdate} />
+        </div>
+        {subMetrics && subMetrics.length > 0 && (
+          <div className="flex gap-3 mt-2">
+            {subMetrics.map((sm, i) => (
+              <div key={i} className="flex flex-col">
+                 <span className="text-[9px] text-black opacity-40 tracking-[0.2em] font-black leading-none mb-0.5">{sm.label}</span>
+                 <span className="text-xs font-mono font-black tracking-tighter leading-none text-black">
+                   {sm.label === "EXPIRED" ? "-" : "+"}{sm.value}
+                 </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   </div>
@@ -69,8 +100,14 @@ interface HUDOverlayProps {
     totalArtist: number;
     totalTracks: number;
     totalEntries: number;
+    increases?: {
+      production: number;
+      artist: number;
+      tracks: number;
+      expiredTracks: number;
+    };
   };
-  time: Date;
+  time: Date | null;
   env: {
     location: string;
     temp: string;
@@ -79,7 +116,13 @@ interface HUDOverlayProps {
 }
 
 const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
-  const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
+  const [notifications, setNotifications] = React.useState<NotificationItem[]>([
+    { id: 'log1', type: 'success', message: 'FB_POST: Successfully published daily ranking schedule.', timestamp: new Date(Date.now() - 3600000) },
+    { id: 'log2', type: 'info', message: 'System diagnostic cycle complete.', timestamp: new Date(Date.now() - 7200000) },
+    { id: 'log3', type: 'success', message: 'TRACK_ADD: New release detected and indexed.', timestamp: new Date(Date.now() - 10800000) },
+    { id: 'log4', type: 'expired', message: 'TRACK_EXPIRED: 3 entries removed.', timestamp: new Date(Date.now() - 14400000) },
+    { id: 'log5', type: 'warning', message: 'High latency detected during GAS synchronization.', timestamp: new Date(Date.now() - 18000000) }
+  ]);
   const [micLevels, setMicLevels] = React.useState<number[]>(Array(20).fill(20));
 
   // Microphone Audio Analyzer
@@ -97,37 +140,27 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
         audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
         analyzer = audioContext.createAnalyser();
         
-        // We want a relatively smooth fft size
         analyzer.fftSize = 64;
-        const bufferLength = analyzer.frequencyBinCount; // 32
+        const bufferLength = analyzer.frequencyBinCount;
         dataArray = new Uint8Array(bufferLength);
         
         source = audioContext.createMediaStreamSource(stream);
         source.connect(analyzer);
 
         const updateLevels = () => {
-          analyzer.getByteFrequencyData(dataArray);
-          
-          // Map the 32 frequency bins to our 20 bars
-          // We take the lower/mid frequencies which react more to voice
+          analyzer.getByteFrequencyData(dataArray as any);
           const newLevels = Array(20).fill(0).map((_, i) => {
-            // Map index (0-19) to dataArray index (0-approx 25)
             const dataIndex = Math.floor((i / 20) * 25);
-            // Convert byte value (0-255) to percentage (10-100)
             const val = dataArray[dataIndex];
             const pct = Math.max(10, (val / 255) * 100);
             return pct;
           });
-
           setMicLevels(newLevels);
           animationFrame = requestAnimationFrame(updateLevels);
         };
-
         updateLevels();
       } catch (err) {
-        console.warn('Microphone access denied or not available:', err);
-        // Fallback is already handled by BarGraph default behavior if heights are missing 
-        // but we pass random data just to keep it alive if mic fails
+        console.warn('Microphone access denied:', err);
         const fallbackAnim = () => {
            setMicLevels(Array(20).fill(0).map(() => Math.random() * 80 + 20));
            setTimeout(() => { animationFrame = requestAnimationFrame(fallbackAnim); }, 100);
@@ -135,9 +168,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
         fallbackAnim();
       }
     };
-
     initAudio();
-
     return () => {
       if (animationFrame) cancelAnimationFrame(animationFrame);
       if (stream) stream.getTracks().forEach(track => track.stop());
@@ -145,31 +176,23 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
     };
   }, []);
 
-  // Dummy daily notification summary (what happened yesterday)
+  // Fetch actual logs from the API
   React.useEffect(() => {
-    // Generate timestamps for "yesterday"
-    const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    const ts1 = new Date(yesterday.setHours(20, 15, 0));
-    const ts2 = new Date(yesterday.setHours(19, 30, 0));
-    const ts3 = new Date(yesterday.setHours(18, 45, 0));
-    const ts4 = new Date(yesterday.setHours(12, 10, 0));
-    const ts5 = new Date(yesterday.setHours(9, 5, 0));
+    const fetchLogs = async () => {
+      try {
+        const res = await fetch('/api/admin/logs');
+        const data = await res.json();
+        if (data.logs && data.logs.length > 0) {
+          setNotifications(data.logs);
+        }
+      } catch (err) {
+        console.error("Failed to fetch logs:", err);
+      }
+    };
 
-    const dailySummaryLogs: NotificationItem[] = [
-      { id: 'log1', type: 'success', message: 'FB_POST: Successfully published daily ranking schedule.', timestamp: ts1 },
-      { id: 'log2', type: 'info', message: 'System diagnostic cycle complete.', timestamp: ts2 },
-      { id: 'log3', type: 'success', message: 'TRACK_ADD: New release detected and indexed.', timestamp: ts3 },
-      { id: 'log4', type: 'expired', message: 'TRACK_EXPIRED: 3 entries removed (exceeded 90 days).', timestamp: ts4 },
-      { id: 'log5', type: 'warning', message: 'High latency detected during GAS synchronization.', timestamp: ts5 }
-    ];
-
-    setNotifications(dailySummaryLogs);
-    
-    // In the future, this can be updated at midnight (00:00:00) 
-    // to fetch the previous day's logs from Google Apps Script.
+    fetchLogs();
+    const interval = setInterval(fetchLogs, 3600000); // Once per hour
+    return () => clearInterval(interval);
   }, []);
 
   const isFaceDetected = faceData && faceData.faceLandmarks && faceData.faceLandmarks.length > 0;
@@ -182,7 +205,12 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
   } : null;
 
   const renderBaseLayout = (showFaceBox = false, rect: any = null) => (
-    <div className="absolute inset-0 pointer-events-none z-50 flex flex-col justify-between p-12">
+    <motion.div 
+      className="absolute inset-0 pointer-events-none z-50 flex flex-col justify-between p-12"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+    >
       <div className="absolute left-6 top-12 bottom-12 w-0.5 bg-black opacity-80" />
       <div className="absolute right-6 top-12 bottom-12 w-0.5 bg-black opacity-80" />
 
@@ -195,9 +223,10 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
               top: `${rect.top}%`,
               width: `${rect.width}%`,
               height: `${rect.height}%`,
+              opacity: 0.3
             }}
             transition={{ type: 'spring', damping: 30, stiffness: 200 }}
-            className="absolute opacity-30"
+            className="absolute"
           >
             <div className="absolute -top-5 left-0 text-[8px] text-black uppercase tracking-widest">USER SCAN LOCKED</div>
             <div className="absolute -bottom-5 right-0 text-[8px] text-black uppercase tracking-widest">ENTRIES: {sheetData.totalEntries}</div>
@@ -207,11 +236,12 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
       )}
 
       <div className="flex justify-between items-start">
-        <div className="p-4 w-80">
+        <div className="p-4 w-auto">
           <div className="flex flex-col gap-0.5 relative">
             <div className="absolute -top-3 left-0">
                <BlinkingIndicator label="DB.SYNC" color="#000" interval={1200} />
             </div>
+
             <div className="text-sm opacity-70 tracking-[0.4em] uppercase text-black font-semibold mt-1">HEAT PRODUCTION LOG</div>
             <div className="text-6xl font-black text-black leading-none mt-1">
               DAY {(() => {
@@ -226,16 +256,18 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
           </div>
         </div>
 
-        <div className="p-4 w-auto text-right min-w-[300px]">
-          <div className="flex flex-col gap-2">
-            <TelemetryBlock 
-              title="System_Time" 
-              value={time?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true })} 
-              sub={time ? `${time.getFullYear()}/${time.getMonth() + 1}/${time.getDate()}` : ""} 
-              align="right" 
-            />
-            <TelemetryBlock title="Location" value={env?.location} align="right" />
-          </div>
+        <div className="flex-1 flex justify-end px-8 pt-6">
+           <div className="flex flex-col items-end gap-1 text-right text-[15px] font-bold text-black uppercase tracking-[0.2em] leading-relaxed">
+              <div suppressHydrationWarning className="flex gap-6 tabular-nums">
+                <span>{time?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true })}</span>
+                <span>
+                  {time ? `${time.getFullYear()}/${time.getMonth() + 1}/${time.getDate()}` : ""}
+                </span>
+              </div>
+              <div>
+                {env?.location}
+              </div>
+           </div>
         </div>
       </div>
 
@@ -252,16 +284,17 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
-
   return (
     <>
       {renderBaseLayout(isFaceDetected, rectData)}
-      
-      <div 
-        className="fixed left-12 z-[200] flex flex-col gap-6 pointer-events-none"
+      <motion.div 
+        className="fixed left-12 z-[200] flex flex-col gap-1 pointer-events-none"
         style={{ top: '50%', transform: 'translateY(-50%)' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
       >
         <div className="flex flex-col gap-3 relative z-10 transition-all duration-500">
            <MetricWithCircle 
@@ -291,27 +324,47 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
             glowOnUpdate={true}
           />
         </div>
-      </div>
-
+      </motion.div>
       <motion.div 
         className="fixed right-12 bottom-12 z-[200] pointer-events-none text-base font-bold text-black tracking-[0.3em] uppercase opacity-80"
-        animate={{ opacity: [0.3, 0.8, 0.3] }}
+        animate={{ 
+          opacity: [0.3, 0.8, 0.3] 
+        }}
         transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
       >
         SYSTEM MONITORING // <span className="opacity-50">TRACKING ACTIVE</span>
       </motion.div>
 
       {/* RHS Notifications Area */}
-      <div 
-        className="fixed right-12 z-[200] flex flex-col pointer-events-none"
-        style={{ top: '35%', maxHeight: '60vh' }}
+      <motion.div 
+        className="fixed right-12 z-[200] flex flex-col pointer-events-none items-end pr-2"
+        style={{ top: '140px', maxHeight: '75vh' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
       >
-        <AnimatePresence>
-          {notifications.map(notif => (
-            <NotificationPanel key={notif.id} notification={notif} />
+        <AnimatePresence mode="popLayout" initial={false}>
+          {notifications.slice(0, 5).map(notif => (
+            <NotificationPanel 
+              key={notif.id} 
+              notification={notif} 
+              onRemove={(id) => setNotifications(prev => prev.filter(n => n.id !== id))}
+            />
           ))}
         </AnimatePresence>
-      </div>
+
+        {notifications.length > 5 && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="mt-2 bg-black/60 backdrop-blur-md border border-white/20 px-3 py-1.5 rounded-full text-[10px] font-bold text-white/50 tracking-[0.2em] uppercase shadow-lg flex items-center gap-2"
+          >
+            <div className="w-1 h-1 rounded-full bg-blue-500 animate-pulse" />
+            Remaining :: {notifications.length - 5} Events IN QUEUE
+          </motion.div>
+        )}
+      </motion.div>
     </>
   );
 };
