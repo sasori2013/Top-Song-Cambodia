@@ -28,6 +28,7 @@ export default function AdminPage() {
   useEffect(() => {
     const fetchLocation = async (lat: number, lon: number) => {
       try {
+        setEnvData(prev => ({ ...prev, location: "FETCHING_GEO..." }));
         const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
         const data = await response.json();
         
@@ -48,19 +49,24 @@ export default function AdminPage() {
         });
       } catch (error) {
         console.error("Location Fetch Error:", error);
+        setEnvData(prev => ({ ...prev, location: "GEO_FETCH_FAIL" }));
       }
     };
 
     if ("geolocation" in navigator) {
+      setEnvData(prev => ({ ...prev, location: "REQ_GEO_PERM..." }));
       navigator.geolocation.getCurrentPosition(
         (position) => {
           fetchLocation(position.coords.latitude, position.coords.longitude);
         },
         (error) => {
           console.error("Geolocation Error:", error);
-          setEnvData(prev => ({ ...prev, location: "LOCAL_OFFLINE" }));
+          const errorMsg = error.code === 1 ? "LOCATION_DENIED" : "GEO_UNAVAILABLE";
+          setEnvData(prev => ({ ...prev, location: errorMsg }));
         }
       );
+    } else {
+      setEnvData(prev => ({ ...prev, location: "GEO_NOT_SUPPORTED" }));
     }
   }, []);
 
