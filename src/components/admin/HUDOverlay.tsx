@@ -97,6 +97,10 @@ const MartianBranding = () => (
 );
 
 interface HUDOverlayProps {
+  guiInverted?: boolean;
+  cameraMode?: 'mono' | 'color';
+  onToggleGuiInvert?: () => void;
+  onToggleCameraMode?: () => void;
   faceData: any;
   sheetData: {
     totalProduction: number;
@@ -118,7 +122,8 @@ interface HUDOverlayProps {
   };
 }
 
-const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
+const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, onToggleGuiInvert, onToggleCameraMode }: HUDOverlayProps) => {
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
   const [micLevels, setMicLevels] = React.useState<number[]>(Array(20).fill(20));
   const [resourceUsage, setResourceUsage] = React.useState({
@@ -339,7 +344,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
            />
         </div>
 
-        <div className="flex flex-col gap-3 relative z-10 transition-all duration-500">
+        <div className="flex flex-col gap-1 relative z-10 transition-all duration-500">
            <MetricWithCircle 
              title="Production" 
              value={sheetData.totalProduction.toString().padStart(3, '0')} 
@@ -347,25 +352,21 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
              rotationDuration="3s"
              dashArray="80 180"
            />
-        </div>
-        <div className="relative z-10">
-          <MetricWithCircle 
-            title="Artist" 
-            value={sheetData.totalArtist} 
-            circleLabel="ART" 
-            rotationDuration="5s"
-            dashArray="140 120"
-          />
-        </div>
-        <div className="relative z-10">
-          <MetricWithCircle 
-            title="Tracks" 
-            value={sheetData.totalTracks} 
-            circleLabel="TRK" 
-            rotationDuration="8s"
-            dashArray="180 80"
-            glowOnUpdate={true}
-          />
+           <MetricWithCircle 
+             title="Artist" 
+             value={sheetData.totalArtist} 
+             circleLabel="ART" 
+             rotationDuration="5s"
+             dashArray="140 120"
+           />
+           <MetricWithCircle 
+             title="Tracks" 
+             value={sheetData.totalTracks} 
+             circleLabel="TRK" 
+             rotationDuration="8s"
+             dashArray="180 80"
+             glowOnUpdate={true}
+           />
         </div>
       </motion.div>
       <motion.div 
@@ -408,7 +409,69 @@ const HUDOverlay = ({ faceData, sheetData, time, env }: HUDOverlayProps) => {
           </motion.div>
         )}
       </motion.div>
+      {/* Settings Button */}
+      <div className="fixed right-12 bottom-[100px] z-[200] pointer-events-auto">
+        <button 
+          onClick={() => setSettingsOpen(true)}
+          className="bg-black/80 text-white font-mono text-[10px] uppercase tracking-[0.3em] px-3 py-1.5 border border-white/20 hover:bg-black transition-colors shadow-2xl flex items-center gap-2"
+        >
+          <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+          [ SYS.SETTINGS ]
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {settingsOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="fixed inset-0 z-[300] flex items-center justify-center pointer-events-auto bg-white/5 backdrop-blur-[2px]"
+          >
+            <div className="w-80 backdrop-blur-md border p-6 flex flex-col gap-6 shadow-2xl relative"
+                 style={{
+                   backgroundColor: guiInverted ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.05)',
+                   borderColor: guiInverted ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.2)'
+                 }}>
+              <TechBracket position="top-left" size={10} color={guiInverted ? "#fff" : "#000"} />
+              <TechBracket position="bottom-right" size={10} color={guiInverted ? "#fff" : "#000"} />
+              
+              <div className="flex justify-between items-center border-b pb-2"
+                   style={{ borderColor: guiInverted ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.2)' }}>
+                <span className={`text-xs font-black tracking-[0.4em] ${guiInverted ? 'text-white' : 'text-black'}`}>SYS.OVERRIDE</span>
+                <button onClick={() => setSettingsOpen(false)} 
+                        className={`text-[10px] font-mono tracking-widest ${guiInverted ? 'text-white/50 hover:text-white' : 'text-black/50 hover:text-black'}`}>
+                  [ CLOSE ]
+                </button>
+              </div>
+              
+              <div className="flex flex-col gap-4">
+                <div className="flex justify-between items-center">
+                  <span className={`text-[10px] font-black tracking-widest opacity-60 ${guiInverted ? 'text-white' : 'text-black'}`}>GUI_INVERSION</span>
+                  <button 
+                    onClick={onToggleGuiInvert}
+                    className={`text-[9px] font-mono tracking-widest px-2 py-1 border transition-colors ${guiInverted ? 'bg-white text-black border-white' : 'border-black/30 text-black hover:bg-black/5'}`}
+                  >
+                    {guiInverted ? '[ ACTIVE ]' : '[ INACTIVE ]'}
+                  </button>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <span className={`text-[10px] font-black tracking-widest opacity-60 ${guiInverted ? 'text-white' : 'text-black'}`}>CAMERA_CHROMA</span>
+                  <button 
+                    onClick={onToggleCameraMode}
+                    className={`text-[9px] font-mono tracking-widest px-2 py-1 border transition-colors ${cameraMode === 'color' ? (guiInverted ? 'bg-white text-black border-white' : 'bg-black text-white border-black') : (guiInverted ? 'border-white/30 text-white hover:bg-white/10' : 'border-black/30 text-black hover:bg-black/5')}`}
+                  >
+                    {cameraMode === 'color' ? '[ COLOR ]' : '[ MONO ]'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
+
   );
 };
 

@@ -16,6 +16,9 @@ export default function AdminPage() {
     totalEntries: 0
   });
 
+  const [guiInverted, setGuiInverted] = useState(false);
+  const [cameraMode, setCameraMode] = useState<'mono' | 'color'>('mono');
+  
   const [envData, setEnvData] = useState({
     location: "SCANNING...",
     temp: "--°C",
@@ -77,14 +80,20 @@ export default function AdminPage() {
   }, []);
 
   return (
-    <div className="hud-page relative w-full h-screen bg-black overflow-hidden scanlines">
-      <FaceTracker onResult={setFaceData} />
-      <HUDOverlay 
-        faceData={faceData} 
-        sheetData={sheetData} 
-        time={currentTime}
-        env={envData}
-      />
+    <div className={`hud-page relative w-full h-screen overflow-hidden scanlines ${guiInverted ? 'bg-white' : 'bg-black'}`}>
+      <FaceTracker onResult={setFaceData} cameraMode={cameraMode} />
+      <div className={`absolute inset-0 pointer-events-none ${guiInverted ? 'invert hue-rotate-180' : ''}`}>
+        <HUDOverlay 
+          faceData={faceData} 
+          sheetData={sheetData} 
+          time={currentTime}
+          env={envData}
+          guiInverted={guiInverted}
+          cameraMode={cameraMode}
+          onToggleGuiInvert={() => setGuiInverted(prev => !prev)}
+          onToggleCameraMode={() => setCameraMode(prev => (prev === 'mono' ? 'color' : 'mono'))}
+        />
+      </div>
     </div>
   );
 }

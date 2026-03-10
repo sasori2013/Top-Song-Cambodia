@@ -4,10 +4,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { FilesetResolver, FaceLandmarker } from '@mediapipe/tasks-vision';
 
 interface FaceTrackerProps {
+  cameraMode?: 'mono' | 'color';
   onResult: (results: any) => void;
 }
 
-const FaceTracker = ({ onResult }: FaceTrackerProps) => {
+const FaceTracker = ({ onResult, cameraMode = 'mono' }: FaceTrackerProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const landmarkerRef = useRef<FaceLandmarker | null>(null);
   const lastUpdateTime = useRef(0);
@@ -109,7 +110,7 @@ const FaceTracker = ({ onResult }: FaceTrackerProps) => {
       <video
         ref={videoRef}
         style={{
-          filter: 'grayscale(100%) contrast(110%) brightness(120%)',
+          filter: cameraMode === 'mono' ? 'grayscale(100%) contrast(110%) brightness(120%)' : 'contrast(110%) brightness(110%)',
           width: '100%',
           height: '100%',
           objectFit: 'cover',

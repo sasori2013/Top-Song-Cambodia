@@ -1010,25 +1010,32 @@ export const ResourceMonitor = React.memo(({
   if (!mounted) return null;
 
   const ResourceBar = ({ label, percentage, subLabel }: { label: string, percentage: number, subLabel?: string }) => (
-    <div className="flex flex-col gap-1 w-full">
-      <div className="flex justify-between items-end border-b border-black/10 pb-1">
-        <span className="text-[10px] font-black tracking-widest uppercase opacity-40">{label}</span>
-        <div className="flex items-baseline gap-1">
-          <span className="text-sm font-black tabular-nums">{percentage.toFixed(1)}%</span>
-          {subLabel && <span className="text-[8px] opacity-30 font-mono tracking-tighter">{subLabel}</span>}
+    <div className="flex flex-col gap-1.5 w-full">
+      <div className="flex justify-between items-end border-b border-black/20 pb-1.5">
+        <span className="text-[11px] font-black tracking-widest uppercase text-black">{label}</span>
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-base font-black tabular-nums text-black">{percentage.toFixed(1)}%</span>
+          {subLabel && <span className="text-[9px] font-mono tracking-tighter text-black/60">{subLabel}</span>}
         </div>
       </div>
-      <div className="h-1 w-full bg-black/5 relative overflow-hidden">
+      <div className="h-1.5 w-full bg-black/5 relative overflow-hidden">
         <motion.div 
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}
-          transition={{ duration: 1, ease: "easeOut" }}
-          className="h-full bg-black/40"
-        />
+          transition={{ duration: 1.5, ease: "easeOut" }}
+          className="h-full bg-black/60 relative overflow-hidden"
+        >
+          {/* Slow shimmer animation */}
+          <motion.div 
+            animate={{ x: ['-100%', '400%'] }}
+            transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent w-full skew-x-[-20deg]"
+          />
+        </motion.div>
         {percentage > 80 && (
           <motion.div 
-            animate={{ opacity: [0, 1, 0] }}
-            transition={{ duration: 0.5, repeat: Infinity }}
+            animate={{ opacity: [0, 0.4, 0] }}
+            transition={{ duration: 1, repeat: Infinity }}
             className="absolute inset-0 bg-red-500/20"
           />
         )}
@@ -1037,31 +1044,27 @@ export const ResourceMonitor = React.memo(({
   );
 
   return (
-    <div className="flex flex-col gap-4 w-60 p-4 relative group group-hover:bg-white/5 transition-colors duration-300">
-      <TechBracket position="top-left" size={8} />
-      <TechBracket position="bottom-right" size={8} />
+    <div className="flex flex-col gap-6 w-80 p-5 relative group transition-colors duration-300">
+      <TechBracket position="top-left" size={10} />
+      <TechBracket position="bottom-right" size={10} />
       
-      <div className="text-[9px] font-black tracking-[0.4em] opacity-30 mb-1 border-l-2 border-black/20 pl-2">
-        SYS.RESOURCE_TELMETRY // AUTO_SYNC
-      </div>
-
       <ResourceBar 
         label="YT_API_V3" 
         percentage={youtubeQuota} 
-        subLabel="UNITS/10K" 
+        subLabel="QUOTA/10K UNIT" 
       />
       
       <ResourceBar 
         label="GEMINI_1.5_PRO" 
         percentage={geminiUsage} 
-        subLabel={`${(tokenCount/1000).toFixed(1)}K TOKENS`} 
+        subLabel={`${(tokenCount/1000).toFixed(1)}K TOTAL TOKENS`} 
       />
 
-      <div className="flex justify-between items-center text-[7px] font-mono opacity-20 uppercase tracking-[0.3em] mt-1">
+      <div className="flex justify-between items-center text-[8px] font-mono text-black/40 uppercase tracking-[0.3em] mt-1">
         <span>STABLE_RESOURCES</span>
-        <div className="flex gap-1">
-          <div className="w-1 h-1 bg-black rounded-full animate-pulse" />
-          <div className="w-1 h-1 bg-black rounded-full" />
+        <div className="flex gap-1.5">
+          <div className="w-1.5 h-1.5 bg-black rounded-full animate-pulse" />
+          <div className="w-1.5 h-1.5 bg-black rounded-full" />
         </div>
       </div>
     </div>
