@@ -276,7 +276,27 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
           </motion.div>
       )}
 
-      <div className="flex justify-end items-start w-full">
+      <div className="flex justify-between items-start">
+        <div className="p-4 w-auto">
+          <div className="flex flex-col gap-0.5 relative">
+            <div className="absolute -top-3 left-0">
+               <BlinkingIndicator label="DB.SYNC" color="#000" interval={1200} />
+            </div>
+
+            <div className="text-sm opacity-70 tracking-[0.4em] uppercase text-black font-semibold mt-1">HEAT PRODUCTION LOG</div>
+            <div className="text-6xl font-black text-black leading-none mt-1">
+              DAY {(() => {
+                const startDate = new Date('2026-03-08');
+                const now = time || new Date();
+                const diffTime = Math.max(0, now.getTime() - startDate.getTime());
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                return (10 + diffDays).toString().padStart(3, '0');
+              })()}
+            </div>
+            <MartianBranding />
+          </div>
+        </div>
+
         <div className="flex-1 flex justify-end px-8 pt-6">
            <div className="flex flex-col items-end gap-1 text-right text-[15px] font-bold text-black uppercase tracking-[0.2em] leading-relaxed">
               <div suppressHydrationWarning className="flex gap-6 tabular-nums">
@@ -291,79 +311,9 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
            </div>
         </div>
       </div>
-    </motion.div>
-  );
-  return (
-    <>
-      {renderBaseLayout(isFaceDetected, rectData)}
-      <motion.div 
-        className="fixed left-6 top-12 bottom-6 w-[360px] z-[200] flex flex-col justify-between pointer-events-auto overflow-y-auto overflow-x-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="flex flex-col gap-8 flex-1">
-          {/* TOP LEFT HEADER */}
-          <div className="p-4 w-auto pointer-events-none">
-            <div className="flex flex-col gap-0.5 relative">
-              <div className="absolute -top-3 left-0">
-                 <BlinkingIndicator label="DB.SYNC" color="#000" interval={1200} />
-              </div>
-              <div className="text-sm opacity-70 tracking-[0.4em] uppercase text-black font-semibold mt-1">HEAT PRODUCTION LOG</div>
-              <div className="text-6xl font-black text-black leading-none mt-1">
-                DAY {(() => {
-                  const startDate = new Date('2026-03-08');
-                  const now = time || new Date();
-                  const diffTime = Math.max(0, now.getTime() - startDate.getTime());
-                  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                  return (10 + diffDays).toString().padStart(3, '0');
-                })()}
-              </div>
-              <MartianBranding />
-            </div>
-          </div>
 
-          <div className="flex-1 min-h-[10px]" />
-
-          {/* MIDDLE METRICS */}
-          <div className="p-4 pointer-events-none">
-            <div className="mb-4">
-               <ResourceMonitor 
-                 youtubeQuota={resourceUsage.youtubeQuota} 
-                 geminiUsage={resourceUsage.geminiUsage} 
-                 tokenCount={resourceUsage.tokenCount} 
-               />
-            </div>
-
-            <div className="flex flex-col gap-1 relative z-10 transition-all duration-500">
-               <MetricWithCircle 
-                 title="Production" 
-                 value={sheetData.totalProduction.toString().padStart(3, '0')} 
-                 circleLabel="PRD"
-                 rotationDuration="3s"
-                 dashArray="80 180"
-               />
-               <MetricWithCircle 
-                 title="Artist" 
-                 value={sheetData.totalArtist} 
-                 circleLabel="ART" 
-                 rotationDuration="5s"
-                 dashArray="140 120"
-               />
-               <MetricWithCircle 
-                 title="Tracks" 
-                 value={sheetData.totalTracks} 
-                 circleLabel="TRK" 
-                 rotationDuration="8s"
-                 dashArray="180 80"
-                 glowOnUpdate={true}
-               />
-            </div>
-          </div>
-        </div>
-
-        {/* BOTTOM AUDIO VISUALIZER */}
-        <div className="p-4 mt-8 pointer-events-none shrink-0">
+      <div className="flex justify-start items-end">
+        <div className="p-4 w-80">
           <div className="text-left flex flex-col gap-2">
             <div className="flex flex-col items-start gap-1 border-t border-black border-opacity-10 pt-2 uppercase relative">
               <div className="absolute left-0 top-1">
@@ -373,6 +323,51 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
               <SmoothWaveVisualizer width={280} height={40} color="#000" levels={micLevels} />
             </div>
           </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+  return (
+    <>
+      {renderBaseLayout(isFaceDetected, rectData)}
+      <motion.div 
+        className="fixed left-12 z-[200] flex flex-col gap-8 pointer-events-none"
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <div className="mb-4">
+           <ResourceMonitor 
+             youtubeQuota={resourceUsage.youtubeQuota} 
+             geminiUsage={resourceUsage.geminiUsage} 
+             tokenCount={resourceUsage.tokenCount} 
+           />
+        </div>
+
+        <div className="flex flex-col gap-1 relative z-10 transition-all duration-500">
+           <MetricWithCircle 
+             title="Production" 
+             value={sheetData.totalProduction.toString().padStart(3, '0')} 
+             circleLabel="PRD"
+             rotationDuration="3s"
+             dashArray="80 180"
+           />
+           <MetricWithCircle 
+             title="Artist" 
+             value={sheetData.totalArtist} 
+             circleLabel="ART" 
+             rotationDuration="5s"
+             dashArray="140 120"
+           />
+           <MetricWithCircle 
+             title="Tracks" 
+             value={sheetData.totalTracks} 
+             circleLabel="TRK" 
+             rotationDuration="8s"
+             dashArray="180 80"
+             glowOnUpdate={true}
+           />
         </div>
       </motion.div>
       <motion.div 
