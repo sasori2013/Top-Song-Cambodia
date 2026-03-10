@@ -1009,64 +1009,39 @@ export const ResourceMonitor = React.memo(({
 
   if (!mounted) return null;
 
-  const ResourceBar = ({ label, percentage, subLabel }: { label: string, percentage: number, subLabel?: string }) => (
-    <div className="flex flex-col gap-1.5 w-full">
-      <div className="flex justify-between items-end border-b border-black/20 pb-1.5">
-        <span className="text-[11px] font-black tracking-widest uppercase text-black">{label}</span>
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-base font-black tabular-nums text-black">{percentage.toFixed(1)}%</span>
-          {subLabel && <span className="text-[9px] font-mono tracking-tighter text-black/60">{subLabel}</span>}
-        </div>
+  const ResourceBar = ({ label, percentage }: { label: string, percentage: number }) => (
+    <div className="flex flex-col gap-1 w-full">
+      <div className="flex justify-between items-end">
+        <span className="text-[10px] font-black tracking-widest uppercase text-black">{label}</span>
+        <span className="text-sm font-black tabular-nums text-black leading-none">{percentage.toFixed(1)}%</span>
       </div>
-      <div className="h-1.5 w-full bg-black/5 relative overflow-hidden">
+      <div className="h-1 w-full bg-black/10 relative overflow-hidden">
         <motion.div 
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}
           transition={{ duration: 1.5, ease: "easeOut" }}
           className="h-full bg-black/60 relative overflow-hidden"
         >
-          {/* Slow shimmer animation */}
           <motion.div 
             animate={{ x: ['-100%', '400%'] }}
             transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent w-full skew-x-[-20deg]"
+            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full skew-x-[-20deg]"
           />
         </motion.div>
-        {percentage > 80 && (
-          <motion.div 
-            animate={{ opacity: [0, 0.4, 0] }}
-            transition={{ duration: 1, repeat: Infinity }}
-            className="absolute inset-0 bg-red-500/20"
-          />
-        )}
       </div>
     </div>
   );
 
   return (
-    <div className="flex flex-col gap-6 w-80 p-5 relative group transition-colors duration-300">
-      <TechBracket position="top-left" size={10} />
-      <TechBracket position="bottom-right" size={10} />
-      
+    <div className="flex flex-col gap-3 w-64">
       <ResourceBar 
         label="YT_API_V3" 
         percentage={youtubeQuota} 
-        subLabel="QUOTA/10K UNIT" 
       />
-      
       <ResourceBar 
         label="GEMINI_1.5_PRO" 
         percentage={geminiUsage} 
-        subLabel={`${(tokenCount/1000).toFixed(1)}K TOTAL TOKENS`} 
       />
-
-      <div className="flex justify-between items-center text-[8px] font-mono text-black/40 uppercase tracking-[0.3em] mt-1">
-        <span>STABLE_RESOURCES</span>
-        <div className="flex gap-1.5">
-          <div className="w-1.5 h-1.5 bg-black rounded-full animate-pulse" />
-          <div className="w-1.5 h-1.5 bg-black rounded-full" />
-        </div>
-      </div>
     </div>
   );
 });
