@@ -341,9 +341,16 @@ export const NotificationPanel = ({ notification, onRemove }: NotificationPanelP
 
   const colors = getColors(notification.type);
 
+  const playHoverSound = () => {
+    const audio = new Audio('/sound/se01.mp3');
+    audio.volume = 0.4;
+    audio.play().catch(() => {}); // Ignore errors if browser blocks autoplay
+  };
+
   return (
     <motion.div
       layout
+      onMouseEnter={playHoverSound}
       initial={{ opacity: 0, x: 50, filter: 'blur(10px)' }}
       animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
       exit={{ opacity: 0, x: 100, scale: 0.95, filter: 'blur(5px)' }}
