@@ -87,8 +87,8 @@ const MetricWithCircle = ({ title, value, circleLabel, rotationDuration, dashArr
   </div>
 );
 
-const MartianBranding = () => (
-  <div className="flex flex-col gap-0 border-black mt-1">
+const MartianBranding = ({ className = "" }: { className?: string }) => (
+  <div className={`flex flex-col gap-0 border-black mt-1 ${className}`}>
     <div className="text-xs font-bold tracking-[0.3em] uppercase text-black mb-1 opacity-70">
       <TypewriterText text="AUTH :: ADMIN" delay={0.03} />
     </div>
@@ -254,7 +254,12 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
       <div className="absolute left-6 top-12 bottom-12 w-0.5 bg-black opacity-80" />
       <div className="absolute right-6 top-12 bottom-12 w-0.5 bg-black opacity-80" />
 
-      <img src="/heat-logo.png" alt=".HEAT Logo" className="absolute left-1/2 -translate-x-1/2 top-12 object-contain z-50 opacity-90" style={{ filter: 'brightness(0)', height: '17px' }} />
+      <div className="absolute left-1/2 -translate-x-1/2 top-12 flex flex-col items-center z-50 w-full pointer-events-none">
+        <img src="/heat-logo.png" alt=".HEAT Logo" className="object-contain opacity-90" style={{ filter: 'brightness(0)', height: '17px' }} />
+        <div className="hidden [@media(max-height:800px)]:flex flex-col items-center mt-8 w-full">
+          <MartianBranding className="items-center text-center" />
+        </div>
+      </div>
 
       {showFaceBox && rect && (
         <motion.div
@@ -280,7 +285,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
         <div className="w-auto">
           <div className="flex flex-col gap-0.5 relative">
             <div className="absolute -top-3 left-0">
-               <BlinkingIndicator label="DB.SYNC" color="#000" interval={1200} />
+               <BlinkingIndicator label="DB.SYNC" color="#D1FF00" interval={1200} />
             </div>
 
             <div className="text-sm opacity-70 tracking-[0.4em] uppercase text-black font-semibold mt-1">HEAT PRODUCTION LOG</div>
@@ -293,7 +298,9 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
                 return (10 + diffDays).toString().padStart(3, '0');
               })()}
             </div>
-            <MartianBranding />
+            <div className="block [@media(max-height:800px)]:hidden">
+              <MartianBranding />
+            </div>
           </div>
         </div>
 
@@ -317,10 +324,10 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
           <div className="text-left flex flex-col gap-2">
             <div className="flex flex-col items-start gap-1 border-t border-black border-opacity-10 pt-2 uppercase relative">
               <div className="absolute left-0 top-1">
-                <BlinkingIndicator label="RX/TX" color="#000" interval={600} />
+                <BlinkingIndicator label="RX/TX" color="#D1FF00" interval={600} />
               </div>
               <div className="text-[8px] opacity-40 uppercase tracking-widest text-black mt-3">REAL-TIME DB SYNC // AUDIO ACTIVE</div>
-              <SmoothWaveVisualizer width={280} height={40} color="#000" levels={micLevels} />
+              <SmoothWaveVisualizer width={280} height={40} color="#D1FF00" levels={micLevels} />
             </div>
           </div>
         </div>
