@@ -92,7 +92,7 @@ const MartianBranding = ({ className = "" }: { className?: string }) => (
     <div className="text-xs font-bold tracking-[0.3em] uppercase text-black mb-1 opacity-70">
       <TypewriterText text="AUTH :: ADMIN" delay={0.03} />
     </div>
-    <div className="text-xl font-black tracking-wider text-black leading-none uppercase">KENICHIRO TAKAMATSU</div>
+    <div className="text-xl font-black tracking-wider text-black leading-none uppercase font-mono">KENICHIRO TAKAMATSU</div>
   </div>
 );
 
