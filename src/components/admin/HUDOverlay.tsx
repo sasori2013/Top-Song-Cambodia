@@ -146,9 +146,9 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
     }
   }, []);
   const [resourceUsage, setResourceUsage] = React.useState({
-    youtubeQuota: 74.2,
-    geminiUsage: 42.8,
-    tokenCount: 28401
+    youtubeQuota: 0,
+    geminiUsage: 0,
+    tokenCount: 0
   });
 
   // Fetch usage data periodically
@@ -249,7 +249,12 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
     fetchLogs();
     const interval = setInterval(fetchLogs, 3600000); // Once per hour
     return () => clearInterval(interval);
-  }, []);
+  }, [dismissedIds]); // Add dismissedIds to dependency to re-fetch/re-filter if needed
+
+  // Derived state for filtered notifications to ensure it's reactive
+  const visibleNotifications = React.useMemo(() => {
+    return notifications.filter(n => !dismissedIds.has(n.id));
+  }, [notifications, dismissedIds]);
 
   const isFaceDetected = faceData && faceData.faceLandmarks && faceData.faceLandmarks.length > 0;
   
@@ -404,13 +409,12 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
         transition={{ duration: 0.5 }}
       >
         <AnimatePresence mode="popLayout" initial={false}>
-          {notifications.slice(0, 5).map(notif => (
+          {visibleNotifications.slice(0, 5).map(notif => (
             <NotificationPanel 
               key={notif.id} 
               notification={notif} 
               onRemove={(id) => {
-                setNotifications(prev => prev.filter(n => n.id !== id));
-                // Persist dismissal
+                // Instantly update local state for better UX
                 setDismissedIds(prevSet => {
                   const next = new Set(prevSet);
                   next.add(id);
@@ -422,7 +426,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
           ))}
         </AnimatePresence>
 
-        {notifications.length > 5 && (
+        {visibleNotifications.length > 5 && (
           <motion.div
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
@@ -430,7 +434,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
             className="mt-2 bg-white/5 backdrop-blur-sm border border-white/10 px-2 py-1 rounded-sm text-[9px] font-black text-white/50 tracking-[0.3em] uppercase flex items-center gap-2 shadow-2xl"
           >
             <div className="w-0.5 h-0.5 rounded-full bg-white/40 animate-pulse" />
-            + {notifications.length - 5} Events IN QUEUE
+            + {visibleNotifications.length - 5} Events IN QUEUE
           </motion.div>
         )}
       </motion.div>
