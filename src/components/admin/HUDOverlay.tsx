@@ -295,7 +295,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
             </div>
             {/* Minimal corner markers still existing but outside the circle */}
             <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-black opacity-20 -translate-x-8 -translate-y-8" />
-            <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-black opacity-20 translate-x-8 translate-y-8" />
+            <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-black opacity-20 translate-x-8 -translate-y-8" />
           </motion.div>
       )}
 
@@ -315,9 +315,6 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
                 const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
                 return (10 + diffDays).toString().padStart(3, '0');
               })()}
-            </div>
-            <div className="block [@media(max-height:800px)]:hidden">
-              <MartianBranding />
             </div>
           </div>
         </div>
