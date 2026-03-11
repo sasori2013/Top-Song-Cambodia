@@ -28,10 +28,13 @@ export async function GET() {
     const recentLogs: NotificationItem[] = [];
     const MAX_LOGS_TO_RETURN = 20;
 
-    // Get "today" in UTC+7 (Phnom Penh) or just server Local
+    // Get "today" and "yesterday" in UTC-like comparison
     const nowLocal = new Date();
-    // Simple date string for comparison "YYYY-MM-DD"
-    const todayStr = nowLocal.toLocaleDateString('en-CA'); // 'en-CA' gives YYYY-MM-DD
+    const todayStr = nowLocal.toLocaleDateString('en-CA');
+    
+    const yesterday = new Date(nowLocal);
+    yesterday.setDate(nowLocal.getDate() - 1);
+    const yesterdayStr = yesterday.toLocaleDateString('en-CA');
 
     for (let i = allRows.length - 1; i >= 1; i--) {
       const row = allRows[i];
@@ -52,9 +55,8 @@ export async function GET() {
       }
 
       const logDayStr = logDate.toLocaleDateString('en-CA');
-      if (logDayStr !== todayStr) {
-        // Since we process from newest to oldest, once we hit a different day, we can stop
-        // unless the spreadsheet is out of order (unlikely for a log)
+      if (logDayStr !== todayStr && logDayStr !== yesterdayStr) {
+        // Since we process from newest to oldest, once we go past yesterday, we stop
         break; 
       }
 
@@ -119,12 +121,12 @@ export async function GET() {
         }
       }
 
-      const hash = typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : Math.random().toString(36).substring(2, 9);
+      // Use a deterministic hash of the message and timestamp for persistence
+      const contentHash = Buffer.from(message + timestampStr).toString('base64').substring(0, 12);
+      const stableId = `log-${i}-${contentHash}`;
 
       recentLogs.push({
-        id: `log-${i}-${hash}`,
+        id: stableId,
         type,
         message: cleanMessage,
         timestamp

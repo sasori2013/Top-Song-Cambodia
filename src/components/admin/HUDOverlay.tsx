@@ -168,15 +168,9 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
     }
   };
 
-  // Initialize notifications on mount to avoid hydration mismatch from Date.now()
+  // Initialize notifications on mount
   React.useEffect(() => {
-    setNotifications([
-      { id: 'log1', type: 'success', message: 'FB_POST: Successfully published daily ranking schedule.', timestamp: new Date(Date.now() - 3600000) },
-      { id: 'log2', type: 'info', message: 'System diagnostic cycle complete.', timestamp: new Date(Date.now() - 7200000) },
-      { id: 'log3', type: 'success', message: 'TRACK_ADD: New release detected and indexed.', timestamp: new Date(Date.now() - 10800000) },
-      { id: 'log4', type: 'expired', message: 'TRACK_EXPIRED: 3 entries removed.', timestamp: new Date(Date.now() - 14400000) },
-      { id: 'log5', type: 'warning', message: 'High latency detected during GAS synchronization.', timestamp: new Date(Date.now() - 18000000) }
-    ]);
+    setNotifications([]);
     
     fetchUsage();
     const interval = setInterval(fetchUsage, 60000); // Update every minute
@@ -241,9 +235,11 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
         const res = await fetch('/api/admin/logs');
         const data = await res.json();
         if (data.logs && data.logs.length > 0) {
-          // Filter out dismissed ones
-          const filtered = data.logs.filter((log: any) => !dismissedIds.has(log.id));
-          setNotifications(filtered);
+          // Filter out dismissed ones using latest state
+          setNotifications(data.logs.filter((log: any) => {
+            // Check against both the current state and what might have just been loaded
+            return !dismissedIds.has(log.id);
+          }));
         }
       } catch (err) {
         console.error("Failed to fetch logs:", err);
