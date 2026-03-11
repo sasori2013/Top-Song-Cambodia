@@ -370,6 +370,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
              youtubeQuota={resourceUsage.youtubeQuota} 
              geminiUsage={resourceUsage.geminiUsage} 
              tokenCount={resourceUsage.tokenCount} 
+             color={guiInverted ? "#000" : "#fff"}
            />
         </div>
 

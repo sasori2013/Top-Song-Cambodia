@@ -1024,11 +1024,11 @@ export const ResourceMonitor = React.memo(({
     };
 
     // 合計が100%になるように調整しつつ、最大±5%の変動
-    // ベース: YT:45, FB:30, TT:20, OTHER:5 (合計100)
+    // ベース: YT:45, FB:30, TT:15, OTHER:10 (合計100)
     const ytBase = 45;
     const fbBase = 30;
-    const ttBase = 20;
-    const otherBase = 5;
+    const ttBase = 15;
+    const otherBase = 10;
 
     const v1 = (seededRandom(seed + 1) - 0.5) * 10; // ±5
     const v2 = (seededRandom(seed + 2) - 0.5) * 10;
@@ -1048,15 +1048,17 @@ export const ResourceMonitor = React.memo(({
   const ResourceBar = ({ label, percentage }: { label: string, percentage: number }) => (
     <div className="flex flex-col gap-1 w-full">
       <div className="flex justify-between items-end">
-        <span className="text-[10px] font-black tracking-widest uppercase text-black">{label}</span>
-        <span className="text-sm font-black tabular-nums text-black leading-none">{percentage.toFixed(1)}%</span>
+        <span className="text-[10px] font-black tracking-widest uppercase" style={{ color }}>{label}</span>
+        <span className="text-sm font-black tabular-nums leading-none" style={{ color }}>{percentage.toFixed(1)}%</span>
       </div>
-      <div className="h-1 w-full bg-black/10 relative overflow-hidden">
+      <div className="h-1 w-full relative overflow-hidden bg-current opacity-10" style={{ color }}></div>
+      <div className="h-1 w-full -mt-1 relative overflow-hidden">
         <motion.div 
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}
           transition={{ duration: 1.5, ease: "easeOut" }}
-          className="h-full bg-black/60 relative overflow-hidden"
+          className="h-full relative overflow-hidden"
+          style={{ backgroundColor: color, opacity: 0.6 }}
         >
           <motion.div 
             animate={{ x: ['-100%', '400%'] }}
@@ -1079,11 +1081,11 @@ export const ResourceMonitor = React.memo(({
           label="GEMINI_1.5_PRO" 
           percentage={geminiUsage} 
         />
-        <div className="flex w-full mt-1.5 border-t border-black/5 pt-1.5 pb-0.5">
+        <div className="flex w-full mt-1.5 pt-1.5 pb-0.5 border-t" style={{ borderColor: `${color}1A` }}>
           {breakdown.map((item, i) => (
-            <div key={i} className="flex-1 flex flex-col items-start border-l border-black/10 pl-1.5 first:border-0 first:pl-0">
-              <span className="text-[7px] font-black opacity-30 tracking-tight leading-none mb-0.5">{item.label}</span>
-              <span className="text-[11px] font-bold tabular-nums text-black leading-none drop-shadow-sm">
+            <div key={i} className="flex-1 flex flex-col items-start border-l pl-1.5 first:border-0 first:pl-0" style={{ borderColor: `${color}1A` }}>
+              <span className="text-[7px] font-black tracking-tight leading-none mb-0.5" style={{ color, opacity: 0.4 }}>{item.label}</span>
+              <span className="text-[11px] font-bold tabular-nums leading-none drop-shadow-sm" style={{ color }}>
                 {item.value.toFixed(0)}<span className="text-[7px] ml-0.5 opacity-40">%</span>
               </span>
             </div>
