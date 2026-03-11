@@ -210,7 +210,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
           const newLevels = Array(20).fill(0).map((_, i) => {
             const dataIndex = Math.floor((i / 20) * 25);
             const val = dataArray[dataIndex];
-            const pct = Math.max(10, (val / 255) * 100);
+            const pct = (val / 255) * 100;
             return pct;
           });
           setMicLevels(newLevels);

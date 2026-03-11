@@ -94,10 +94,15 @@ export const SmoothWaveVisualizer = React.memo(({ width = 280, height = 50, colo
   if (!mounted) return <div style={{ width, height }} />;
 
   const avgLevel = levels ? levels.reduce((a, b) => a + b, 0) / levels.length : 0;
-  // Master amplitude: small "breathing" base + dynamic audio part
-  const baseAmplitude = h * 0.2;
-  const dynamicAmplitude = (avgLevel / 100) * (h * 0.5);
+  // Master amplitude: breathable base + dynamic audio part
+  const silenceThreshold = 5;
+  const isSilent = avgLevel < silenceThreshold;
+
+  const baseAmplitude = isSilent ? h * 0.05 : h * 0.15;
+  const dynamicAmplitude = (avgLevel / 100) * (h * 0.7);
   const amplitude = baseAmplitude + dynamicAmplitude;
+
+  const containerOpacity = isSilent ? 0.2 : 0.4 + (avgLevel / 100) * 0.6;
 
   const generateWavePath = (phaseOffset: number, frequency: number, ampScale: number) => {
     const points = [];
@@ -114,7 +119,7 @@ export const SmoothWaveVisualizer = React.memo(({ width = 280, height = 50, colo
   };
 
   return (
-    <div className="relative opacity-80 overflow-visible" style={{ width, height }}>
+    <div className="relative overflow-visible transition-opacity duration-300" style={{ width, height, opacity: containerOpacity }}>
       <svg width={width} height={height} viewBox={`0 0 ${w} ${h}`} className="overflow-visible">
         {/* We draw 15 layers of thin lines to create that "thread" effect from the image */}
         {Array.from({ length: 15 }).map((_, i) => {
