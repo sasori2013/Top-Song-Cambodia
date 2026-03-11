@@ -1048,17 +1048,16 @@ export const ResourceMonitor = React.memo(({
   const ResourceBar = ({ label, percentage }: { label: string, percentage: number }) => (
     <div className="flex flex-col gap-1 w-full">
       <div className="flex justify-between items-end">
-        <span className="text-[10px] font-black tracking-widest uppercase" style={{ color }}>{label}</span>
-        <span className="text-sm font-black tabular-nums leading-none" style={{ color }}>{percentage.toFixed(1)}%</span>
+        <span className="text-[10px] font-black tracking-widest uppercase text-black">{label}</span>
+        <span className="text-sm font-black tabular-nums leading-none text-black">{percentage.toFixed(1)}%</span>
       </div>
-      <div className="h-1 w-full relative overflow-hidden bg-current opacity-10" style={{ color }}></div>
+      <div className="h-1 w-full relative overflow-hidden bg-black/10"></div>
       <div className="h-1 w-full -mt-1 relative overflow-hidden">
         <motion.div 
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}
           transition={{ duration: 1.5, ease: "easeOut" }}
-          className="h-full relative overflow-hidden"
-          style={{ backgroundColor: color, opacity: 0.6 }}
+          className="h-full relative overflow-hidden bg-black/60"
         >
           <motion.div 
             animate={{ x: ['-100%', '400%'] }}
@@ -1086,7 +1085,7 @@ export const ResourceMonitor = React.memo(({
             <div key={i} className="flex-1 flex flex-col items-start border-l border-black/10 pl-2 first:border-0 first:pl-0">
               <span className="text-[9px] font-black tracking-tight leading-none mb-1 text-black opacity-50">{item.label}</span>
               <span className="text-sm font-black tabular-nums leading-none text-black drop-shadow-sm">
-                {item.value.toFixed(0)}<span className="text-[9px] ml-0.5 opacity-60">%</span>
+                {item.value.toFixed(0)}<span className="text-[9px] ml-0.5 opacity-60 text-black">%</span>
               </span>
             </div>
           ))}
