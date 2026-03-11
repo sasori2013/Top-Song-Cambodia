@@ -80,37 +80,37 @@ export const SmoothWaveVisualizer = React.memo(({ width = 280, height = 50, colo
   const w = typeof width === 'number' ? width : 280;
   const h = typeof height === 'number' ? height : 50;
   
-  React.useEffect(() => {
-    setMounted(true);
-    let frame: number;
-    const animate = () => {
-      setPhase(p => p + 0.08);
-      frame = requestAnimationFrame(animate);
-    };
-    frame = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frame);
-  }, []);
-
-  if (!mounted) return <div style={{ width, height }} />;
-
   const avgLevel = levels ? levels.reduce((a, b) => a + b, 0) / levels.length : 0;
-  // Master amplitude: breathable base + dynamic audio part
   const silenceThreshold = 5;
   const isSilent = avgLevel < silenceThreshold;
 
   const baseAmplitude = isSilent ? h * 0.05 : h * 0.15;
-  const dynamicAmplitude = (avgLevel / 100) * (h * 0.7);
+  const dynamicAmplitude = (avgLevel / 100) * (h * 1.5);
   const amplitude = baseAmplitude + dynamicAmplitude;
 
-  const containerOpacity = isSilent ? 0.2 : 0.4 + (avgLevel / 100) * 0.6;
+  const containerOpacity = isSilent ? 0.15 : 0.5 + (avgLevel / 100) * 0.5;
+
+  React.useEffect(() => {
+    setMounted(true);
+    let frame: number;
+    const animate = () => {
+      // Speed up the wave movement based on audio level
+      const speed = isSilent ? 0.04 : 0.04 + (avgLevel / 100) * 0.12;
+      setPhase(p => p + speed);
+      frame = requestAnimationFrame(animate);
+    };
+    frame = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frame);
+  }, [isSilent, avgLevel]);
+
+  if (!mounted) return <div style={{ width, height }} />;
 
   const generateWavePath = (phaseOffset: number, frequency: number, ampScale: number) => {
     const points = [];
-    const step = 3; // Finer steps for smoother lines
+    const step = 3; 
     const midY = h / 2;
     
     for (let x = 0; x <= w; x += step) {
-      // Bell curve envelope to pin ends to zero
       const envelope = Math.pow(Math.sin((x / w) * Math.PI), 2);
       const y = midY + Math.sin(x * frequency + phase + phaseOffset) * amplitude * ampScale * envelope;
       points.push(`${x},${y}`);
@@ -121,24 +121,30 @@ export const SmoothWaveVisualizer = React.memo(({ width = 280, height = 50, colo
   return (
     <div className="relative overflow-visible transition-opacity duration-300" style={{ width, height, opacity: containerOpacity }}>
       <svg width={width} height={height} viewBox={`0 0 ${w} ${h}`} className="overflow-visible">
-        {/* We draw 15 layers of thin lines to create that "thread" effect from the image */}
-        {Array.from({ length: 15 }).map((_, i) => {
-          const shift = i * 0.2;
-          const freq = 0.02 + (i * 0.001);
-          const opacity = 0.9 - (i * 0.04);
-          const scale = 1.0 - (i * 0.03);
+        {/* We draw 3 main wave groups to create the "2-3 waves" effect requested */}
+        {[0, 1, 2].map((groupIdx) => {
+          // Each group has a different base frequency and phase shift
+          const groupFreq = 0.015 + groupIdx * 0.01;
+          const groupPhase = groupIdx * Math.PI * 0.6;
           
-          return (
-            <motion.path
-              key={i}
-              d={generateWavePath(shift, freq, scale)}
-              fill="none"
-              stroke={color}
-              strokeWidth="0.8"
-              opacity={opacity}
-              transition={{ type: "tween", ease: "linear" }}
-            />
-          );
+          return Array.from({ length: 6 }).map((_, i) => {
+            const shift = groupPhase + (i * 0.1);
+            const freq = groupFreq + (i * 0.0005);
+            const opacity = (0.7 - (groupIdx * 0.15)) * (1.0 - (i * 0.1));
+            const scale = 1.0 - (i * 0.05);
+            
+            return (
+              <motion.path
+                key={`${groupIdx}-${i}`}
+                d={generateWavePath(shift, freq, scale)}
+                fill="none"
+                stroke={color}
+                strokeWidth="0.5"
+                opacity={opacity}
+                transition={{ type: "tween", ease: "linear" }}
+              />
+            );
+          });
         })}
       </svg>
     </div>
@@ -1048,8 +1054,8 @@ export const ResourceMonitor = React.memo(({
   const ResourceBar = ({ label, percentage }: { label: string, percentage: number }) => (
     <div className="flex flex-col gap-1 w-full">
       <div className="flex justify-between items-end">
-        <span className="text-[10px] font-black tracking-widest uppercase text-black">{label}</span>
-        <span className="text-sm font-black tabular-nums leading-none text-black">{percentage.toFixed(1)}%</span>
+        <span className="text-xs font-black tracking-widest uppercase text-black">{label}</span>
+        <span className="text-base font-black tabular-nums leading-none text-black">{percentage.toFixed(1)}%</span>
       </div>
       <div className="h-1 w-full relative overflow-hidden bg-black/10"></div>
       <div className="h-1 w-full -mt-1 relative overflow-hidden">
@@ -1080,12 +1086,12 @@ export const ResourceMonitor = React.memo(({
           label="GEMINI_1.5_PRO" 
           percentage={geminiUsage} 
         />
-        <div className="flex w-full mt-2 pt-2 pb-1 border-t border-black/20">
+        <div className="flex w-full mt-1 pt-2 pb-1">
           {breakdown.map((item, i) => (
             <div key={i} className="flex-1 flex flex-col items-start border-l border-black/10 pl-2 first:border-0 first:pl-0">
-              <span className="text-[9px] font-black tracking-tight leading-none mb-1 text-black opacity-50">{item.label}</span>
-              <span className="text-sm font-black tabular-nums leading-none text-black drop-shadow-sm">
-                {item.value.toFixed(0)}<span className="text-[9px] ml-0.5 opacity-60 text-black">%</span>
+              <span className="text-[10px] font-black tracking-tight leading-none mb-1 text-black opacity-50">{item.label}</span>
+              <span className="text-base font-black tabular-nums leading-none text-black drop-shadow-sm">
+                {item.value.toFixed(0)}<span className="text-[10px] ml-0.5 opacity-60 text-black">%</span>
               </span>
             </div>
           ))}

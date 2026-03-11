@@ -58,20 +58,20 @@ const MetricWithCircle = ({ title, value, circleLabel, rotationDuration, dashArr
         </span>
       )}
     </div>
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-3">
       <MetricCircle 
         label={circleLabel} 
-        size={70} 
+        size={52} 
         color="#000" 
         rotationDuration={rotationDuration} 
         dashArray={dashArray} 
       />
       <div className="flex flex-col justify-center">
-        <div className="text-5xl font-black text-black leading-none uppercase -mt-2 tracking-tighter tabular-nums scale-y-110 origin-bottom">
+        <div className="text-5xl font-black text-black leading-none uppercase -mt-1 tracking-tighter tabular-nums scale-y-110 origin-bottom">
           <AnimatedCounter value={value} color="#000" glowOnUpdate={glowOnUpdate} />
         </div>
         {subMetrics && subMetrics.length > 0 && (
-          <div className="flex gap-3 mt-2">
+          <div className="flex gap-3 mt-1.5">
             {subMetrics.map((sm, i) => (
               <div key={i} className="flex flex-col">
                  <span className="text-[9px] text-black opacity-40 tracking-[0.2em] font-black leading-none mb-0.5">{sm.label}</span>
@@ -87,12 +87,12 @@ const MetricWithCircle = ({ title, value, circleLabel, rotationDuration, dashArr
   </div>
 );
 
-const MartianBranding = ({ className = "" }: { className?: string }) => (
-  <div className={`flex flex-col gap-0 border-black mt-1 ${className}`}>
-    <div className="text-xs font-bold tracking-[0.3em] uppercase text-black mb-1 opacity-70">
+const MartianBranding = ({ className = "", color = "text-black" }: { className?: string, color?: string }) => (
+  <div className={`flex flex-col gap-0 mt-1 ${className}`}>
+    <div className={`text-xs font-bold tracking-[0.3em] uppercase mb-1 opacity-70 ${color}`}>
       <TypewriterText text="AUTH :: ADMIN" delay={0.03} />
     </div>
-    <div className="text-xl font-black tracking-wider text-black leading-none uppercase font-mono">&gt; KENICHIRO TAKAMATSU</div>
+    <div className={`text-xl font-black tracking-wider leading-none uppercase font-mono ${color}`}>&gt; KENICHIRO TAKAMATSU</div>
   </div>
 );
 
@@ -273,9 +273,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
       <div className="absolute right-6 top-12 bottom-12 w-0.5 bg-black opacity-80" />
 
       <div className="absolute left-1/2 -translate-x-1/2 top-12 flex flex-col items-center z-50 w-full pointer-events-none">
-        <div className="text-[10px] font-black tracking-[0.5em] text-black uppercase opacity-80 bg-white/10 px-4 py-1 backdrop-blur-sm border-x border-black/20">
-          <TypewriterText text="SYS_SCAN :: ACTIVE_SESSION" delay={0.05} />
-        </div>
+        <img src="/heat-logo.png" alt=".HEAT Logo" className="object-contain opacity-90" style={{ filter: 'brightness(0)', height: '17px' }} />
       </div>
 
       {showFaceBox && rect && (
@@ -289,8 +287,8 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
             className="absolute -translate-x-1/2 -translate-y-1/2"
           >
             <FaceTargetCircle size={Math.max(rect.width, rect.height) * 12} color="#000" levels={micLevels} />
-            <div className="absolute -top-16 left-1/2 -translate-x-1/2 whitespace-nowrap">
-              <MartianBranding className="items-center text-center bg-white/20 px-3 py-1 backdrop-blur-md rounded-sm border border-black/5" />
+            <div className="absolute -top-12 left-0 whitespace-nowrap">
+              <MartianBranding color="text-black/30" className="bg-white/10 px-2 py-0.5 backdrop-blur-sm rounded-sm border border-black/5 scale-75 origin-bottom-left" />
             </div>
             {/* Minimal corner markers still existing but outside the circle */}
             <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-black opacity-20 -translate-x-8 -translate-y-8" />
@@ -319,7 +317,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
         </div>
 
         <div className="flex-1 flex justify-end">
-           <div className="flex flex-col items-end gap-1 text-right text-[15px] font-bold text-black uppercase tracking-[0.2em] leading-relaxed -mt-3">
+           <div className="flex flex-col items-end gap-0 text-right text-[15px] font-bold text-black uppercase tracking-[0.2em] leading-relaxed -mt-3">
               <div suppressHydrationWarning className="flex gap-6 tabular-nums">
                 <span>{time?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true })}</span>
                 <span>
@@ -334,14 +332,14 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
       </div>
 
       <div className="flex justify-start items-end">
-        <div className="p-4 w-80">
-          <div className="text-left flex flex-col gap-2">
-            <div className="flex flex-col items-start gap-1 border-t border-black border-opacity-10 pt-2 uppercase relative">
-              <div className="absolute left-0 top-1">
-                <BlinkingIndicator label="RX/TX" color="#D1FF00" interval={600} />
+        <div className="p-2 w-80">
+          <div className="text-left flex flex-col gap-1">
+            <div className="flex flex-col items-start gap-1 border-t border-black border-opacity-10 pt-1.5 uppercase relative">
+              <div className="absolute left-0 top-0.5">
+                 <BlinkingIndicator label="RX/TX" color="#D1FF00" interval={600} />
               </div>
-              <div className="text-[8px] opacity-40 uppercase tracking-widest text-black mt-3">REAL-TIME DB SYNC // AUDIO ACTIVE</div>
-              <SmoothWaveVisualizer width={280} height={40} color="#D1FF00" levels={micLevels} />
+              <div className="text-[7px] opacity-30 uppercase tracking-widest text-black mt-2.5">REAL-TIME DB SYNC // AUDIO ACTIVE</div>
+              <SmoothWaveVisualizer width={280} height={25} color="#D1FF00" levels={micLevels} />
             </div>
           </div>
         </div>
@@ -352,13 +350,13 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
     <>
       {renderBaseLayout(isFaceDetected, rectData)}
       <motion.div 
-        className="fixed left-12 z-[200] flex flex-col gap-8 pointer-events-none"
+        className="fixed left-12 z-[200] flex flex-col gap-1 pointer-events-none"
         style={{ top: '50%', transform: 'translateY(-50%)' }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="mb-4">
+        <div>
            <ResourceMonitor 
              youtubeQuota={resourceUsage.youtubeQuota} 
              geminiUsage={resourceUsage.geminiUsage} 
@@ -367,7 +365,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
            />
         </div>
 
-        <div className="flex flex-col gap-1 relative z-10 transition-all duration-500">
+        <div className="flex flex-col gap-1 relative z-10 transition-all duration-500 mt-4">
            <MetricWithCircle 
              title="Production" 
              value={sheetData.totalProduction.toString().padStart(3, '0')} 
