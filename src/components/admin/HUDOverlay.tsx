@@ -273,7 +273,9 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
       <div className="absolute right-6 top-12 bottom-12 w-0.5 bg-black opacity-80" />
 
       <div className="absolute left-1/2 -translate-x-1/2 top-12 flex flex-col items-center z-50 w-full pointer-events-none">
-        <MartianBranding className="items-center text-center" />
+        <div className="text-[10px] font-black tracking-[0.5em] text-black uppercase opacity-80 bg-white/10 px-4 py-1 backdrop-blur-sm border-x border-black/20">
+          <TypewriterText text="SYS_SCAN :: ACTIVE_SESSION" delay={0.05} />
+        </div>
       </div>
 
       {showFaceBox && rect && (
@@ -287,8 +289,8 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
             className="absolute -translate-x-1/2 -translate-y-1/2"
           >
             <FaceTargetCircle size={Math.max(rect.width, rect.height) * 12} color="#000" levels={micLevels} />
-            <div className="absolute -top-12 left-1/2 -translate-x-1/2 text-[8px] text-black uppercase tracking-[0.4em] whitespace-nowrap opacity-60 bg-white/20 px-2 py-0.5 backdrop-blur-sm">
-              USER_SCAN_LOCKED // ID: {sheetData.totalEntries}
+            <div className="absolute -top-16 left-1/2 -translate-x-1/2 whitespace-nowrap">
+              <MartianBranding className="items-center text-center bg-white/20 px-3 py-1 backdrop-blur-md rounded-sm border border-black/5" />
             </div>
             {/* Minimal corner markers still existing but outside the circle */}
             <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-black opacity-20 -translate-x-8 -translate-y-8" />
