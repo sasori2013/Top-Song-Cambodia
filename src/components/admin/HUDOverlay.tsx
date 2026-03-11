@@ -273,7 +273,23 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
       <div className="absolute right-6 top-12 bottom-12 w-0.5 bg-black opacity-80" />
 
       <div className="absolute left-1/2 -translate-x-1/2 top-12 flex flex-col items-center z-50 w-full pointer-events-none">
-        <img src="/heat-logo.png" alt=".HEAT Logo" className="object-contain opacity-90" style={{ filter: 'brightness(0)', height: '17px' }} />
+        <img 
+          src="/heat-logo.png" 
+          alt=".HEAT Logo" 
+          className="object-contain opacity-90 cursor-pointer pointer-events-auto" 
+          style={{ filter: 'brightness(0)', height: '17px' }} 
+          onMouseEnter={() => {
+            const audio = new Audio('/sound/logo.mp3');
+            audio.volume = 0.12;
+            audio.play().catch(() => {});
+          }}
+          onClick={() => {
+            const audio = new Audio('/sound/color.mp3');
+            audio.volume = 0.5;
+            audio.play().catch(() => {});
+            onToggleCameraMode?.();
+          }}
+        />
       </div>
 
       {showFaceBox && rect && (

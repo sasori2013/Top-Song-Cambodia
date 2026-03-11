@@ -1016,38 +1016,71 @@ export const ResourceMonitor = React.memo(({
   color = "#000" 
 }: ResourceMonitorProps) => {
   const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => setMounted(true), []);
+  const [breakdown, setBreakdown] = React.useState<{label: string, value: number}[]>([]);
+  const [activeIndex, setActiveIndex] = React.useState(0);
 
-  const breakdown = React.useMemo(() => {
-    // 1時間ごとに一定の変動を与えるためのシード値
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Initial breakdown based on hourly seed
+  React.useEffect(() => {
+    if (!mounted) return;
     const now = new Date();
     const seed = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate() + now.getHours();
     
-    // 決定論的な疑似乱数生成（簡易版）
     const seededRandom = (s: number) => {
       const x = Math.sin(s) * 10000;
       return x - Math.floor(x);
     };
 
-    // 合計が100%になるように調整しつつ、最大±5%の変動
-    // ベース: YT:45, FB:30, TT:15, OTHER:10 (合計100)
     const ytBase = 45;
     const fbBase = 30;
     const ttBase = 15;
     const otherBase = 10;
 
-    const v1 = (seededRandom(seed + 1) - 0.5) * 10; // ±5
+    const v1 = (seededRandom(seed + 1) - 0.5) * 10; 
     const v2 = (seededRandom(seed + 2) - 0.5) * 10;
     const v3 = (seededRandom(seed + 3) - 0.5) * 10;
-    const v4 = -(v1 + v2 + v3); // 合計変動を0にする
+    const v4 = -(v1 + v2 + v3);
 
-    return [
+    setBreakdown([
       { label: 'YT', value: Math.max(0, ytBase + v1) },
       { label: 'FB', value: Math.max(0, fbBase + v2) },
       { label: 'TT', value: Math.max(0, ttBase + v3) },
       { label: 'OTHER', value: Math.max(0, otherBase + v4) }
-    ];
+    ]);
   }, [mounted]);
+
+  // Rolling effect: Sequential micro-fluctuations (All items)
+  React.useEffect(() => {
+    if (!mounted || breakdown.length === 0) return;
+
+    const interval = setInterval(() => {
+      setBreakdown(prev => {
+        const next = [...prev];
+        const idx = activeIndex % 4;
+        const nextIdx = (activeIndex + 1) % 4;
+        
+        const jitter = (Math.random() * 0.8) + 0.3; 
+        const direction = Math.random() > 0.5 ? 1 : -1;
+        const delta = jitter * direction;
+
+        const newVal = next[idx].value + delta;
+        const newNextVal = next[nextIdx].value - delta;
+
+        if (newVal > 5 && newVal < 65 && newNextVal > 5 && newNextVal < 65) {
+          next[idx] = { ...next[idx], value: newVal };
+          next[nextIdx] = { ...next[nextIdx], value: newNextVal };
+        }
+        
+        return next;
+      });
+      setActiveIndex(prev => prev + 1);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [mounted, breakdown.length, activeIndex]);
 
   if (!mounted) return null;
 
@@ -1058,19 +1091,11 @@ export const ResourceMonitor = React.memo(({
         <span className="text-base font-black tabular-nums leading-none text-black">{percentage.toFixed(1)}%</span>
       </div>
       <div className="h-1 w-full relative overflow-hidden bg-black/10"></div>
-      <div className="h-1 w-full -mt-1 relative overflow-hidden">
-        <motion.div 
-          initial={{ width: 0 }}
-          animate={{ width: `${percentage}%` }}
-          transition={{ duration: 1.5, ease: "easeOut" }}
-          className="h-full relative overflow-hidden bg-black/60"
-        >
-          <motion.div 
-            animate={{ x: ['-100%', '400%'] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-            className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full skew-x-[-20deg]"
-          />
-        </motion.div>
+      <div className="h-1 w-full -mt-1 relative overflow-hidden bg-black/10">
+        <div 
+          style={{ width: `${percentage}%` }}
+          className="h-full bg-black/60"
+        />
       </div>
     </div>
   );
@@ -1087,14 +1112,18 @@ export const ResourceMonitor = React.memo(({
           percentage={geminiUsage} 
         />
         <div className="flex w-full mt-1 pt-2 pb-1">
-          {breakdown.map((item, i) => (
-            <div key={i} className="flex-1 flex flex-col items-start border-l border-black/10 pl-2 first:border-0 first:pl-0">
-              <span className="text-[10px] font-black tracking-tight leading-none mb-1 text-black opacity-50">{item.label}</span>
-              <span className="text-base font-black tabular-nums leading-none text-black drop-shadow-sm">
-                {item.value.toFixed(0)}<span className="text-[10px] ml-0.5 opacity-60 text-black">%</span>
-              </span>
-            </div>
-          ))}
+          {breakdown.map((item, i) => {
+            const isRolling = (activeIndex % 4) === i;
+            return (
+              <div key={i} className={`flex-1 flex flex-col items-start border-l border-black/10 pl-2 first:border-0 first:pl-0 transition-opacity duration-500 ${isRolling ? 'opacity-100' : 'opacity-60'}`}>
+                <span className="text-[10px] font-black tracking-tight leading-none mb-1 text-black opacity-50">{item.label}</span>
+                <span className="text-base font-black tabular-nums leading-none text-black drop-shadow-sm flex items-baseline">
+                  <AnimatedCounter value={Math.round(item.value)} color="#000" />
+                  <span className="text-[10px] ml-0.5 opacity-60 text-black">%</span>
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
