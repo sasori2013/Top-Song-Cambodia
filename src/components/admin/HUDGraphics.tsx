@@ -1081,12 +1081,12 @@ export const ResourceMonitor = React.memo(({
           label="GEMINI_1.5_PRO" 
           percentage={geminiUsage} 
         />
-        <div className="flex w-full mt-1.5 pt-1.5 pb-0.5 border-t" style={{ borderColor: `${color}1A` }}>
+        <div className="flex w-full mt-2 pt-2 pb-1 border-t border-black/20">
           {breakdown.map((item, i) => (
-            <div key={i} className="flex-1 flex flex-col items-start border-l pl-1.5 first:border-0 first:pl-0" style={{ borderColor: `${color}1A` }}>
-              <span className="text-[7px] font-black tracking-tight leading-none mb-0.5" style={{ color, opacity: 0.4 }}>{item.label}</span>
-              <span className="text-[11px] font-bold tabular-nums leading-none drop-shadow-sm" style={{ color }}>
-                {item.value.toFixed(0)}<span className="text-[7px] ml-0.5 opacity-40">%</span>
+            <div key={i} className="flex-1 flex flex-col items-start border-l border-black/10 pl-2 first:border-0 first:pl-0">
+              <span className="text-[9px] font-black tracking-tight leading-none mb-1 text-black opacity-50">{item.label}</span>
+              <span className="text-sm font-black tabular-nums leading-none text-black drop-shadow-sm">
+                {item.value.toFixed(0)}<span className="text-[9px] ml-0.5 opacity-60">%</span>
               </span>
             </div>
           ))}
