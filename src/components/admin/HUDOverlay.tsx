@@ -24,14 +24,15 @@ interface TelemetryBlockProps {
   value: string | undefined;
   sub?: string;
   align?: "left" | "right";
+  color?: string;
 }
 
-const TelemetryBlock = ({ title, value, sub, align = "left" }: TelemetryBlockProps) => (
+const TelemetryBlock = ({ title, value, sub, align = "left", color = "text-black" }: TelemetryBlockProps) => (
   <div className={`flex flex-col ${align === "right" ? "items-end" : "items-start"} uppercase`}>
-    <div className="text-[9px] opacity-40 tracking-widest mb-1">
+    <div className={`text-[9px] opacity-40 tracking-widest mb-1 ${color}`}>
       {title.toUpperCase().replace(/_/g, ' ')}
     </div>
-    <div className="text-xl font-bold leading-none uppercase text-black" suppressHydrationWarning>
+    <div className={`text-xl font-bold leading-none uppercase ${color}`} suppressHydrationWarning>
       {value}{sub ? ` - ${sub}` : ""}
     </div>
   </div>
@@ -46,46 +47,52 @@ interface MetricWithCircleProps {
   glowOnUpdate?: boolean;
   increase?: number;
   subMetrics?: { label: string; value: number | string }[];
+  isWhite?: boolean;
 }
 
-const MetricWithCircle = ({ title, value, circleLabel, rotationDuration, dashArray, glowOnUpdate = false, increase, subMetrics }: MetricWithCircleProps) => (
-  <div className="flex flex-col items-start uppercase w-[240px] py-0.5">
-    <div className="text-[11px] font-black text-black tracking-[0.2em] mb-1 flex items-center gap-2">
-      {title.toUpperCase()}
-      {increase !== undefined && (
-        <span className="text-[10px] font-black bg-black text-white px-1.5 py-0.5 rounded-sm tracking-tighter shadow-sm">
-          +{increase}
-        </span>
-      )}
-    </div>
-    <div className="flex items-center gap-3">
-      <MetricCircle 
-        label={circleLabel} 
-        size={52} 
-        color="#000" 
-        rotationDuration={rotationDuration} 
-        dashArray={dashArray} 
-      />
-      <div className="flex flex-col justify-center">
-        <div className="text-5xl font-black text-black leading-none uppercase -mt-1 tracking-tighter tabular-nums scale-y-110 origin-bottom">
-          <AnimatedCounter value={value} color="#000" glowOnUpdate={glowOnUpdate} />
-        </div>
-        {subMetrics && subMetrics.length > 0 && (
-          <div className="flex gap-3 mt-1.5">
-            {subMetrics.map((sm, i) => (
-              <div key={i} className="flex flex-col">
-                 <span className="text-[9px] text-black opacity-40 tracking-[0.2em] font-black leading-none mb-0.5">{sm.label}</span>
-                 <span className="text-xs font-mono font-black tracking-tighter leading-none text-black">
-                   {sm.label === "EXPIRED" ? "-" : "+"}{sm.value}
-                 </span>
-              </div>
-            ))}
-          </div>
+const MetricWithCircle = ({ title, value, circleLabel, rotationDuration, dashArray, glowOnUpdate = false, increase, subMetrics, isWhite }: MetricWithCircleProps) => {
+  const colorClass = isWhite ? "text-white" : "text-black";
+  const hexColor = isWhite ? "#fff" : "#000";
+  
+  return (
+    <div className="flex flex-col items-start uppercase w-[240px] py-0.5">
+      <div className={`text-[11px] font-black ${colorClass} tracking-[0.2em] mb-1 flex items-center gap-2`}>
+        {title.toUpperCase()}
+        {increase !== undefined && (
+          <span className={`text-[10px] font-black ${isWhite ? "bg-white text-black" : "bg-black text-white"} px-1.5 py-0.5 rounded-sm tracking-tighter shadow-sm`}>
+            +{increase}
+          </span>
         )}
       </div>
+      <div className="flex items-center gap-3">
+        <MetricCircle 
+          label={circleLabel} 
+          size={52} 
+          color={hexColor} 
+          rotationDuration={rotationDuration} 
+          dashArray={dashArray} 
+        />
+        <div className="flex flex-col justify-center">
+          <div className={`text-5xl font-black ${colorClass} leading-none uppercase -mt-1 tracking-tighter tabular-nums scale-y-110 origin-bottom`}>
+            <AnimatedCounter value={value} color={hexColor} glowOnUpdate={glowOnUpdate} />
+          </div>
+          {subMetrics && subMetrics.length > 0 && (
+            <div className="flex gap-3 mt-1.5">
+              {subMetrics.map((sm, i) => (
+                <div key={i} className="flex flex-col">
+                   <span className={`text-[9px] ${colorClass} opacity-40 tracking-[0.2em] font-black leading-none mb-0.5`}>{sm.label}</span>
+                   <span className={`text-xs font-mono font-black tracking-tighter leading-none ${colorClass}`}>
+                     {sm.label === "EXPIRED" ? "-" : "+"}{sm.value}
+                   </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const MartianBranding = ({ className = "", color = "text-black" }: { className?: string, color?: string }) => (
   <div className={`flex flex-col gap-0 mt-1 ${className}`}>
@@ -259,7 +266,9 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
     top: Math.min(...faceData.faceLandmarks[0].map((l: any) => l.y)) * 100
   } : null;
 
-  const [isTimeWhite, setIsTimeWhite] = React.useState(false);
+  const [isHudWhite, setIsHudWhite] = React.useState(false);
+  const hudColorClass = isHudWhite ? "text-white" : "text-black";
+  const hudHexColor = isHudWhite ? "#fff" : "#000";
 
   const renderBaseLayout = (showFaceBox = false, rect: any = null) => (
     <motion.div 
@@ -268,15 +277,15 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      <div className="absolute left-6 top-12 bottom-12 w-0.5 bg-black opacity-80" />
-      <div className="absolute right-6 top-12 bottom-12 w-0.5 bg-black opacity-80" />
+      <div className={`absolute left-6 top-12 bottom-12 w-0.5 opacity-80 ${isHudWhite ? 'bg-white' : 'bg-black'}`} />
+      <div className={`absolute right-6 top-12 bottom-12 w-0.5 opacity-80 ${isHudWhite ? 'bg-white' : 'bg-black'}`} />
 
       <div className="absolute left-1/2 -translate-x-1/2 top-12 flex flex-col items-center z-50 w-full pointer-events-none">
         <img 
           src="/heat-logo.png" 
           alt=".HEAT Logo" 
           className="object-contain opacity-90 cursor-pointer pointer-events-auto" 
-          style={{ filter: 'brightness(0)', height: '17px' }} 
+          style={{ filter: isHudWhite ? 'brightness(0) invert(1)' : 'brightness(0)', height: '17px' }} 
           onMouseEnter={() => {
             const audio = new Audio('/sound/logo.mp3');
             audio.volume = 0.12;
@@ -301,13 +310,13 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
             transition={{ type: 'spring', damping: 35, stiffness: 150 }}
             className="absolute -translate-x-1/2 -translate-y-1/2"
           >
-            <FaceTargetCircle size={Math.max(rect.width, rect.height) * 12} color="#000" levels={micLevels} />
+            <FaceTargetCircle size={Math.max(rect.width, rect.height) * 12} color={hudHexColor} levels={micLevels} />
             <div className="absolute -top-12 left-0 whitespace-nowrap">
-              <MartianBranding color="text-black/30" className="bg-white/10 px-2 py-0.5 backdrop-blur-sm rounded-sm border border-black/5 scale-75 origin-bottom-left" />
+              <MartianBranding color={isHudWhite ? "text-white/30" : "text-black/30"} className="bg-white/10 px-2 py-0.5 backdrop-blur-sm rounded-sm border border-black/5 scale-75 origin-bottom-left" />
             </div>
             {/* Minimal corner markers still existing but outside the circle */}
-            <div className="absolute top-0 left-0 w-2 h-2 border-t border-l border-black opacity-20 -translate-x-8 -translate-y-8" />
-            <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-black opacity-20 translate-x-8 -translate-y-8" />
+            <div className={`absolute top-0 left-0 w-2 h-2 border-t border-l opacity-20 -translate-x-8 -translate-y-8 ${isHudWhite ? 'border-white' : 'border-black'}`} />
+            <div className={`absolute bottom-0 right-0 w-2 h-2 border-b border-r opacity-20 translate-x-8 -translate-y-8 ${isHudWhite ? 'border-white' : 'border-black'}`} />
           </motion.div>
       )}
 
@@ -315,11 +324,11 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
         <div className="w-auto">
           <div className="flex flex-col gap-0.5 relative">
             <div className="absolute -top-3 left-0">
-               <BlinkingIndicator label="DB.SYNC" color="#D1FF00" interval={1200} />
+               <BlinkingIndicator label="DB.SYNC" color="#D1FF00" isWhite={isHudWhite} interval={1200} />
             </div>
 
             <div 
-              className="text-sm opacity-70 tracking-[0.4em] uppercase text-black font-semibold mt-1 cursor-pointer pointer-events-auto hover:opacity-100 transition-opacity"
+              className={`text-sm opacity-70 tracking-[0.4em] uppercase ${hudColorClass} font-semibold mt-1 cursor-pointer pointer-events-auto hover:opacity-100 transition-opacity`}
               onClick={() => {
                 const audio = new Audio('/sound/se01.mp3');
                 audio.volume = 0.3;
@@ -329,7 +338,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
             >
               HEAT PRODUCTION LOG
             </div>
-            <div className="text-6xl font-black text-black leading-none mt-1">
+            <div className={`text-6xl font-black ${hudColorClass} leading-none mt-1`}>
               DAY {(() => {
                 const startDate = new Date('2026-03-08');
                 const now = time || new Date();
@@ -343,9 +352,9 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
 
         <div className="flex-1 flex justify-end">
            <div 
-             className={`flex flex-col items-end gap-0 text-right text-[15px] font-bold uppercase tracking-[0.2em] leading-relaxed -mt-3 cursor-pointer pointer-events-auto hover:opacity-80 transition-all ${isTimeWhite ? 'text-white drop-shadow-sm' : 'text-black'}`}
+             className={`flex flex-col items-end gap-0 text-right text-[15px] font-bold uppercase tracking-[0.2em] leading-relaxed -mt-3 cursor-pointer pointer-events-auto hover:opacity-80 transition-all ${isHudWhite ? 'text-white drop-shadow-sm' : 'text-black'}`}
              onClick={() => {
-               setIsTimeWhite(!isTimeWhite);
+               setIsHudWhite(!isHudWhite);
                const audio = new Audio('/sound/logo.mp3');
                audio.volume = 0.2;
                audio.play().catch(() => {});
@@ -367,12 +376,12 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
       <div className="flex justify-start items-end">
         <div className="p-2 w-80">
           <div className="text-left flex flex-col gap-1">
-            <div className="flex flex-col items-start gap-1 border-t border-black border-opacity-10 pt-1.5 uppercase relative">
+            <div className={`flex flex-col items-start gap-1 border-t ${isHudWhite ? 'border-white' : 'border-black'} border-opacity-10 pt-1.5 uppercase relative`}>
               <div className="absolute left-0 top-0.5">
-                 <BlinkingIndicator label="RX/TX" color="#D1FF00" interval={600} />
+                 <BlinkingIndicator label="RX/TX" color="#D1FF00" isWhite={isHudWhite} interval={600} />
               </div>
-              <div className="text-[7px] opacity-30 uppercase tracking-widest text-black mt-2.5">REAL-TIME DB SYNC // AUDIO ACTIVE</div>
-              <SmoothWaveVisualizer width={280} height={25} color="#D1FF00" levels={micLevels} />
+              <div className={`text-[7px] opacity-30 uppercase tracking-widest ${hudColorClass} mt-2.5`}>REAL-TIME DB SYNC // AUDIO ACTIVE</div>
+              <SmoothWaveVisualizer width={280} height={25} color={isHudWhite ? "#fff" : "#D1FF00"} levels={micLevels} />
             </div>
           </div>
         </div>
@@ -405,6 +414,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
              circleLabel="PRD"
              rotationDuration="3s"
              dashArray="80 180"
+             isWhite={isHudWhite}
            />
            <MetricWithCircle 
              title="Artist" 
@@ -412,6 +422,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
              circleLabel="ART" 
              rotationDuration="5s"
              dashArray="140 120"
+             isWhite={isHudWhite}
            />
            <MetricWithCircle 
              title="Tracks" 
@@ -420,6 +431,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
              rotationDuration="8s"
              dashArray="180 80"
              glowOnUpdate={true}
+             isWhite={isHudWhite}
            />
         </div>
       </motion.div>
