@@ -338,7 +338,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
             >
               HEAT PRODUCTION LOG
             </div>
-            <div className={`text-4xl md:text-6xl font-black ${hudColorClass} leading-none mt-1`}>
+            <div className={`text-6xl font-black ${hudColorClass} leading-none mt-1`}>
               DAY {(() => {
                 const startDate = new Date('2026-03-08');
                 const now = time || new Date();
@@ -392,7 +392,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
     <>
       {renderBaseLayout(isFaceDetected, rectData)}
       <motion.div 
-        className="fixed left-12 z-[200] flex flex-col gap-1 pointer-events-none"
+        className="fixed left-6 md:left-12 z-[200] flex flex-col gap-1 pointer-events-none"
         style={{ top: '50%', transform: 'translateY(-50%)' }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
