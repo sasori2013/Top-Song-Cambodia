@@ -1007,17 +1007,23 @@ export interface ResourceMonitorProps {
   geminiUsage: number;  // 0-100 percentage
   tokenCount?: number;
   color?: string;
+  isWhite?: boolean;
 }
 
 export const ResourceMonitor = React.memo(({ 
   youtubeQuota, 
   geminiUsage, 
   tokenCount = 0,
-  color = "#000" 
+  color = "#000",
+  isWhite = false
 }: ResourceMonitorProps) => {
   const [mounted, setMounted] = React.useState(false);
   const [breakdown, setBreakdown] = React.useState<{label: string, value: number}[]>([]);
   const [activeIndex, setActiveIndex] = React.useState(0);
+
+  const colorClass = isWhite ? "text-white" : "text-black";
+  const bgClass = isWhite ? "bg-white/10" : "bg-black/10";
+  const hexColor = isWhite ? "#fff" : "#000";
 
   React.useEffect(() => {
     setMounted(true);
@@ -1087,14 +1093,14 @@ export const ResourceMonitor = React.memo(({
   const ResourceBar = ({ label, percentage }: { label: string, percentage: number }) => (
     <div className="flex flex-col gap-1 w-full">
       <div className="flex justify-between items-end">
-        <span className="text-xs font-black tracking-widest uppercase text-black">{label}</span>
-        <span className="text-base font-black tabular-nums leading-none text-black">{percentage.toFixed(1)}%</span>
+        <span className={`text-xs font-black tracking-widest uppercase ${colorClass}`}>{label}</span>
+        <span className={`text-base font-black tabular-nums leading-none ${colorClass}`}>{percentage.toFixed(1)}%</span>
       </div>
-      <div className="h-1 w-full relative overflow-hidden bg-black/10"></div>
-      <div className="h-1 w-full -mt-1 relative overflow-hidden bg-black/10">
+      <div className={`h-1 w-full relative overflow-hidden ${bgClass}`}></div>
+      <div className={`h-1 w-full -mt-1 relative overflow-hidden ${bgClass}`}>
         <div 
-          style={{ width: `${percentage}%` }}
-          className="h-full bg-black/60"
+          style={{ width: `${percentage}%`, backgroundColor: hexColor }}
+          className="h-full opacity-60"
         />
       </div>
     </div>
@@ -1115,11 +1121,11 @@ export const ResourceMonitor = React.memo(({
           {breakdown.map((item, i) => {
             const isRolling = (activeIndex % 4) === i;
             return (
-              <div key={i} className={`flex-1 flex flex-col items-start border-l border-black/10 pl-2 first:border-0 first:pl-0 transition-opacity duration-500 ${isRolling ? 'opacity-100' : 'opacity-60'}`}>
-                <span className="text-[10px] font-black tracking-tight leading-none mb-1 text-black opacity-50">{item.label}</span>
-                <span className="text-base font-black tabular-nums leading-none text-black drop-shadow-sm flex items-baseline">
-                  <AnimatedCounter value={Math.round(item.value)} color="#000" />
-                  <span className="text-[10px] ml-0.5 opacity-60 text-black">%</span>
+              <div key={i} className={`flex-1 flex flex-col items-start border-l ${isWhite ? 'border-white/10' : 'border-black/10'} pl-2 first:border-0 first:pl-0 transition-opacity duration-500 ${isRolling ? 'opacity-100' : 'opacity-60'}`}>
+                <span className={`text-[10px] font-black tracking-tight leading-none mb-1 ${colorClass} opacity-50`}>{item.label}</span>
+                <span className={`text-base font-black tabular-nums leading-none ${colorClass} drop-shadow-sm flex items-baseline`}>
+                  <AnimatedCounter value={Math.round(item.value)} color={hexColor} />
+                  <span className={`text-[10px] ml-0.5 opacity-60 ${colorClass}`}>%</span>
                 </span>
               </div>
             );

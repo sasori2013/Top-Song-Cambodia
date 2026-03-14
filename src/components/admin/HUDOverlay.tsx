@@ -404,6 +404,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
              geminiUsage={resourceUsage.geminiUsage} 
              tokenCount={resourceUsage.tokenCount} 
              color={guiInverted ? "#000" : "#fff"}
+             isWhite={isHudWhite}
            />
         </div>
 
