@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSheetData, getSpreadsheetMetadata } from '@/lib/sheets';
+import { getSheetData, getSpreadsheetMetadata, ensureSheetExists } from '@/lib/sheets';
 import { NotificationItem } from '@/components/admin/HUDGraphics';
 
 export async function GET() {
@@ -14,11 +14,19 @@ export async function GET() {
       return NextResponse.json({ logs: [] });
     }
 
+    // Ensure DISMISSED_LOGS sheet exists
+    await ensureSheetExists(sheetId, 'DISMISSED_LOGS');
+
     // Fetch the last 50 rows to find recent telegram notifications
     // We fetch a bit more because there's a lot of noise (e.g. "Batch 1 call...")
     // In Google Sheets API, specifying just the sheet name fetches the whole sheet, but we can't easily fetch JUST the last N rows without knowing total rows.
     // So we fetch columns A and B, which shouldn't be too heavy.
-    const allRows = await getSheetData(sheetId, `'DEBUG_LOG'!A:B`);
+    const [allRows, dismissedRows] = await Promise.all([
+      getSheetData(sheetId, `'DEBUG_LOG'!A:B`),
+      getSheetData(sheetId, `'DISMISSED_LOGS'!A:A`)
+    ]);
+    
+    const dismissedIds = new Set((dismissedRows || []).flat().map(id => id?.toString().trim()));
     
     if (!allRows || allRows.length < 2) {
       return NextResponse.json({ logs: [] });
@@ -124,6 +132,10 @@ export async function GET() {
       // Use a deterministic hash of the message and timestamp for persistence
       const contentHash = Buffer.from(message + timestampStr).toString('base64').substring(0, 12);
       const stableId = `log-${i}-${contentHash}`;
+
+      if (dismissedIds.has(stableId)) {
+        continue;
+      }
 
       recentLogs.push({
         id: stableId,

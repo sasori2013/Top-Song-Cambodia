@@ -231,12 +231,8 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
       try {
         const res = await fetch('/api/admin/logs');
         const data = await res.json();
-        if (data.logs && data.logs.length > 0) {
-          // Filter out dismissed ones using latest state
-          setNotifications(data.logs.filter((log: any) => {
-            // Check against both the current state and what might have just been loaded
-            return !dismissedIds.has(log.id);
-          }));
+        if (data.logs) {
+          setNotifications(data.logs);
         }
       } catch (err) {
         console.error("Failed to fetch logs:", err);
@@ -250,6 +246,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
 
   // Derived state for filtered notifications to ensure it's reactive
   const visibleNotifications = React.useMemo(() => {
+    // API already filters these, but we filter locally for instant UX when dismissing
     return notifications.filter(n => !dismissedIds.has(n.id));
   }, [notifications, dismissedIds]);
 
@@ -261,6 +258,8 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
     left: Math.min(...faceData.faceLandmarks[0].map((l: any) => l.x)) * 100,
     top: Math.min(...faceData.faceLandmarks[0].map((l: any) => l.y)) * 100
   } : null;
+
+  const [isTimeWhite, setIsTimeWhite] = React.useState(false);
 
   const renderBaseLayout = (showFaceBox = false, rect: any = null) => (
     <motion.div 
@@ -319,7 +318,17 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
                <BlinkingIndicator label="DB.SYNC" color="#D1FF00" interval={1200} />
             </div>
 
-            <div className="text-sm opacity-70 tracking-[0.4em] uppercase text-black font-semibold mt-1">HEAT PRODUCTION LOG</div>
+            <div 
+              className="text-sm opacity-70 tracking-[0.4em] uppercase text-black font-semibold mt-1 cursor-pointer pointer-events-auto hover:opacity-100 transition-opacity"
+              onClick={() => {
+                const audio = new Audio('/sound/se01.mp3');
+                audio.volume = 0.3;
+                audio.play().catch(() => {});
+                setSettingsOpen(true);
+              }}
+            >
+              HEAT PRODUCTION LOG
+            </div>
             <div className="text-6xl font-black text-black leading-none mt-1">
               DAY {(() => {
                 const startDate = new Date('2026-03-08');
@@ -333,14 +342,22 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
         </div>
 
         <div className="flex-1 flex justify-end">
-           <div className="flex flex-col items-end gap-0 text-right text-[15px] font-bold text-black uppercase tracking-[0.2em] leading-relaxed -mt-3">
+           <div 
+             className={`flex flex-col items-end gap-0 text-right text-[15px] font-bold uppercase tracking-[0.2em] leading-relaxed -mt-3 cursor-pointer pointer-events-auto hover:opacity-80 transition-all ${isTimeWhite ? 'text-white drop-shadow-sm' : 'text-black'}`}
+             onClick={() => {
+               setIsTimeWhite(!isTimeWhite);
+               const audio = new Audio('/sound/logo.mp3');
+               audio.volume = 0.2;
+               audio.play().catch(() => {});
+             }}
+           >
               <div suppressHydrationWarning className="flex gap-6 tabular-nums">
                 <span>{time?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true })}</span>
                 <span>
-                  {time ? `${time.getFullYear()}/${time.getMonth() + 1}/${time.getDate()}` : ""}
+                   {time ? `${time.getFullYear()}/${time.getMonth() + 1}/${time.getDate()}` : ""}
                 </span>
               </div>
-              <div>
+              <div className="text-[13px] opacity-70 tracking-[0.3em]">
                 {env?.location}
               </div>
            </div>
@@ -421,14 +438,24 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
             <NotificationPanel 
               key={notif.id} 
               notification={notif} 
-              onRemove={(id) => {
+              onRemove={async (id) => {
                 // Instantly update local state for better UX
                 setDismissedIds(prevSet => {
                   const next = new Set(prevSet);
                   next.add(id);
-                  localStorage.setItem('hud_dismissed_notifications', JSON.stringify(Array.from(next)));
                   return next;
                 });
+
+                // Call the global dismissal API
+                try {
+                  await fetch('/api/admin/logs/dismiss', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                  });
+                } catch (e) {
+                  console.error("Failed to globally dismiss notification:", e);
+                }
               }}
             />
           ))}
@@ -491,6 +518,29 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
                     className={`text-[9px] font-mono tracking-widest px-2 py-1 border transition-colors ${cameraMode === 'color' ? (guiInverted ? 'bg-white text-black border-white' : 'bg-black text-white border-black') : (guiInverted ? 'border-white/30 text-white hover:bg-white/10' : 'border-black/30 text-black hover:bg-black/5')}`}
                   >
                     {cameraMode === 'color' ? '[ COLOR ]' : '[ MONO ]'}
+                  </button>
+                </div>
+
+                <div className="flex justify-between items-center pt-4 border-t border-black/10" style={{ borderColor: guiInverted ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }}>
+                  <span className={`text-[10px] font-black tracking-widest opacity-60 ${guiInverted ? 'text-white' : 'text-black'}`}>SYS.NOTIFICATION_DB</span>
+                  <button 
+                    onClick={async () => {
+                      if (confirm('Reset all globally dismissed notifications?')) {
+                        try {
+                          await fetch('/api/admin/logs/reset', { method: 'POST' });
+                          setDismissedIds(new Set());
+                          // Reload logs immediately
+                          const res = await fetch('/api/admin/logs');
+                          const data = await res.json();
+                          if (data.logs) setNotifications(data.logs);
+                        } catch (e) {
+                          console.error("Failed to reset notifications:", e);
+                        }
+                      }
+                    }}
+                    className={`text-[9px] font-mono tracking-widest px-2 py-1 border border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white transition-colors`}
+                  >
+                    [ RESET_NOTIFICATIONS ]
                   </button>
                 </div>
               </div>
