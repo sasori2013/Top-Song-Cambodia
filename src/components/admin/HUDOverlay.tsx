@@ -272,15 +272,15 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
 
   const renderBaseLayout = (showFaceBox = false, rect: any = null) => (
     <motion.div 
-      className="absolute inset-0 pointer-events-none z-50 flex flex-col justify-between p-12"
+      className="absolute inset-0 pointer-events-none z-50 flex flex-col justify-between p-6 md:p-12"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5 }}
     >
-      <div className={`absolute left-6 top-12 bottom-12 w-0.5 opacity-80 ${isHudWhite ? 'bg-white' : 'bg-black'}`} />
-      <div className={`absolute right-6 top-12 bottom-12 w-0.5 opacity-80 ${isHudWhite ? 'bg-white' : 'bg-black'}`} />
+      <div className={`absolute left-3 md:left-6 top-6 md:top-12 bottom-6 md:bottom-12 w-0.5 opacity-80 ${isHudWhite ? 'bg-white' : 'bg-black'}`} />
+      <div className={`absolute right-3 md:right-6 top-6 md:top-12 bottom-6 md:bottom-12 w-0.5 opacity-80 ${isHudWhite ? 'bg-white' : 'bg-black'}`} />
 
-      <div className="absolute left-1/2 -translate-x-1/2 top-12 flex flex-col items-center z-50 w-full pointer-events-none">
+      <div className="absolute left-1/2 -translate-x-1/2 top-6 md:top-12 hidden md:flex flex-col items-center z-50 w-full pointer-events-none">
         <img 
           src="/heat-logo.png" 
           alt=".HEAT Logo" 
@@ -328,7 +328,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
             </div>
 
             <div 
-              className={`text-sm opacity-70 tracking-[0.4em] uppercase ${hudColorClass} font-semibold mt-1 cursor-pointer pointer-events-auto hover:opacity-100 transition-opacity`}
+              className={`text-[8px] md:text-sm opacity-70 tracking-[0.4em] uppercase ${hudColorClass} font-semibold mt-1 cursor-pointer pointer-events-auto hover:opacity-100 transition-opacity`}
               onClick={() => {
                 const audio = new Audio('/sound/se01.mp3');
                 audio.volume = 0.3;
@@ -338,7 +338,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
             >
               HEAT PRODUCTION LOG
             </div>
-            <div className={`text-6xl font-black ${hudColorClass} leading-none mt-1`}>
+            <div className={`text-4xl md:text-6xl font-black ${hudColorClass} leading-none mt-1`}>
               DAY {(() => {
                 const startDate = new Date('2026-03-08');
                 const now = time || new Date();
@@ -352,7 +352,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
 
         <div className="flex-1 flex justify-end">
            <div 
-             className={`flex flex-col items-end gap-0 text-right text-[15px] font-bold uppercase tracking-[0.2em] leading-relaxed -mt-3 cursor-pointer pointer-events-auto hover:opacity-80 transition-all ${isHudWhite ? 'text-white drop-shadow-sm' : 'text-black'}`}
+             className={`flex flex-col items-end gap-0 text-right text-[12px] md:text-[15px] font-bold uppercase tracking-[0.2em] leading-relaxed -mt-3 cursor-pointer pointer-events-auto hover:opacity-80 transition-all ${isHudWhite ? 'text-white drop-shadow-sm' : 'text-black'}`}
              onClick={() => {
                setIsHudWhite(!isHudWhite);
                const audio = new Audio('/sound/logo.mp3');
@@ -360,13 +360,13 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
                audio.play().catch(() => {});
              }}
            >
-              <div suppressHydrationWarning className="flex gap-6 tabular-nums">
+              <div suppressHydrationWarning className="flex flex-col md:flex-row md:gap-6 gap-0.5 tabular-nums items-end">
                 <span>{time?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true })}</span>
-                <span>
+                <span className="opacity-70 md:opacity-100">
                    {time ? `${time.getFullYear()}/${time.getMonth() + 1}/${time.getDate()}` : ""}
                 </span>
               </div>
-              <div className="text-[13px] opacity-70 tracking-[0.3em]">
+              <div className="text-[10px] md:text-[13px] opacity-70 tracking-[0.3em]">
                 {env?.location}
               </div>
            </div>
@@ -374,7 +374,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
       </div>
 
       <div className="flex justify-start items-end">
-        <div className="p-2 w-80">
+        <div className="p-2 w-full max-w-[280px] md:w-80">
           <div className="text-left flex flex-col gap-1">
             <div className={`flex flex-col items-start gap-1 border-t ${isHudWhite ? 'border-white' : 'border-black'} border-opacity-10 pt-1.5 uppercase relative`}>
               <div className="absolute left-0 top-0.5">
