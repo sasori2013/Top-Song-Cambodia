@@ -232,8 +232,14 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
     };
   }, []);
 
-  // Fetch actual logs from the API
+  // Fetch actual logs from the API with dynamic polling
   React.useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    const startTime = Date.now();
+    const BURST_DURATION = 10 * 60 * 1000; // 10 minutes
+    const BURST_INTERVAL = 5000;           // 5 seconds
+    const NORMAL_INTERVAL = 3600000;       // 1 hour
+
     const fetchLogs = async () => {
       try {
         const res = await fetch('/api/admin/logs');
@@ -244,12 +250,20 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
       } catch (err) {
         console.error("Failed to fetch logs:", err);
       }
+
+      // Determine next polling interval
+      const elapsed = Date.now() - startTime;
+      const nextInterval = elapsed < BURST_DURATION ? BURST_INTERVAL : NORMAL_INTERVAL;
+      
+      timeoutId = setTimeout(fetchLogs, nextInterval);
     };
 
     fetchLogs();
-    const interval = setInterval(fetchLogs, 3600000); // Once per hour
-    return () => clearInterval(interval);
-  }, [dismissedIds]); // Add dismissedIds to dependency to re-fetch/re-filter if needed
+    
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [dismissedIds]); // Reset burst/fetch when IDs change
 
   // Derived state for filtered notifications to ensure it's reactive
   const visibleNotifications = React.useMemo(() => {

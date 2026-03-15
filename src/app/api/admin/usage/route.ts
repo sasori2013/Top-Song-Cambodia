@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSheetData } from '@/lib/sheets';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const sheetId = process.env.NEXT_PUBLIC_SHEET_ID || '1BjPfq34YD3PLgBCsuH4gCQhN5wgnqBCgNcQNAVd4QQ4';

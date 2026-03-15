@@ -43,3 +43,7 @@ next-env.d.ts
 
 # credentials
 google-credentials.json
+
+# migration artifacts
+/migration_package/
+/migration.zip

@@ -21,6 +21,7 @@ function onOpen() {
         .addItem('6. 日報をDriveに保存', 'generateAndSaveDailyReport')
         .addSeparator()
         .addItem('⏰ タイマー(トリガー)をすべて初期化', 'refreshAllTriggers')
+        .addItem('⚙️ API使用量を手動リセット', 'resetApiUsage')
         .addSeparator()
         .addItem('🔍 Geminiモデル診断', 'debugGeminiModels')
         .addSeparator()
@@ -397,10 +398,10 @@ function sendTelegramNotification_(text) {
 }
 
 /**
- * Facebook への自動投稿を一括実行
+ * Facebook への自動投稿を一括実行 (Parallelized for GAS 6-min limit)
  */
 function autoPostToFacebook() {
-    logToSheet_('実行: autoPostToFacebook 開始');
+    sendTelegramNotification_('【実行】Facebook自動投稿を開始します (並列処理版)');
     const PAGE_ID = '971418716059046';
     const props = PropertiesService.getScriptProperties();
     const token = props.getProperty('FB_ACCESS_TOKEN');
@@ -419,14 +420,14 @@ function autoPostToFacebook() {
         logToSheet_(`Ranking data loaded: ${data.ranking.length} items`);
 
         const ranking = data.ranking;
-        const photoIds = [];
         const baseUrl = 'https://heat-kh.vercel.app/api/og/ranking';
         const dateStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy.MM.dd');
 
-        // 1. 画像のアップロード (4枚)
+        // 1. OG画像URLの生成 (4枚分)
+        const ogUrls = [];
+        
         // 1.1 Rank 1
         const r1 = ranking[0];
-        const r1ChangeStr = r1.rankChange === 'NEW' ? 'NEW' : (r1.rankChange > 0 ? '+' + r1.rankChange : r1.rankChange.toString());
         const r1Url = [
             `${baseUrl}?template=rank1`,
             `rank=1`,
@@ -440,10 +441,7 @@ function autoPostToFacebook() {
             `insight=${encodeURIComponent(r1.shortInsight || '')}`,
             `date=${encodeURIComponent(dateStr)}`
         ].join('&');
-        logToSheet_(`FB_POST: Rank 1 photo upload starting... (URL: ${r1Url.substring(0, 50)}...)`);
-        const r1PhotoId = uploadPhotoToFb_(r1Url, PAGE_ID, token);
-        logToSheet_(`FB_POST: Rank 1 photo upload success! ID: ${r1PhotoId}`);
-        photoIds.push(r1PhotoId);
+        ogUrls.push(r1Url);
 
         // 1.2 Multi images (2-4, 5-7, 8-10)
         for (let i = 0; i < 3; i++) {
@@ -456,17 +454,51 @@ function autoPostToFacebook() {
             }));
             if (items.length > 0) {
                 const multiUrl = `${baseUrl}?template=multi&items=${encodeURIComponent(JSON.stringify(items))}&date=${encodeURIComponent(dateStr)}`;
-                logToSheet_(`FB_POST: Multi photo ${i + 1}/3 uploading... (URL: ${multiUrl.substring(0, 50)}...)`);
-                const photoId = uploadPhotoToFb_(multiUrl, PAGE_ID, token);
-                logToSheet_(`FB_POST: Multi photo ${i + 1}/3 success! ID: ${photoId}`);
-                photoIds.push(photoId);
+                ogUrls.push(multiUrl);
             }
         }
 
-        // 2. フィード投稿の作成
-        const r1MessageChange = r1.rankChange === 'NEW' ? 'NEW ENTRY' : (r1.rankChange > 0 ? '+' + r1.rankChange : (r1.rankChange === 0 ? 'STAY' : r1.rankChange));
+        // 2. 画像の並列取得 (Vercel)
+        logToSheet_(`FB_POST: OG画像生成(Vercel) ${ogUrls.length}枚を並列リクエスト中...`);
+        const ogRequests = ogUrls.map(url => ({ url: url, muteHttpExceptions: true }));
+        const ogResponses = UrlFetchApp.fetchAll(ogRequests);
+        
+        const blobs = [];
+        ogResponses.forEach((res, i) => {
+            if (res.getResponseCode() !== 200) {
+                throw new Error(`OG Image Generation Failed (${res.getResponseCode()}): ${res.getContentText().substring(0, 100)}`);
+            }
+            blobs.push(res.getBlob());
+        });
+        logToSheet_('FB_POST: OG画像生成完了');
 
-        // 英語のAIインサイトを組み込む
+        // 3. Facebook への並列アップロード (未公開設定)
+        logToSheet_('FB_POST: Facebookへの画像アップロードを並列実行中...');
+        const fbPhotoUrl = `https://graph.facebook.com/v19.0/${PAGE_ID}/photos`;
+        const uploadRequests = blobs.map(blob => ({
+            url: fbPhotoUrl,
+            method: 'post',
+            payload: {
+                source: blob,
+                published: 'false',
+                access_token: token
+            },
+            muteHttpExceptions: true
+        }));
+        
+        const uploadResponses = UrlFetchApp.fetchAll(uploadRequests);
+        const photoIds = [];
+        uploadResponses.forEach((res, i) => {
+            const content = res.getContentText();
+            if (res.getResponseCode() !== 200) {
+                throw new Error(`FB Photo Upload Failed (${res.getResponseCode()}): ${content}`);
+            }
+            photoIds.push(JSON.parse(content).id);
+        });
+        logToSheet_(`FB_POST: 画像アップロード完了 (${photoIds.length}枚)`);
+
+        // 4. フィード投稿の作成
+        const r1MessageChange = r1.rankChange === 'NEW' ? 'NEW ENTRY' : (r1.rankChange > 0 ? '+' + r1.rankChange : (r1.rankChange === 0 ? 'STAY' : r1.rankChange));
         let insightText = '';
         if (r1.aiInsight && r1.aiInsight !== '-') {
             insightText = `\n\nHEAT AI Insight:\n${r1.aiInsight}`;
@@ -475,93 +507,72 @@ function autoPostToFacebook() {
         const message = `HEAT (BETA) - Cambodia Daily Ranking\n${dateStr}\n\n#1 ${r1.artist} – ${r1.title}\n${Math.round(r1.heatScore)} HEAT POINT (${r1MessageChange})${insightText}\n\nFull Top 20 ranking in the first comment`;
 
         const feedUrl = `https://graph.facebook.com/v19.0/${PAGE_ID}/feed`;
-        const payload = {
+        const feedPayload = {
             message: message,
             access_token: token
         };
 
         // 画像の並び順を逆にする（1位から表示されるように調整）
-        photoIds.reverse().forEach((id, i) => {
-            payload[`attached_media[${i}]`] = JSON.stringify({ media_fbid: id });
+        const reversedPhotoIds = [...photoIds].reverse();
+        reversedPhotoIds.forEach((id, i) => {
+            feedPayload[`attached_media[${i}]`] = JSON.stringify({ media_fbid: id });
         });
 
-        logToSheet_('FB_POST: Sending final feed post with attached media...');
-        const res = UrlFetchApp.fetch(feedUrl, {
+        logToSheet_('FB_POST: フィード投稿を送信中...');
+        const feedRes = UrlFetchApp.fetch(feedUrl, {
             method: 'post',
-            payload: payload,
+            payload: feedPayload,
             muteHttpExceptions: true
         });
-        logToSheet_(`FB_POST: Feed post result: ${res.getResponseCode()}`);
-
-        const postCode = res.getResponseCode();
-        const postBody = res.getContentText();
-        if (postCode !== 200) {
-            console.error(`FB Post Error (${postCode}): ${postBody}`);
-            throw new Error(`Facebook Post Error (${postCode}): ${postBody}`);
+        
+        if (feedRes.getResponseCode() !== 200) {
+            throw new Error(`Facebook Feed Post Error (${feedRes.getResponseCode()}): ${feedRes.getContentText()}`);
         }
 
-        const postResult = JSON.parse(postBody);
+        logToSheet_(`FB_POST: フィード投稿成功!`);
+        const postResult = JSON.parse(feedRes.getContentText());
         const rawPostId = postResult.id;
-        console.log(`FB Post Success. rawPostId: ${rawPostId}`);
-
+        
         // New Page Experience では PAGEID_POSTID の形式が必要な場合がある
         let finalPostId = rawPostId;
         if (!finalPostId.includes('_')) {
             finalPostId = `${PAGE_ID}_${rawPostId}`;
-            console.log(`Post ID formatted with Page ID prefix: ${finalPostId}`);
         }
 
-        // 3. トップコメントの追加
+        // 5. トップコメントの追加
         const commentUrl = `https://graph.facebook.com/v19.0/${finalPostId}/comments`;
         const commentPayload = {
             message: 'Full Top 20:\nhttps://heat-kh.vercel.app/\nUpdated daily.',
             access_token: token
         };
 
-        try {
-            let commentRes = UrlFetchApp.fetch(commentUrl, {
+        let commentRes = UrlFetchApp.fetch(commentUrl, {
+            method: 'post',
+            payload: commentPayload,
+            muteHttpExceptions: true
+        });
+
+        if (commentRes.getResponseCode() !== 200 && finalPostId !== rawPostId) {
+            const retryUrl = `https://graph.facebook.com/v19.0/${rawPostId}/comments`;
+            commentRes = UrlFetchApp.fetch(retryUrl, {
                 method: 'post',
                 payload: commentPayload,
                 muteHttpExceptions: true
             });
-
-            let commentCode = commentRes.getResponseCode();
-            let commentBody = commentRes.getContentText();
-
-            // もし ID プレフィックス付きで失敗し、かつ元の ID と異なる場合は、元の ID でリトライ
-            if (commentCode !== 200 && finalPostId !== rawPostId) {
-                console.warn(`Comment failed with formatted ID (${commentCode}). Retrying with rawPostId: ${rawPostId}`);
-                const retryUrl = `https://graph.facebook.com/v19.0/${rawPostId}/comments`;
-                commentRes = UrlFetchApp.fetch(retryUrl, {
-                    method: 'post',
-                    payload: commentPayload,
-                    muteHttpExceptions: true
-                });
-                commentCode = commentRes.getResponseCode();
-                commentBody = commentRes.getContentText();
-            }
-
-            if (commentCode !== 200) {
-                console.error(`FB Comment Error (${commentCode}): ${commentBody}`);
-                console.log(`Debug Info - PAGE_ID: ${PAGE_ID}, Token start: ${token.substring(0, 10)}...`);
-                throw new Error(`Facebook Comment Error (${commentCode}): ${commentBody}`);
-            }
-
-            Logger.log(`FB Comment Success: ${commentBody}`);
-        } catch (e) {
-            console.error('Comment Step Exception:', e);
-            throw e;
         }
 
-        // 4. Telegram 通知
-        logToSheet_(`FB_POST: Successfully published daily ranking schedule for ${r1.artist}`);
-        sendTelegramNotification_(`【成功】Facebookへの自動投稿が完了しました！\n日付: ${dateStr}\n#1: ${r1.artist}`);
+        if (commentRes.getResponseCode() !== 200) {
+            throw new Error(`Facebook Comment Error (${commentRes.getResponseCode()}): ${commentRes.getContentText()}`);
+        }
+
+        logToSheet_(`FB_POST: 全工程完了`);
+        sendTelegramNotification_(`【成功】Facebook自動投稿完了(高速版)\n日付: ${dateStr}\n#1: ${r1.artist}`);
 
     } catch (e) {
         console.error(e);
         let errorMsg = e.message;
-        if (e.message.includes('code 403')) {
-            errorMsg = "Facebook permission error (403). The token might be missing 'pages_manage_posts' or 'pages_read_engagement' scopes.";
+        if (e.message && e.message.includes('code 403')) {
+            errorMsg = "Facebook permission error (403). The token might be missing scopes.";
         }
         sendTelegramNotification_(`【エラー】Facebook自動投稿に失敗しました。\nエラー: ${errorMsg}`);
     }
@@ -1008,7 +1019,7 @@ function debugFetchLatestFbPosts() {
 }
 
 /**
- * API使用量をリセットする (毎日深夜に実行)
+ * API使用量をリセットする (毎日深夜に実行、または手動)
  */
 function resetApiUsage() {
     try {
@@ -1017,12 +1028,16 @@ function resetApiUsage() {
         if (!sh) return;
         
         const data = sh.getDataRange().getValues();
+        const todayStr = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy/MM/dd');
+
         // 2行目(YouTube)と3行目(Gemini)のCurrentとTokenCountを0にリセット
         for (let i = 1; i < data.length; i++) {
             sh.getRange(i + 1, 2).setValue(0); // Current
             if (sh.getLastColumn() >= 4) {
                 sh.getRange(i + 1, 4).setValue(0); // TokenCount
             }
+            // Reset Date (E列)
+            sh.getRange(i + 1, 5).setValue(todayStr);
         }
         logToSheet_('SYSTEM: API使用量をリセットしました');
     } catch (e) {
@@ -1039,11 +1054,14 @@ function updateApiUsage_(service, usedAmount) {
     try {
         const ss = SpreadsheetApp.getActiveSpreadsheet();
         let sh = ss.getSheetByName('SYS_USAGE');
+        const tz = Session.getScriptTimeZone();
+        const todayStr = Utilities.formatDate(new Date(), tz, 'yyyy/MM/dd');
+
         if (!sh) {
             sh = ss.insertSheet('SYS_USAGE');
-            sh.appendRow(['Service', 'Current', 'Max', 'TokenCount']);
-            sh.appendRow(['YouTube', 0, 10000, 0]);
-            sh.appendRow(['Gemini', 0, 1500, 0]); // 1500 RPD for free tier
+            sh.appendRow(['Service', 'Current', 'Max', 'TokenCount', 'LastReset']);
+            sh.appendRow(['YouTube', 0, 10000, 0, todayStr]);
+            sh.appendRow(['Gemini', 0, 1500, 0, todayStr]); // 1500 RPD for free tier
         }
         
         const data = sh.getDataRange().getValues();
@@ -1056,8 +1074,22 @@ function updateApiUsage_(service, usedAmount) {
         }
         
         if (rowIndex !== -1) {
-            const current = Number(data[rowIndex-1][1]) || 0;
-            const currentToken = Number(data[rowIndex-1][3]) || 0;
+            const rowData = data[rowIndex - 1];
+            const lastResetDate = rowData[4] ? String(rowData[4]) : ""; // E列: LastReset
+
+            // 日付が変わっていたら自動リセット
+            if (lastResetDate !== todayStr) {
+                sh.getRange(rowIndex, 2).setValue(0); // Current
+                if (sh.getLastColumn() >= 4) sh.getRange(rowIndex, 4).setValue(0); // TokenCount
+                sh.getRange(rowIndex, 5).setValue(todayStr); // Update LastReset
+                
+                // 変数もリセット後の値で上書き
+                var current = 0;
+                var currentToken = 0;
+            } else {
+                var current = Number(rowData[1]) || 0;
+                var currentToken = Number(rowData[3]) || 0;
+            }
             
             if (service === 'YouTube') {
                 sh.getRange(rowIndex, 2).setValue(current + usedAmount);

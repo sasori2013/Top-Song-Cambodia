@@ -15,26 +15,27 @@ export async function GET() {
     }
 
     // Ensure DISMISSED_LOGS sheet exists
-    await ensureSheetExists(sheetId, 'DISMISSED_LOGS');
-
-    // Fetch the last 50 rows to find recent telegram notifications
-    // We fetch a bit more because there's a lot of noise (e.g. "Batch 1 call...")
-    // In Google Sheets API, specifying just the sheet name fetches the whole sheet, but we can't easily fetch JUST the last N rows without knowing total rows.
-    // So we fetch columns A and B, which shouldn't be too heavy.
-    const [allRows, dismissedRows] = await Promise.all([
-      getSheetData(sheetId, `'DEBUG_LOG'!A:B`),
-      getSheetData(sheetId, `'DISMISSED_LOGS'!A:A`)
-    ]);
+    let dismissedIds = new Set<string>();
+    try {
+      await ensureSheetExists(sheetId, 'DISMISSED_LOGS');
+      const dismissedRows = await getSheetData(sheetId, `'DISMISSED_LOGS'!A:A`);
+      dismissedIds = new Set((dismissedRows || []).flat().map(id => id?.toString().trim()));
+    } catch (e) {
+      console.warn("Could not fetch DISMISSED_LOGS, continuing without filtering:", e);
+    }
     
-    const dismissedIds = new Set((dismissedRows || []).flat().map(id => id?.toString().trim()));
+    // Use A:B to get all rows that have data. The Sheets API naturally stops at the last row with content.
+    const allRows = await getSheetData(sheetId, `'DEBUG_LOG'!A:B`);
     
-    if (!allRows || allRows.length < 2) {
+    if (!allRows || allRows.length === 0) {
       return NextResponse.json({ logs: [] });
     }
 
     // Process from the bottom (newest) to top
+    // Limit to the last 300 rows to keep it fast even if the sheet grows
     const recentLogs: NotificationItem[] = [];
     const MAX_LOGS_TO_RETURN = 20;
+    const startIndex = Math.max(1, allRows.length - 300); // Skip header at 0
 
     // Get "today" and "yesterday" in UTC-like comparison
     const nowLocal = new Date();
@@ -44,7 +45,7 @@ export async function GET() {
     yesterday.setDate(nowLocal.getDate() - 1);
     const yesterdayStr = yesterday.toLocaleDateString('en-CA');
 
-    for (let i = allRows.length - 1; i >= 1; i--) {
+    for (let i = allRows.length - 1; i >= startIndex; i--) {
       const row = allRows[i];
       if (!row || row.length < 2) continue;
 
@@ -62,11 +63,14 @@ export async function GET() {
         }
       }
 
+      // Date filtering: Temporarily disabled to ensure all recent logs show up on HUD
+      /*
       const logDayStr = logDate.toLocaleDateString('en-CA');
       if (logDayStr !== todayStr && logDayStr !== yesterdayStr) {
-        // Since we process from newest to oldest, once we go past yesterday, we stop
-        break; 
+        // Skip this log if it's too old
+        continue; 
       }
+      */
 
       // Filter: We ONLY want messages that are meant for Telegram (they start with emojis usually)
       // Main.js sends: ✅, ❌, ⚠️, 🏐, etc.
