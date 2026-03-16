@@ -616,9 +616,26 @@ function uploadPhotoToFb_(imgUrl, pageId, token) {
 }
 
 
+function doPost(e) {
+    return doGet(e);
+}
+
 function doGet(e) {
     try {
-        const action = e && e.parameter && e.parameter.action;
+        let action = e && e.parameter && e.parameter.action;
+        let content = e && e.parameter && e.parameter.content;
+
+        // POST data support
+        if (!action && e && e.postData && e.postData.contents) {
+            try {
+                const postData = JSON.parse(e.postData.contents);
+                action = postData.action;
+                content = postData.content;
+            } catch (err) {
+                // Fallback or ignore
+            }
+        }
+
         if (action === 'logs') {
             const ss = SpreadsheetApp.getActiveSpreadsheet();
             const shLog = ss.getSheetByName('DEBUG_LOG');

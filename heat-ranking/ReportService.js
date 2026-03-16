@@ -56,3 +56,20 @@ function saveReportToHeatFolder_(content, fileName) {
   const file = dailyFolder.createFile(fileName, content, MimeType.PLAIN_TEXT);
   return { id: file.getId(), url: file.getUrl() };
 }
+
+/**
+ * clasp run 用のヘッドレス保存
+ */
+function saveProjectReportDirect(content) {
+  const tz = Session.getScriptTimeZone();
+  const fileDateStr = Utilities.formatDate(new Date(), tz, 'yyyyMMdd');
+  const fileName = `日報_${fileDateStr}_プロジェクト完了報告.txt`;
+  return saveReportToHeatFolder_(content, fileName);
+}
+
+/**
+ * 埋め込まれたレポートデータを保存する (clasp run用)
+ */
+function saveFinalProjectReport() {
+  return saveProjectReportDirect(PROJECT_REPORT_WALKTHROUGH);
+}
