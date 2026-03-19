@@ -47,3 +47,9 @@ google-credentials.json
 # migration artifacts
 /migration_package/
 /migration.zip
+
+# gas
+/gas/node_modules/
+/gas/tmp_gas/
+/gas/gas_response.json
+/gas/tmp.json
