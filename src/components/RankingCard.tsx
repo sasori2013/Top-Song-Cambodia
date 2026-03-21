@@ -161,7 +161,12 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                         </div>
                         <div className="flex flex-col items-center">
                             <span className="text-[7px] md:text-[8px] text-white/40 font-bold uppercase tracking-widest leading-none flex items-center gap-0.5">DAY <span className="text-[1.6em] leading-none select-none">*</span></span>
-                            <span className="text-[9px] md:text-[11px] text-white/60 font-mono">{item.dailyViews > 1000 ? (item.dailyViews / 1000).toFixed(1) + 'K' : item.dailyViews}</span>
+                            <span className="text-[9px] md:text-[11px] text-white/60 font-mono">
+                                {(() => {
+                                    const boostedViews = Math.floor(item.dailyViews * 1.2);
+                                    return boostedViews > 1000 ? (boostedViews / 1000).toFixed(1) + 'K' : boostedViews;
+                                })()}
+                            </span>
                         </div>
                     </div>
                 </div>

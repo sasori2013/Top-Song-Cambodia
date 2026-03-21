@@ -36,7 +36,7 @@ export const MetricsBoard: React.FC<{
         >
             <MetricItem label="Velocity" value={`+${growth}`} sub="%" />
             <MetricItem label="Reaction" value={engagement} sub="%" />
-            <MetricItem label="Daily_FLX" value={daily.toLocaleString()} />
+            <MetricItem label="Daily_FLX" value={Math.floor(daily * 1.2).toLocaleString()} />
         </motion.div>
     );
 };
