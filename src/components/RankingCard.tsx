@@ -164,7 +164,7 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                             <span className="text-[9px] md:text-[11px] text-white/60 font-mono">
                                 {(() => {
                                     const boostedViews = Math.floor(item.dailyViews * 1.2);
-                                    return boostedViews > 1000 ? (boostedViews / 1000).toFixed(1) + 'K' : boostedViews;
+                                    return boostedViews > 1000 ? Math.floor(boostedViews / 1000) + 'K' : boostedViews;
                                 })()}
                             </span>
                         </div>
