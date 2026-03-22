@@ -56,6 +56,7 @@ function snapshotStats() {
   const missingVideos = [];
   for (const chunk of chunk_(targets, 50)) {
     const res = YouTube.Videos.list('statistics', { id: chunk.join(',') });
+    updateApiUsage_('YouTube', 1); // 1 unit per 50 videos
     const items = (res && res.items) ? res.items : [];
 
     // 取得できなかった（削除・非公開）動画を判定し、赤色にマークする

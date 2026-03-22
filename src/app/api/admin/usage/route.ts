@@ -5,36 +5,39 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const sheetId = process.env.NEXT_PUBLIC_SHEET_ID || '1BjPfq34YD3PLgBCsuH4gCQhN5wgnqBCgNcQNAVd4QQ4';
-    
-    // We expect a sheet named 'SYS_USAGE' with these metrics.
-    // If not found, we'll return mock data for initial UI verification.
+    const gasUrl = process.env.NEXT_PUBLIC_GAS_API_URL;
+    if (!gasUrl) {
+      throw new Error('NEXT_PUBLIC_GAS_API_URL is not defined');
+    }
+
     try {
-      const rows = await getSheetData(sheetId, "'SYS_USAGE'!A:D");
+      const response = await fetch(`${gasUrl}?action=sys_usage_stats`, { cache: 'no-store' });
+      if (!response.ok) {
+          throw new Error(`GAS API error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      const usageRows = data.usage || [];
       
-      if (rows && rows.length > 1) {
-        // Parse actual data from sheet
-        // Row 1: YouTube, Row 2: Gemini
-        const ytData = rows.find(r => r[0] === 'YouTube');
-        const geminiData = rows.find(r => r[0] === 'Gemini');
+      if (usageRows.length > 0) {
+        const ytData = usageRows.find((r: any) => r.service === 'YouTube');
+        const geminiData = usageRows.find((r: any) => r.service === 'Gemini');
         
         return NextResponse.json({
           youtube: {
-            current: parseInt(ytData?.[1] || '0'),
-            max: parseInt(ytData?.[2] || '10000'),
-            percentage: (parseInt(ytData?.[1] || '0') / parseInt(ytData?.[2] || '10000')) * 100
+            current: parseInt(ytData?.current || '0'),
+            max: parseInt(ytData?.max || '10000'),
+            percentage: (parseInt(ytData?.current || '0') / parseInt(ytData?.max || '10000')) * 100
           },
           gemini: {
-            current: parseInt(geminiData?.[1] || '0'),
-            max: parseInt(geminiData?.[2] || '10000'), // Or daily limits
-            tokenCount: parseInt(geminiData?.[3] || '0'),
-            percentage: (parseInt(geminiData?.[1] || '0') / parseInt(geminiData?.[2] || '10000')) * 100
+            current: parseInt(geminiData?.current || '0'),
+            max: parseInt(geminiData?.max || '1000'), 
+            tokenCount: parseInt(geminiData?.tokenCount || '0'),
+            percentage: (parseInt(geminiData?.current || '0') / parseInt(geminiData?.max || '1000')) * 100
           }
         });
       }
     } catch (e) {
-      // Sheet might not exist yet, return simulation
-      console.log("SYS_USAGE sheet not found, returning simulation.");
+      console.log("Failed to fetch usage from GAS, returning simulation.");
     }
 
     // Default simulation data

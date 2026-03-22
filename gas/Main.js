@@ -57,9 +57,9 @@ function setDailyTriggers() {
         ScriptApp.deleteTrigger(t);
     });
 
-    // 毎日 深夜0時にAPI使用量をリセット
-    ScriptApp.newTrigger('resetApiUsage')
-        .timeBased().atHour(0).nearMinute(1).everyDays(1).create();
+    // 毎日 深夜0時にAPI使用量をリセット (→ 最初の使用時リセットに変更)
+    // ScriptApp.newTrigger('resetApiUsage')
+    //    .timeBased().atHour(0).nearMinute(1).everyDays(1).create();
 
     // 毎日 新曲を探索 (18時台のリリースを捕捉)
     ScriptApp.newTrigger('updateSongs')
@@ -145,6 +145,7 @@ function onEditHandler(e) {
         }
 
         const res = YouTube.Channels.list('snippet,statistics', params);
+        updateApiUsage_('YouTube', 1); // 1 unit
         if (!res.items || res.items.length === 0) return;
         const item = res.items[0];
 
@@ -629,6 +630,7 @@ function doPost(e) {
 function doGet(e) {
     try {
         let action = e && e.parameter && e.parameter.action;
+        if (action) action = action.toString().trim().toLowerCase();
         let content = e && e.parameter && e.parameter.content;
 
         // POST data support
@@ -642,6 +644,18 @@ function doGet(e) {
             }
         }
 
+        if (action === 'stats') {
+            const stats = getStatsData_();
+            return ContentService.createTextOutput(JSON.stringify({ stats }))
+                .setMimeType(ContentService.MimeType.JSON);
+        }
+
+        if (action === 'refresh_triggers') {
+            setDailyTriggers();
+            return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Triggers refreshed.' }))
+                .setMimeType(ContentService.MimeType.JSON);
+        }
+
         if (action === 'logs') {
             const ss = SpreadsheetApp.getActiveSpreadsheet();
             const shLog = ss.getSheetByName('DEBUG_LOG');
@@ -650,6 +664,27 @@ function doGet(e) {
                 logs = shLog.getDataRange().getValues();
             }
             return ContentService.createTextOutput(JSON.stringify({ logs }))
+                .setMimeType(ContentService.MimeType.JSON);
+        }
+
+        if (action === 'usage' || action === 'sys_usage' || action === 'sys_usage_stats') {
+            const ss = SpreadsheetApp.getActiveSpreadsheet();
+            const shUsage = ss.getSheetByName('SYS_USAGE');
+            const usage = [];
+            if (shUsage) {
+                const data = shUsage.getDataRange().getValues();
+                // Skip header and convert to objects
+                for (let i = 1; i < data.length; i++) {
+                    usage.push({
+                        service: data[i][0],
+                        current: data[i][1],
+                        max: data[i][2],
+                        tokenCount: data[i][3],
+                        lastReset: data[i][4]
+                    });
+                }
+            }
+            return ContentService.createTextOutput(JSON.stringify({ usage }))
                 .setMimeType(ContentService.MimeType.JSON);
         }
 
@@ -686,16 +721,15 @@ function doGet(e) {
 }
 
 /**
- * RANKINGシートからデータを抽出してオブジェクト形式で返す
+ * 統計情報のみを算出する関数
  */
-function getRankingData_() {
+function getStatsData_() {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-    // --- 統計情報の算出 [NEW] ---
     const stats = {
         totalArtists: 0,
         totalProductions: 0,
-        totalSongs: 0
+        totalSongs: 0,
+        newSongs: 0
     };
 
     const shArt = ss.getSheetByName('Artists');
@@ -716,8 +750,32 @@ function getRankingData_() {
 
     const shSongs = ss.getSheetByName('SONGS');
     if (shSongs) {
-        stats.totalSongs = Math.max(0, shSongs.getLastRow() - 1);
+        const songValues = shSongs.getDataRange().getValues();
+        stats.totalSongs = Math.max(0, songValues.length - 1);
+        
+        const now = new Date();
+        const oneDayAgo = now.getTime() - (24 * 60 * 60 * 1000);
+        
+        let newSongs = 0;
+        for (let i = 1; i < songValues.length; i++) {
+            const pubDate = new Date(songValues[i][3]); 
+            if (!isNaN(pubDate.getTime()) && pubDate.getTime() > oneDayAgo) {
+                newSongs++;
+            }
+        }
+        stats.newSongs = newSongs;
     }
+    return stats;
+}
+
+/**
+ * RANKINGシートからデータを抽出してオブジェクト形式で返す
+ */
+function getRankingData_() {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // --- 統計情報の算出 ---
+    const stats = getStatsData_();
     // -------------------------
 
     const sh = ss.getSheetByName('RANKING_DAILY');
@@ -1117,6 +1175,7 @@ function updateApiUsage_(service, usedAmount) {
                 sh.getRange(rowIndex, 2).setValue(0); // Current
                 if (sh.getLastColumn() >= 4) sh.getRange(rowIndex, 4).setValue(0); // TokenCount
                 sh.getRange(rowIndex, 5).setValue(todayStr); // Update LastReset
+                logToSheet_(`SYSTEM: API使用量をリセットしました (Lazy Reset: ${service})`);
                 
                 // 変数もリセット後の値で上書き
                 var current = 0;

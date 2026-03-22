@@ -7,27 +7,20 @@ export async function GET() {
     const sheetId = process.env.NEXT_PUBLIC_SHEET_ID || '1BjPfq34YD3PLgBCsuH4gCQhN5wgnqBCgNcQNAVd4QQ4';
     
     // Check if DEBUG_LOG sheet exists
-    const metadata = await getSpreadsheetMetadata(sheetId);
-    const debugLogSheet = metadata.sheets?.find(s => s.properties?.title === 'DEBUG_LOG');
-    
-    if (!debugLogSheet) {
-      return NextResponse.json({ logs: [] });
+    const gasUrl = process.env.NEXT_PUBLIC_GAS_API_URL;
+    if (!gasUrl) {
+      throw new Error('NEXT_PUBLIC_GAS_API_URL is not defined');
     }
 
-    // Ensure DISMISSED_LOGS sheet exists
-    let dismissedIds = new Set<string>();
-    try {
-      await ensureSheetExists(sheetId, 'DISMISSED_LOGS');
-      const dismissedRows = await getSheetData(sheetId, `'DISMISSED_LOGS'!A:A`);
-      dismissedIds = new Set((dismissedRows || []).flat().map(id => id?.toString().trim()));
-    } catch (e) {
-      console.warn("Could not fetch DISMISSED_LOGS, continuing without filtering:", e);
+    // Fetch logs from GAS
+    const response = await fetch(`${gasUrl}?action=logs`, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`GAS API error! status: ${response.status}`);
     }
+    const data = await response.json();
+    const allRows = data.logs || [];
     
-    // Use A:B to get all rows that have data. The Sheets API naturally stops at the last row with content.
-    const allRows = await getSheetData(sheetId, `'DEBUG_LOG'!A:B`);
-    
-    if (!allRows || allRows.length === 0) {
+    if (allRows.length === 0) {
       return NextResponse.json({ logs: [] });
     }
 
@@ -39,11 +32,9 @@ export async function GET() {
 
     // Get "today" and "yesterday" in UTC-like comparison
     const nowLocal = new Date();
-    const todayStr = nowLocal.toLocaleDateString('en-CA');
     
-    const yesterday = new Date(nowLocal);
-    yesterday.setDate(nowLocal.getDate() - 1);
-    const yesterdayStr = yesterday.toLocaleDateString('en-CA');
+    // Create a simple dismissed IDs filter (local only for now if SS is hard to reach)
+    const dismissedIds = new Set<string>();
 
     for (let i = allRows.length - 1; i >= startIndex; i--) {
       const row = allRows[i];
