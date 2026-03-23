@@ -41,7 +41,6 @@ const RollingValue: React.FC<{ value: number; duration?: number; suffix?: string
 };
 
 export const HeatIndexMetrics: React.FC<HeatIndexMetricsProps> = ({ growth = 0, trend = [] }) => {
-    // Fallback data if no trend is provided (keeps it alive while syncing)
     const displayTrend = (trend && trend.length > 0) ? trend : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     const maxVal = Math.max(...displayTrend, 1);
 
@@ -51,35 +50,29 @@ export const HeatIndexMetrics: React.FC<HeatIndexMetricsProps> = ({ growth = 0, 
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 1.5 }}
-            className="w-full max-w-4xl mx-auto mb-20 p-8 md:p-12 border border-white/5 bg-black relative overflow-hidden"
+            className="w-full max-w-4xl mx-auto mb-12 md:mb-16 p-8 relative overflow-hidden"
         >
-            {/* Background Aesthetics to match RankingCard */}
-            <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{
-                backgroundImage: `radial-gradient(circle, #fff 1px, transparent 1px)`,
-                backgroundSize: '24px 24px'
-            }} />
-
             <div className="relative z-10 flex flex-col items-center">
-                <header className="flex flex-col items-center mb-10 text-center">
-                    <h2 className="text-[11px] md:text-[13px] font-bold tracking-[0.6em] text-white/40 uppercase mb-4">
+                <header className="flex flex-col items-center mb-12 text-center">
+                    {/* Size/Color/Font matched to Daily Heat Ranking title */}
+                    <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.8em] text-white uppercase pl-[0.8em]">
                         Heat Index Status
                     </h2>
-                    <div className="h-px w-12 bg-white/20" />
                 </header>
                 
-                <div className="flex flex-col md:flex-row items-center justify-center gap-10 md:gap-20 mb-12 w-full">
-                    {/* Velocity Number - Changed from font-black to font-bold to match Ranking */}
+                <div className="flex flex-col md:flex-row items-center justify-center gap-12 md:gap-24 mb-12 w-full">
+                    {/* Velocity Number - Font matched to Artist (font-black) */}
                     <div className="flex flex-col items-center md:items-start">
-                        <div className="text-7xl md:text-8xl lg:text-9xl font-bold text-white tracking-tighter leading-none italic">
+                        <div className="text-7xl md:text-9xl font-black text-white italic tracking-tighter leading-none">
                             {growth > 0 && <span className="text-4xl md:text-6xl text-white/30 mr-1 not-italic">+</span>}
                             <RollingValue value={growth} suffix="%" />
                         </div>
-                        <p className="text-[10px] md:text-[11px] font-bold text-white/20 uppercase tracking-[0.5em] mt-6 ml-1">
-                            Velocity Index <span className="text-white/40 ml-2">7D TRD</span>
+                        <p className="text-[10px] md:text-[11px] font-bold text-white/30 uppercase tracking-[0.5em] mt-6 ml-1">
+                            Velocity Index <span className="text-white/10 ml-2 font-mono">7D TRD</span>
                         </p>
                     </div>
 
-                    {/* Trend Graph */}
+                    {/* Trend Graph - Particle colors gradient */}
                     <div className="flex-1 w-full max-w-md">
                         <div className="flex items-end justify-between h-24 md:h-32 gap-1.5 md:gap-2 px-2">
                             {displayTrend.slice(-14).map((val, i) => (
@@ -92,34 +85,31 @@ export const HeatIndexMetrics: React.FC<HeatIndexMetricsProps> = ({ growth = 0, 
                                             delay: 0.4 + i * 0.05,
                                             ease: [0.33, 1, 0.68, 1]
                                         }}
-                                        className="w-full bg-white/[0.1] hover:bg-white/40 rounded-t-sm transition-all duration-300"
+                                        // Gradient matching particles cyan/blue
+                                        className="w-full bg-gradient-to-t from-[#00E5FF]/10 via-[#00E5FF]/40 to-[#00E5FF] hover:to-white rounded-t-sm transition-all duration-300"
                                     />
                                     {/* Tooltip on hover */}
-                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-all duration-300 pointer-events-none">
-                                        <div className="bg-white/10 backdrop-blur-md px-2 py-1 rounded border border-white/10 text-[9px] font-mono text-white">
+                                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-all duration-300 pointer-events-none z-20">
+                                        <div className="bg-black/80 backdrop-blur-md px-2 py-1 rounded border border-[#00E5FF]/30 text-[9px] font-mono text-[#00E5FF] shadow-[0_0_10px_rgba(0,229,255,0.2)]">
                                             {val.toLocaleString()}
                                         </div>
                                     </div>
                                 </div>
                             ))}
                         </div>
-                        <div className="mt-6 flex justify-between items-center border-t border-white/5 pt-3">
-                            <span className="text-[9px] text-white/10 font-bold uppercase tracking-[0.3em] font-mono whitespace-nowrap">
+                        <div className="mt-8 flex justify-between items-center border-t border-white/10 pt-4">
+                            <span className="text-[9px] text-white/20 font-black uppercase tracking-[0.3em] font-mono whitespace-nowrap">
                                 14 Day Pulse Monitor
                             </span>
-                            <div className="flex gap-2">
-                                <div className="w-1.5 h-1.5 bg-white/20 rounded-full animate-pulse" />
+                            <div className="flex gap-2 items-center">
+                                <div className="w-1 h-1 bg-[#00E5FF] rounded-full animate-pulse shadow-[0_0_8px_#00E5FF]" />
+                                <span className="text-[8px] text-white/10 font-bold uppercase tracking-widest">Live</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="flex flex-col items-center gap-6 mt-4">
-                    <div className="w-px h-16 bg-gradient-to-b from-white/20 via-white/5 to-transparent" />
-                    <span className="text-[10px] font-bold tracking-[0.8em] text-white pl-[0.8em] uppercase opacity-20">
-                        Descending into Ranking
-                    </span>
-                </div>
+                <div className="w-px h-16 bg-gradient-to-b from-white/20 via-white/5 to-transparent shadow-[0_0_20px_rgba(255,255,255,0.1)]" />
             </div>
         </motion.div>
     );
