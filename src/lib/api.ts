@@ -34,7 +34,17 @@ export async function getRankingData(): Promise<RankingResponse> {
             return mock;
         }
 
-        return data as RankingResponse;
+        // Map thumbnails because GAS doesn't provide them directly
+        const mapRanking = (list: any[]) => (list || []).map(item => ({
+            ...item,
+            thumbnail: item.videoId ? `https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg` : ''
+        }));
+
+        return {
+            ...data,
+            ranking: mapRanking(data.ranking),
+            rankingLong: mapRanking(data.rankingLong)
+        } as RankingResponse;
     } catch (error) {
         console.error('API Fetch Error:', error);
         return mock;
