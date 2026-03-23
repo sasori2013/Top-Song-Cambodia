@@ -884,6 +884,7 @@ function parseRankingSheet_(sh) {
         views: findHeader(['増加数(1d)', '増加数(7d)', 'Views', 'Views(1d)']),
         totalViews: findHeader(['現在再生数', 'TotalViews']),
         videoId: findHeader(['videoId', 'VideoID']),
+        history: findHeader(['historyRaw', 'History']),
         rankChange: -1 // 後で計算
     };
 
@@ -904,6 +905,12 @@ function parseRankingSheet_(sh) {
             views: row[idx.views],
             totalViews: row[idx.totalViews],
             videoId: String(row[idx.videoId] || ''),
+            history: (() => {
+                const raw = String(row[idx.history] || '');
+                if (!raw) return [];
+                // '123;456;789' または '123,456,789' の形式を想定
+                return raw.split(/[;,]/).map(v => parseInt(v.trim())).filter(v => !isNaN(v));
+            })()
         };
 
         // rankChange の計算
