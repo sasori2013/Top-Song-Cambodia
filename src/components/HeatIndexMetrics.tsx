@@ -41,7 +41,8 @@ const RollingValue: React.FC<{ value: number; duration?: number; suffix?: string
 };
 
 export const HeatIndexMetrics: React.FC<HeatIndexMetricsProps> = ({ growth = 0, trend = [] }) => {
-    const displayTrend = (trend && trend.length > 0) ? trend : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    // Current trend is weekly (up to 12 weeks from GAS)
+    const displayTrend = (trend && trend.length > 0) ? trend : [0, 0, 0, 0];
     const maxVal = Math.max(...displayTrend, 1);
 
     return (
@@ -54,43 +55,42 @@ export const HeatIndexMetrics: React.FC<HeatIndexMetricsProps> = ({ growth = 0, 
         >
             <div className="relative z-10 flex flex-col items-center">
                 <header className="flex flex-col items-center mb-12 text-center">
-                    {/* Size/Color/Font matched to Daily Heat Ranking title */}
                     <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.8em] text-white uppercase pl-[0.8em]">
                         Heat Index Status
                     </h2>
                 </header>
                 
                 <div className="flex flex-col md:flex-row items-center justify-center gap-12 md:gap-24 mb-12 w-full">
-                    {/* Velocity Number - Font matched to Artist (font-black) */}
+                    {/* Velocity Number - Matches Artist (font-black, NO italic) */}
                     <div className="flex flex-col items-center md:items-start">
-                        <div className="text-7xl md:text-9xl font-black text-white italic tracking-tighter leading-none">
-                            {growth > 0 && <span className="text-4xl md:text-6xl text-white/30 mr-1 not-italic">+</span>}
+                        <div className="text-7xl md:text-9xl font-black text-white tracking-tighter leading-none">
+                            {growth > 0 && <span className="text-4xl md:text-6xl text-white/30 mr-1">+</span>}
                             <RollingValue value={growth} suffix="%" />
                         </div>
                         <p className="text-[10px] md:text-[11px] font-bold text-white/30 uppercase tracking-[0.5em] mt-6 ml-1">
-                            Velocity Index <span className="text-white/10 ml-2 font-mono">7D TRD</span>
+                            Velocity Index <span className="text-white/10 ml-2 font-mono">Weekly</span>
                         </p>
                     </div>
 
-                    {/* Trend Graph - Particle colors gradient */}
+                    {/* Trend Graph - Lighter Light Blue (Cyan-Teal) */}
                     <div className="flex-1 w-full max-w-md">
-                        <div className="flex items-end justify-between h-24 md:h-32 gap-1.5 md:gap-2 px-2">
-                            {displayTrend.slice(-14).map((val, i) => (
+                        <div className="flex items-end justify-between h-24 md:h-32 gap-3 md:gap-4 px-2">
+                            {displayTrend.map((val, i) => (
                                 <div key={i} className="flex-1 flex flex-col justify-end items-center h-full group/bar relative">
                                     <motion.div
                                         initial={{ height: 0, opacity: 0 }}
                                         whileInView={{ height: `${(val / maxVal) * 100}%`, opacity: 1 }}
                                         transition={{ 
                                             duration: 1, 
-                                            delay: 0.4 + i * 0.05,
+                                            delay: 0.4 + i * 0.1,
                                             ease: [0.33, 1, 0.68, 1]
                                         }}
-                                        // Gradient matching particles cyan/blue
-                                        className="w-full bg-gradient-to-t from-[#00E5FF]/10 via-[#00E5FF]/40 to-[#00E5FF] hover:to-white rounded-t-sm transition-all duration-300"
+                                        // Very light cyan gradient
+                                        className="w-full bg-gradient-to-t from-[#AEEFFF]/5 via-[#AEEFFF]/30 to-[#AEEFFF]/80 hover:to-white rounded-t-sm transition-all duration-300 shadow-[0_0_15px_rgba(174,239,255,0.1)]"
                                     />
                                     {/* Tooltip on hover */}
                                     <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-all duration-300 pointer-events-none z-20">
-                                        <div className="bg-black/80 backdrop-blur-md px-2 py-1 rounded border border-[#00E5FF]/30 text-[9px] font-mono text-[#00E5FF] shadow-[0_0_10px_rgba(0,229,255,0.2)]">
+                                        <div className="bg-black/90 backdrop-blur-md px-2 py-1 rounded border border-[#AEEFFF]/20 text-[9px] font-mono text-[#AEEFFF]">
                                             {val.toLocaleString()}
                                         </div>
                                     </div>
@@ -99,11 +99,11 @@ export const HeatIndexMetrics: React.FC<HeatIndexMetricsProps> = ({ growth = 0, 
                         </div>
                         <div className="mt-8 flex justify-between items-center border-t border-white/10 pt-4">
                             <span className="text-[9px] text-white/20 font-black uppercase tracking-[0.3em] font-mono whitespace-nowrap">
-                                14 Day Pulse Monitor
+                                Weekly Pulse Monitor
                             </span>
                             <div className="flex gap-2 items-center">
-                                <div className="w-1 h-1 bg-[#00E5FF] rounded-full animate-pulse shadow-[0_0_8px_#00E5FF]" />
-                                <span className="text-[8px] text-white/10 font-bold uppercase tracking-widest">Live</span>
+                                <div className="w-1 h-1 bg-[#AEEFFF] rounded-full animate-pulse shadow-[0_0_8px_#AEEFFF]" />
+                                <span className="text-[8px] text-white/10 font-bold uppercase tracking-widest">W-Series</span>
                             </div>
                         </div>
                     </div>

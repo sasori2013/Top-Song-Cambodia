@@ -802,20 +802,32 @@ function getStatsData_() {
             }
 
             const sortedDates = Object.keys(dateMap).sort();
-            if (sortedDates.length >= 15) {
-                const last15 = sortedDates.slice(-15); 
-                const dailyViews = [];
-                for (let i = 1; i < last15.length; i++) {
-                    const todayV = dateMap[last15[i]];
-                    const prevV = dateMap[last15[i-1]];
-                    dailyViews.push(Math.max(0, todayV - prevV));
+            if (sortedDates.length >= 2) {
+                // Calculate daily deltas for all available dates
+                const allDailyDeltas = [];
+                for (let i = 1; i < sortedDates.length; i++) {
+                    const todayV = dateMap[sortedDates[i]];
+                    const prevV = dateMap[sortedDates[i-1]];
+                    allDailyDeltas.push(Math.max(0, todayV - prevV));
                 }
-                stats.heatTrend = dailyViews; // Last 14 days of daily views
 
-                const thisWeek = dailyViews.slice(-7).reduce((a, b) => a + b, 0);
-                const lastWeek = dailyViews.slice(-14, -7).reduce((a, b) => a + b, 0);
-                if (lastWeek > 0) {
-                    stats.heatGrowth = Number(((thisWeek - lastWeek) / lastWeek * 100).toFixed(1));
+                if (allDailyDeltas.length >= 7) {
+                    // Weekly aggregation (Last 12 weeks if possible)
+                    const weeklyTrend = [];
+                    // Group by 7 days from the end
+                    for (let i = allDailyDeltas.length; i >= 7; i -= 7) {
+                        const weekSum = allDailyDeltas.slice(Math.max(0, i - 7), i).reduce((a, b) => a + b, 0);
+                        weeklyTrend.unshift(weekSum);
+                        if (weeklyTrend.length >= 12) break; // Limit to 12 weeks
+                    }
+                    stats.heatTrend = weeklyTrend;
+
+                    // Growth calculation (This week vs Last week)
+                    const thisWeek = allDailyDeltas.slice(-7).reduce((a, b) => a + b, 0);
+                    const lastWeek = allDailyDeltas.slice(-14, -7).reduce((a, b) => a + b, 0);
+                    if (lastWeek > 0) {
+                        stats.heatGrowth = Number(((thisWeek - lastWeek) / lastWeek * 100).toFixed(1));
+                    }
                 }
             }
         }
