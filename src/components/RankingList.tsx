@@ -1,18 +1,20 @@
 'use client';
 
 import React from 'react';
-import { RankingItem } from '@/lib/types';
+import { RankingItem, RankingStats } from '@/lib/types';
 import { RankingCard } from './RankingCard';
+import { HeatIndexMetrics } from './HeatIndexMetrics';
 
 interface RankingListProps {
     items: RankingItem[];
+    stats?: RankingStats;
 }
 
-export const RankingList: React.FC<RankingListProps> = ({ items }) => {
+export const RankingList: React.FC<RankingListProps> = ({ items, stats }) => {
     return (
-        <section className="container mx-auto max-w-6xl px-4 md:px-6 py-20">
+        <section className="container mx-auto max-w-6xl px-4 md:px-6 py-20 border-t border-white/5">
             <div className="flex flex-col items-center mb-16 md:mb-24">
-                <div className="w-px h-16 bg-gradient-to-b from-transparent via-white/20 to-transparent mb-8" />
+                <HeatIndexMetrics growth={stats?.heatGrowth} trend={stats?.heatTrend} />
                 <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.8em] text-white uppercase pl-[0.8em]">
                     Daily Heat Ranking
                 </h2>

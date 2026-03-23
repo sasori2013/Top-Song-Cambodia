@@ -25,6 +25,8 @@ export interface RankingStats {
     totalArtists: number;
     totalProductions: number;
     totalSongs: number;
+    heatGrowth?: number;
+    heatTrend?: number[];
 }
 
 export interface RankingResponse {

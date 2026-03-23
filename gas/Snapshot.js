@@ -23,13 +23,27 @@ function snapshotStats() {
 
   // SONGS A列から videoId 取得
   const songVals = shSongs.getDataRange().getValues();
+  const shSongsLong = ss.getSheetByName('SONGS_LONG');
+  const songLongVals = shSongsLong ? shSongsLong.getDataRange().getValues() : [];
+
   const ids = [];
   const rowMap = new Map();
+
+  // SONGS から取得
   for (let i = 1; i < songVals.length; i++) {
     const id = String(songVals[i][0] || '').trim();
     if (id) {
       ids.push(id);
-      rowMap.set(id, { row: i + 1, title: String(songVals[i][2] || 'Unknown') });
+      rowMap.set(id, { sheet: shSongs, row: i + 1, title: String(songVals[i][2] || 'Unknown') });
+    }
+  }
+
+  // SONGS_LONG から取得
+  for (let i = 1; i < songLongVals.length; i++) {
+    const id = String(songLongVals[i][0] || '').trim();
+    if (id && !rowMap.has(id)) {
+      ids.push(id);
+      rowMap.set(id, { sheet: shSongsLong, row: i + 1, title: String(songLongVals[i][2] || 'Unknown') });
     }
   }
   if (!ids.length) {
@@ -65,9 +79,9 @@ function snapshotStats() {
       if (!returnedIds.has(id)) {
         const info = rowMap.get(id);
         if (info) {
-          missingVideos.push({ id, title: info.title, row: info.row });
+          missingVideos.push({ id, title: info.title, row: info.row, sheet: info.sheet });
           // 該当行の背景色を赤（#FFCCCC）に設定
-          shSongs.getRange(info.row, 1, 1, shSongs.getLastColumn()).setBackground('#FFCCCC');
+          info.sheet.getRange(info.row, 1, 1, info.sheet.getLastColumn()).setBackground('#FFCCCC');
         }
       }
     });

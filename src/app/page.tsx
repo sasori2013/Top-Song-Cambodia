@@ -13,7 +13,7 @@ export default async function Home() {
     <main className="bg-black min-h-screen">
       <Header />
       <PageHeader stats={data?.stats} />
-      <RankingList items={ranking} />
+      <RankingList items={ranking} stats={data?.stats} />
 
       <Footer />
     </main>

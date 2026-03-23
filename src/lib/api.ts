@@ -90,6 +90,13 @@ function getMockData(): RankingResponse {
 
     return {
         updatedAt: new Date().toISOString(),
+        stats: {
+            totalArtists: 98,
+            totalProductions: 10,
+            totalSongs: 233,
+            heatGrowth: 12.5,
+            heatTrend: [12000, 15000, 14000, 18000, 22000, 21000, 25000, 24000, 28000, 27000, 31000, 30000, 35000, 34000]
+        },
         ranking: mockRanking
     };
 }

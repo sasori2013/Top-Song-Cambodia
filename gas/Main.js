@@ -416,6 +416,16 @@ function autoPostToFacebook() {
         return;
     }
 
+    // 重複投稿防止ロック (10分間)
+    const lockKey = 'FB_POST_LOCK';
+    const now = new Date().getTime();
+    const lastRun = Number(props.getProperty(lockKey) || 0);
+    if (now - lastRun < 10 * 60 * 1000) {
+        logToSheet_('FB_POST: 10分以内に実行済みのためスキップします (Lock active)');
+        return;
+    }
+    props.setProperty(lockKey, String(now));
+
     try {
         const data = getRankingData_();
         if (!data || !data.ranking || data.ranking.length === 0) {
@@ -729,7 +739,9 @@ function getStatsData_() {
         totalArtists: 0,
         totalProductions: 0,
         totalSongs: 0,
-        newSongs: 0
+        newSongs: 0,
+        heatGrowth: 0,
+        heatTrend: []
     };
 
     const shArt = ss.getSheetByName('Artists');
@@ -749,22 +761,68 @@ function getStatsData_() {
     }
 
     const shSongs = ss.getSheetByName('SONGS');
+    const shSongsLong = ss.getSheetByName('SONGS_LONG');
+    
     if (shSongs) {
         const songValues = shSongs.getDataRange().getValues();
-        stats.totalSongs = Math.max(0, songValues.length - 1);
+        stats.totalSongs += Math.max(0, songValues.length - 1);
         
         const now = new Date();
         const oneDayAgo = now.getTime() - (24 * 60 * 60 * 1000);
         
-        let newSongs = 0;
         for (let i = 1; i < songValues.length; i++) {
             const pubDate = new Date(songValues[i][3]); 
             if (!isNaN(pubDate.getTime()) && pubDate.getTime() > oneDayAgo) {
-                newSongs++;
+                stats.newSongs++;
             }
         }
-        stats.newSongs = newSongs;
     }
+
+    if (shSongsLong) {
+        const songLongValues = shSongsLong.getDataRange().getValues();
+        stats.totalSongs += Math.max(0, songLongValues.length - 1);
+    }
+
+    // HEAT Metrics calculation from SNAPSHOT
+    try {
+        const shSnap = ss.getSheetByName('SNAPSHOT');
+        if (shSnap) {
+            const snapData = shSnap.getDataRange().getValues();
+            const tz = Session.getScriptTimeZone();
+            
+            // date -> totalViews
+            const dateMap = {};
+            for (let i = 1; i < snapData.length; i++) {
+                const row = snapData[i];
+                if (!row[0] || !row[2]) continue;
+                // toDateKey_ は Snapshot.gs に定義されています
+                const dateKey = toDateKey_(row[0], tz);
+                const views = Number(row[2] || 0);
+                dateMap[dateKey] = (dateMap[dateKey] || 0) + views;
+            }
+
+            const sortedDates = Object.keys(dateMap).sort();
+            if (sortedDates.length >= 15) {
+                const last15 = sortedDates.slice(-15); 
+                const dailyViews = [];
+                for (let i = 1; i < last15.length; i++) {
+                    const todayV = dateMap[last15[i]];
+                    const prevV = dateMap[last15[i-1]];
+                    dailyViews.push(Math.max(0, todayV - prevV));
+                }
+                stats.heatTrend = dailyViews; // Last 14 days of daily views
+
+                const thisWeek = dailyViews.slice(-7).reduce((a, b) => a + b, 0);
+                const lastWeek = dailyViews.slice(-14, -7).reduce((a, b) => a + b, 0);
+                if (lastWeek > 0) {
+                    stats.heatGrowth = Number(((thisWeek - lastWeek) / lastWeek * 100).toFixed(1));
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error calculating heat statistics:", e);
+    }
+
     return stats;
 }
 
@@ -778,16 +836,31 @@ function getRankingData_() {
     const stats = getStatsData_();
     // -------------------------
 
-    const sh = ss.getSheetByName('RANKING_DAILY');
-    if (!sh) throw new Error('RANKING_DAILY sheet not found');
+    const shDaily = ss.getSheetByName('RANKING_DAILY');
+    const shLong = ss.getSheetByName('RANKING_LONG');
+    
+    const ranking = shDaily ? parseRankingSheet_(shDaily) : [];
+    const rankingLong = shLong ? parseRankingSheet_(shLong) : [];
 
+    return {
+        updatedAt: new Date().toISOString(),
+        stats,
+        ranking,
+        rankingLong
+    };
+}
+
+/**
+ * 指定したランキングシートをパースしてオブジェクトの配列で返す
+ */
+function parseRankingSheet_(sh) {
     const values = sh.getDataRange().getValues();
-    if (values.length < 2) return { updatedAt: new Date().toISOString(), stats, ranking: [] };
+    if (values.length < 2) return [];
 
     const headers = values[0];
     const data = [];
 
-    // ヘッダーのインデックスを特定するためのヘルパー（表記の揺れ・空白・言語に対応）
+    // ヘッダーのインデックスを特定するためのヘルパー
     const findHeader = (names) => {
         for (let name of names) {
             const i = headers.findIndex(h => String(h || '').trim().toLowerCase() === name.toLowerCase());
@@ -798,119 +871,51 @@ function getRankingData_() {
 
     const idx = {
         rank: findHeader(['順位', 'Rank', '順位(1d)', '順位(7d)']),
-        artist: findHeader(['アーティスト', 'Artist', '歌手']),
-        title: findHeader(['曲名', 'Title', 'タイトル']),
-        views: findHeader(['現在再生数', 'Total Views', 'Views', '再生数']),
-        growth: findHeader(['成長率(%)', 'Growth %', 'Growth', '増加率']),
-        heatScore: findHeader(['Heatスコア', 'Heat Score', 'Heat', '熱量']),
-        engagement: findHeader(['反応率', 'Engagement %', 'Engagement']),
-        videoId: findHeader(['videoId', 'Video ID', 'ID']),
-        history: findHeader(['historyRaw', 'History', 'History Raw', '履歴データ']),
-        note: findHeader(['備考', 'Note']),
-        fb: findHeader(['Facebook', 'FB']),
-        publishedAt: findHeader(['公開日', 'Published At', 'Published']),
-        aiScore: findHeader(['AIスコア', 'AI Score', 'AI熱量']),
-        aiInsight: findHeader(['AIインサイト', 'AI Insight', 'AI分析']),
-        shortInsight: findHeader(['shortInsight', 'Short Insight']),
-        genre: findHeader(['Genre', 'ジャンル']),
-        visualConcept: findHeader(['Visual Concept', 'ビジュアル']),
-        base: findHeader(['1日前', '7日前', 'Base Views']),
-        prevRank: findHeader(['PrevRank', 'Previous Rank', '前回の順位'])
+        prevRank: findHeader(['PrevRank', '1日前', '7日前']),
+        artist: findHeader(['アーティスト', 'Artist']),
+        title: findHeader(['曲名', 'Title']),
+        publishedAt: findHeader(['公開日', 'Published']),
+        heatScore: findHeader(['Heatスコア', 'HeatScore', 'Score']),
+        aiScore: findHeader(['AIスコア', 'AIScore']),
+        aiInsight: findHeader(['AIインサイト', 'AIInsight', 'Insight']),
+        shortInsight: findHeader(['shortInsight', 'ShortInsight']),
+        growth: findHeader(['成長率(%)', 'Growth']),
+        engagement: findHeader(['反応率', 'Engagement']),
+        views: findHeader(['増加数(1d)', '増加数(7d)', 'Views', 'Views(1d)']),
+        totalViews: findHeader(['現在再生数', 'TotalViews']),
+        videoId: findHeader(['videoId', 'VideoID']),
+        rankChange: -1 // 後で計算
     };
-
 
     for (let i = 1; i < values.length; i++) {
         const row = values[i];
-        if (!row[idx.rank]) continue;
-
-        const videoId = String(row[idx.videoId] || '').trim();
-        if (!videoId) continue;
-
-        // パーセント文字列のパース (例: "12.5%" -> 12.5)
-        const parsePct = (v) => {
-            if (typeof v === 'number') return v;
-            return parseFloat(String(v || '0').replace('%', '')) || 0;
+        const item = {
+            rank: parseInt(row[idx.rank]) || i,
+            prevRank: row[idx.prevRank] === '-' ? 100 : (parseInt(row[idx.prevRank]) || 100),
+            artist: String(row[idx.artist] || ''),
+            title: String(row[idx.title] || ''),
+            publishedAt: row[idx.publishedAt],
+            heatScore: parseFloat(row[idx.heatScore]) || 0,
+            aiScore: row[idx.aiScore] === '-' ? 0 : (parseFloat(row[idx.aiScore]) || 0),
+            aiInsight: String(row[idx.aiInsight] || '-'),
+            shortInsight: String(row[idx.shortInsight] || '-'),
+            growth: row[idx.growth],
+            engagement: row[idx.engagement],
+            views: row[idx.views],
+            totalViews: row[idx.totalViews],
+            videoId: String(row[idx.videoId] || ''),
         };
 
-        const historyStr = String(row[idx.history] || '');
-        let historyArr = historyStr ? historyStr.split(';').map(v => parseInt(v) || 0) : [];
-
-        // 【補完】RANKINGシートに列がない場合でもSONGSシートから直接日付を取得
-        let publishedAt = (idx.publishedAt !== -1 && row[idx.publishedAt]) ? row[idx.publishedAt] : "";
-        if (!publishedAt && videoId) {
-            const songsSh = ss.getSheetByName('SONGS');
-            if (songsSh) {
-                // 初回のみマップを作成（重いため）
-                if (!this.songsMap) {
-                    const sValues = songsSh.getDataRange().getValues();
-                    this.songsMap = new Map();
-                    for (let j = 1; j < sValues.length; j++) {
-                        this.songsMap.set(String(sValues[j][0]).trim(), sValues[j][3]); // A:ID, D:Published
-                    }
-                }
-                publishedAt = this.songsMap.get(videoId) || "";
-            }
+        // rankChange の計算
+        if (item.prevRank === 100) {
+            item.rankChange = 'NEW';
+        } else {
+            item.rankChange = item.prevRank - item.rank;
         }
 
-        // 日付オブジェクトなら ISO 形式に変換
-        if (publishedAt instanceof Date) {
-            publishedAt = publishedAt.toISOString();
-        }
-
-        // 履歴が不足(1点以下)している場合、「7日前」の値を先頭に注入してラインを形成
-        const baseV = parseInt(row[idx.base]) || 0;
-        const currentV = parseInt(row[idx.views]) || 0;
-        if (historyArr.length <= 1 && baseV !== currentV) {
-            historyArr = [baseV, currentV];
-        }
-
-        // 順位変動の計算
-        let rankChange = 0;
-        if (idx.prevRank !== -1) {
-            const pVal = String(row[idx.prevRank]).trim();
-            const c = parseInt(row[idx.rank]) || i;
-            if (pVal === '-' || pVal === '' || pVal === '100') {
-                rankChange = 'NEW';
-            } else {
-                let p = parseInt(pVal);
-                if (isNaN(p) || p === 100) {
-                    rankChange = 'NEW';
-                } else {
-                    rankChange = p - c; // 正なら上昇、負なら下降
-                }
-            }
-        }
-
-        data.push({
-            rank: parseInt(row[idx.rank]) || (i),
-            rankChange: rankChange,
-            artist: row[idx.artist] || "",
-            title: row[idx.title] || "",
-            views: parseInt(row[idx.views]) || 0,
-            growth: parsePct(row[idx.growth]),
-            heatScore: parseFloat(row[idx.heatScore]) || 0,
-            engagement: parsePct(row[idx.engagement]),
-            dailyViews: Math.round((historyArr.length > 1 ? (historyArr[historyArr.length - 1] - historyArr[0]) : 0)),
-            note: row[idx.note] || "",
-            facebook: row[idx.fb] || "",
-            publishedAt: publishedAt,
-            aiScore: parseInt(row[idx.aiScore]) || 0,
-            aiInsight: row[idx.aiInsight] || "",
-            shortInsight: (idx.shortInsight !== -1 && row[idx.shortInsight]) ? String(row[idx.shortInsight]) : "",
-            genre: row[idx.genre] || "",
-            visualConcept: row[idx.visualConcept] || "",
-            videoId: videoId,
-            thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
-            url: `https://www.youtube.com/watch?v=${videoId}`,
-            history: historyArr
-        });
+        data.push(item);
     }
-
-    return {
-        updatedAt: new Date().toISOString(),
-        stats: stats,
-        ranking: data
-    };
+    return data;
 }
 
 /**
@@ -1139,60 +1144,90 @@ function resetApiUsage() {
 }
 
 /**
- * API使用量を記録するシステム
+ * API使用量を記録するシステム（メモリ内キャッシュ版）
+ */
+let GLOBAL_USAGE = {
+  'YouTube': { current: 0, tokens: 0 },
+  'Gemini': { current: 0, tokens: 0 }
+};
+
+/**
+ * API使用量をメモリに蓄積する（高速版）
  * @param {string} service "YouTube" | "Gemini"
- * @param {number} usedAmount 消費したクォータまたはトークン数
+ * @param {number} usedAmount 
  */
 function updateApiUsage_(service, usedAmount) {
-    try {
-        const ss = SpreadsheetApp.getActiveSpreadsheet();
-        let sh = ss.getSheetByName('SYS_USAGE');
-        const tz = Session.getScriptTimeZone();
-        const todayStr = Utilities.formatDate(new Date(), tz, 'yyyy/MM/dd');
-
-        if (!sh) {
-            sh = ss.insertSheet('SYS_USAGE');
-            sh.appendRow(['Service', 'Current', 'Max', 'TokenCount', 'LastReset']);
-            sh.appendRow(['YouTube', 0, 10000, 0, todayStr]);
-            sh.appendRow(['Gemini', 0, 1500, 0, todayStr]); // 1500 RPD for free tier
-        }
-        
-        const data = sh.getDataRange().getValues();
-        let rowIndex = -1;
-        for (let i = 1; i < data.length; i++) {
-            if (data[i][0] === service) {
-                rowIndex = i + 1;
-                break;
-            }
-        }
-        
-        if (rowIndex !== -1) {
-            const rowData = data[rowIndex - 1];
-            const lastResetDate = rowData[4] ? String(rowData[4]) : ""; // E列: LastReset
-
-            // 日付が変わっていたら自動リセット
-            if (lastResetDate !== todayStr) {
-                sh.getRange(rowIndex, 2).setValue(0); // Current
-                if (sh.getLastColumn() >= 4) sh.getRange(rowIndex, 4).setValue(0); // TokenCount
-                sh.getRange(rowIndex, 5).setValue(todayStr); // Update LastReset
-                logToSheet_(`SYSTEM: API使用量をリセットしました (Lazy Reset: ${service})`);
-                
-                // 変数もリセット後の値で上書き
-                var current = 0;
-                var currentToken = 0;
-            } else {
-                var current = Number(rowData[1]) || 0;
-                var currentToken = Number(rowData[3]) || 0;
-            }
-            
-            if (service === 'YouTube') {
-                sh.getRange(rowIndex, 2).setValue(current + usedAmount);
-            } else if (service === 'Gemini') {
-                sh.getRange(rowIndex, 2).setValue(current + 1); // 1 request
-                sh.getRange(rowIndex, 4).setValue(currentToken + usedAmount); // add tokens
-            }
-        }
-    } catch (e) {
-        console.error("Failed to update API usage: " + e.message);
+  if (GLOBAL_USAGE[service]) {
+    if (service === 'YouTube') {
+      GLOBAL_USAGE[service].current += usedAmount;
+      // 通知ロック (1回の実行で1回のみ)
+      if (GLOBAL_USAGE[service].current > 5000 && !GLOBAL_USAGE[service]._notified) {
+        GLOBAL_USAGE[service]._notified = true;
+        sendTelegramNotification_('【警告】YouTube APIのクォータ使用量が5000ユニットを超えました。');
+      }
+    } else {
+      GLOBAL_USAGE[service].current += 1;
+      GLOBAL_USAGE[service].tokens += usedAmount;
     }
+  }
+}
+
+/**
+ * 蓄積したAPI使用量をスプレッドシートに一括反映する
+ */
+function flushApiUsage_() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sh = ss.getSheetByName('SYS_USAGE');
+    const tz = Session.getScriptTimeZone();
+    const todayStr = Utilities.formatDate(new Date(), tz, 'yyyy/MM/dd');
+
+    if (!sh) {
+      sh = ss.insertSheet('SYS_USAGE');
+      sh.appendRow(['Service', 'Current', 'Max', 'TokenCount', 'LastReset']);
+      sh.appendRow(['YouTube', 0, 10000, 0, todayStr]);
+      sh.appendRow(['Gemini', 0, 1500, 0, todayStr]);
+    }
+
+    const range = sh.getDataRange();
+    const data = range.getValues();
+    const headers = data[0];
+    const newValues = data.slice(1);
+
+    let needsResetLog = false;
+
+    for (let i = 0; i < newValues.length; i++) {
+      const service = newValues[i][0];
+      if (!GLOBAL_USAGE[service]) continue;
+
+      // E列: LastReset 正規化比較
+      let lastResetDate = "";
+      if (newValues[i][4] instanceof Date) {
+        lastResetDate = Utilities.formatDate(newValues[i][4], tz, 'yyyy/MM/dd');
+      } else {
+        lastResetDate = String(newValues[i][4] || '').trim();
+      }
+
+      if (lastResetDate !== todayStr) {
+        newValues[i][1] = 0; // Current reset
+        newValues[i][3] = 0; // TokenCount reset
+        newValues[i][4] = todayStr; // Update date
+        needsResetLog = true;
+      }
+
+      // 蓄積分を加算
+      newValues[i][1] = (Number(newValues[i][1]) || 0) + GLOBAL_USAGE[service].current;
+      newValues[i][3] = (Number(newValues[i][3]) || 0) + GLOBAL_USAGE[service].tokens;
+      
+      // 次回のためにメモリをクリア
+      GLOBAL_USAGE[service].current = 0;
+      GLOBAL_USAGE[service].tokens = 0;
+    }
+
+    if (needsResetLog) logToSheet_("SYSTEM: API使用量をリセットしました (Batch Reset)");
+    sh.getRange(2, 1, newValues.length, headers.length).setValues(newValues);
+    
+  } catch (e) {
+    console.error("Failed to flush API usage: " + e.message);
+  }
 }

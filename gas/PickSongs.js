@@ -16,6 +16,8 @@ const CFG = {
   SHEET_SNAPSHOT: 'SNAPSHOT',
   SHEET_RANKING_DAILY: 'RANKING_DAILY',
   SHEET_RANKING_WEEKLY: 'RANKING_WEEKLY',
+  SHEET_RANKING_LONG: 'RANKING_LONG',
+  SHEET_SONGS_LONG: 'SONGS_LONG', // 長期ヒット曲
 
   // SONGS列: A videoId / B artist / C title / D publishedAt
   SONGS_COLS: { videoId: 0, artist: 1, title: 2, publishedAt: 3 },
@@ -42,10 +44,11 @@ const CFG = {
 };
 
 /**
- * アーティスト全員の新曲探索（クォータ最適化版：Playlist全員 + Search半数ローテーション）
+ * アーティスト全員の新曲探索（超高速・クォータ最適化版）
+ * 120名以上のアーティストを数分ではなく数十秒で処理します。
  */
 function updateSongs() {
-  logToSheet_('【実行】updateSongs 開始');
+  logToSheet_('【実行】updateSongs 開始 (超高速バッチ版)');
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const shA = ss.getSheetByName(CFG.SHEET_ARTISTS);
   const shS = ss.getSheetByName(CFG.SHEET_SONGS);
@@ -54,159 +57,141 @@ function updateSongs() {
   ensureSongsHeader_(shS);
   const initialRowCount = shS.getLastRow();
 
-  const now = new Date();
-  const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
-  const isEvenDay = (dayOfYear % 2 === 0);
-
-  // 既存 videoId セット
-  const songs = shS.getDataRange().getValues();
+  // 1. 既存 videoId セットの構築
+  const songData = shS.getDataRange().getValues();
+  const shSongsLong = ss.getSheetByName(CFG.SHEET_SONGS_LONG);
+  const songsLongData = shSongsLong ? shSongsLong.getDataRange().getValues() : [];
+  
   const existing = new Set();
-  for (let i = 1; i < songs.length; i++) {
-    const id = String(songs[i][CFG.SONGS_COLS.videoId] || '').trim();
+  for (let i = 1; i < songData.length; i++) {
+    const id = String(songData[i][CFG.SONGS_COLS.videoId] || '').trim();
+    if (id) existing.add(id);
+  }
+  for (let i = 1; i < songsLongData.length; i++) {
+    const id = String(songsLongData[i][0] || '').trim();
     if (id) existing.add(id);
   }
 
-  // Artists読み込み
+  // 2. アーティストリストの読み込み
   const artists = shA.getDataRange().getValues();
   const targets = [];
   for (let i = 1; i < artists.length; i++) {
     const name = String(artists[i][CFG.ART_COLS.name] || '').trim();
     const channelId = String(artists[i][CFG.ART_COLS.channelId] || '').trim();
-    const role = String(artists[i][CFG.ART_COLS.role] || '').trim().toUpperCase();
-
-    if (!name) continue;
-    if (!channelId) {
-      Logger.log(`Skipped [${name}]: Missing Channel ID in column C.`);
-      continue;
+    if (name && channelId) {
+      targets.push({ name, channelId });
     }
-    targets.push({ name, channelId, role, index: i });
   }
 
-  Logger.log(`Starting update for ${targets.length} artists. Rotation: ${isEvenDay ? 'Even' : 'Odd'} day group.`);
+  Logger.log(`Processing ${targets.length} artists in batches.`);
+  const allVideoIdsToFetch = new Map(); // videoId -> artistInfo
 
-  const total = targets.length;
+  // 3. 【最適化】Channel ID から Uploads Playlist ID を一括取得 (50件ずつ)
+  const channelToPlaylist = new Map();
+  const targetIds = targets.map(t => t.channelId);
+  
+  for (const chunk of chunk_(targetIds, 50)) {
+    try {
+      const res = YouTube.Channels.list('contentDetails', { id: chunk.join(',') });
+      updateApiUsage_('YouTube', 1);
+      if (res && res.items) {
+        res.items.forEach(item => {
+          const pid = item.contentDetails.relatedPlaylists.uploads;
+          if (pid) channelToPlaylist.set(item.id, pid);
+        });
+      }
+    } catch (e) {
+      Logger.log(`Batch Channels.list error: ${e.message}`);
+    }
+  }
+
+  // 4. 各アーティストの最新動画 ID を収集 (PlaylistItems)
   const failures = [];
   let successCount = 0;
 
   for (const t of targets) {
-    let videoIds = [];
-    let state = "OK";
-    let errorMsg = "";
+    const playlistId = channelToPlaylist.get(t.channelId);
+    let playlistVideoIds = [];
 
-    // 1. 低コスト取得 (PlaylistItems) - 全員毎日実行
-    let needsSearchFallback = false;
-    try {
-      const chanRes = YouTube.Channels.list('contentDetails', { id: t.channelId });
-      updateApiUsage_('YouTube', 1); // 1 unit
-      if (chanRes && chanRes.items && chanRes.items.length > 0) {
-        const uploadsPlaylistId = chanRes.items[0].contentDetails.relatedPlaylists.uploads;
-        if (!uploadsPlaylistId) {
-          needsSearchFallback = true; // プレイリストID自体がない（Topicチャンネルなど）
-        } else {
-          const plist = YouTube.PlaylistItems.list('contentDetails', {
-            playlistId: uploadsPlaylistId,
-            maxResults: 30
-          });
-          updateApiUsage_('YouTube', 1); // PlaylistItems.list cost 1 unit
-          if (plist && plist.items) {
-            plist.items.forEach(it => videoIds.push(it.contentDetails.videoId));
-          }
+    if (playlistId) {
+      try {
+        const plist = YouTube.PlaylistItems.list('contentDetails', {
+          playlistId: playlistId,
+          maxResults: 20 // 最新20件で十分
+        });
+        updateApiUsage_('YouTube', 1);
+        if (plist && plist.items) {
+          plist.items.forEach(it => playlistVideoIds.push(it.contentDetails.videoId));
         }
-      } else {
-        needsSearchFallback = true; // チャンネルが見つからない
-        state = "WARNING";
-        errorMsg = "Channel not found or private";
+        successCount++;
+      } catch (e) {
+        Logger.log(`Playlist error for ${t.name}: ${e.message}`);
+        failures.push(`${t.name} (Playlist Error)`);
+      }
+    } else {
+       failures.push(`${t.name} (No Uploads Playlist)`);
+    }
+
+    // 重複を弾いて「詳細取得待ち」に送る
+    playlistVideoIds.forEach(vid => {
+      if (!existing.has(vid)) {
+        allVideoIdsToFetch.set(vid, { name: t.name, channelId: t.channelId });
+      }
+    });
+  }
+
+  // 5. 【最適化】全アーティストの未登録動画の詳細を一括取得 (50件ずつ)
+  const masterToAppend = [];
+  const videoIdsArray = Array.from(allVideoIdsToFetch.keys());
+  Logger.log(`Fetching details for ${videoIdsArray.length} potential new songs...`);
+
+  for (const chunk of chunk_(videoIdsArray, 50)) {
+    try {
+      const vids = YouTube.Videos.list('snippet,contentDetails,statistics', {
+        id: chunk.join(','),
+        maxResults: chunk.length
+      });
+      updateApiUsage_('YouTube', 1);
+
+      if (vids && vids.items) {
+        vids.items.forEach(v => {
+          const artistInfo = allVideoIdsToFetch.get(v.id);
+          const row = validateAndCreateSongRow_(v, artistInfo);
+          if (row) {
+            masterToAppend.push(row);
+            existing.add(v.id); // 即座に既存セットに加えて同一実行内重複を防止
+          }
+        });
       }
     } catch (e) {
-      // プレイリスト一覧の取得に失敗した場合（404 Not Found など）
-      needsSearchFallback = true;
-      Logger.log(`Playlist items fetch failed for ${t.name}: ${e.message}. Will try Search fallback.`);
-    }
-
-    // 2. 高精度取得 (Search API) - 失敗時の補完のみに限定
-    // [最適化] PlaylistItems で動画が取得できていれば Search はスキップしてクォータを節約する
-    if (videoIds.length === 0 || needsSearchFallback) {
-      try {
-        const searchRes = YouTube.Search.list('id', {
-          channelId: t.channelId,
-          type: 'video',
-          order: 'date',
-          maxResults: 10 // 少し多めに取得して精度をカバー
-        });
-        updateApiUsage_('YouTube', 100); // Search.list cost 100 units
-        if (searchRes && searchRes.items) {
-          searchRes.items.forEach(it => {
-            if (it.id && it.id.videoId) videoIds.push(it.id.videoId);
-          });
-        }
-      } catch (e) {
-        // Search APIのエラーは致命的ではない（Playlistで補完できるため）が、
-        // Playlistも失敗していたらエラーとする
-        if (state === "WARNING" || videoIds.length === 0) {
-          state = "ERROR";
-          errorMsg += ` / Search: ${e.message}`;
-        }
-      }
-    }
-
-    // 最終判定: どちらの方法でも動画が1件も見つからなかった場合は警告/エラーとする
-    if (videoIds.length === 0 && state !== "ERROR") {
-      state = "ERROR";
-      errorMsg = "No videos found (both Playlist and Search attempts failed or returned empty)";
-    }
-
-    // 失敗の記録
-    if (state === "ERROR") {
-      failures.push(`${t.name} (${errorMsg})`);
-      Logger.log(`❌ Failed: ${t.name} - ${errorMsg}`);
-    } else {
-      successCount++;
-      // 重複除去して処理
-      const uniqueIds = [...new Set(videoIds)].filter(id => !existing.has(id));
-      if (uniqueIds.length > 0) {
-        // [最適化] 既存セットを渡して、内部での再取得を防ぐ
-        processVideoIds_(uniqueIds, { name: t.name, channelId: t.channelId }, shS, existing);
-      }
-    }
-
-    // 進捗を表示
-    if (successCount % 10 === 0) {
-      ss.toast(`${successCount} / ${total} 名 完了...`, '新曲探索中');
+      Logger.log(`Batch Videos.list error: ${e.message}`);
     }
   }
 
-  // 削除処理と削除曲数の取得
+  // 6. 新曲を一括書き込み
+  if (masterToAppend.length > 0) {
+    shS.getRange(shS.getLastRow() + 1, 1, masterToAppend.length, 4).setValues(masterToAppend);
+  }
+
+  // 7. 期限切れ削除処理
   const deletedCount = pruneSongs60d_(shS, CFG.LOOKBACK_DAYS_SONGS);
 
-  // 追加曲数の算出
-  // (最終行数) - (開始時行数 - 削除数) が追加数
-  const finalRowCount = shS.getLastRow();
-  const addedCount = Math.max(0, finalRowCount - (initialRowCount - deletedCount));
-
-  // 通知ロジック
-  const skippedCount = artists.length - 1 - total; // 無名/IDなし
-
-  // [変更] 新曲がなくても常に通知を送るように変更（ユーザーの要望）
-  let msg = `【報告】YouTubeデータ更新完了\n\n`;
+  // 8. 最終集計と通知
+  const addedCount = masterToAppend.length;
+  let msg = `【報告】YouTubeデータ更新完了 (高速版)\n\n`;
   msg += `新規追加: ${addedCount} 曲\n`;
   msg += `期限切れ削除: ${deletedCount} 曲\n\n`;
-  msg += `正常処理: ${successCount} 名\n`;
+  msg += `対象: ${targets.length} 名中 ${successCount} 名成功\n`;
+  if (failures.length > 0) msg += `失敗: ${failures.length} 名 (詳細はログを確認)\n`;
 
-  if (failures.length > 0) msg += `失敗: ${failures.length} 名\n`;
-  if (skippedCount > 0) msg += `IDなし(スキップ): ${skippedCount} 名\n`;
-
-  if (failures.length > 0) {
-    msg += `\n【失敗リスト】\n- ` + failures.join('\n- ');
-  }
-
-  msg += `\n\n最新の状況をスプレッドシートで確認してください。`;
   logToSheet_(`SYNC: Update cycle completed. Added: ${addedCount}, Deleted: ${deletedCount}`);
   sendTelegramNotification_(msg);
 
-  Logger.log(`Update cycle completed. Added: ${addedCount}, Deleted: ${deletedCount}, Success: ${successCount}/${total}`);
-
-  // 自動ソート: 公開日の新しい順にする
+  // 9. 使用状況の反映とソート
+  flushApiUsage_();
   sortSongsSheet_(shS);
+  
+  Logger.log(`Finished. Added: ${addedCount}, Success: ${successCount}/${targets.length}`);
 }
 
 /**
@@ -361,6 +346,13 @@ function autoGenerateDailyRanking() {
     return; // ランキング生成に失敗した場合はFB投稿もスキップ
   }
 
+  // ロングヒットランキングも併せて生成
+  try {
+    generateRanking(1, CFG.SHEET_RANKING_LONG);
+  } catch (e) {
+    Logger.log('Error in generateRanking(LONG): ' + e.message);
+  }
+
   // ランキング生成成功後、直接FB投稿を実行（トリガー消失の保険）
   logToSheet_('【実行】autoGenerateDailyRanking → FB投稿フォールバック実行');
   try {
@@ -435,6 +427,8 @@ function updateLiveRankingNoFb() {
 function autoGenerateWeeklyRanking() {
   logToSheet_('【実行】autoGenerateWeeklyRanking 開始');
   generateRanking(7, CFG.SHEET_RANKING_WEEKLY);
+  // Weekly のタイミングでも LongRanking を更新（差分は1日分でOKな場合が多いが、整合性のため）
+  generateRanking(1, CFG.SHEET_RANKING_LONG);
 }
 
 /**
@@ -451,8 +445,12 @@ function generateRanking(lookbackDays, targetSheetName) {
 
   const shArtists = ss.getSheetByName(CFG.SHEET_ARTISTS);
   const shSongs = ss.getSheetByName(CFG.SHEET_SONGS);
+  const shSongsLong = ss.getSheetByName(CFG.SHEET_SONGS_LONG) || ss.insertSheet(CFG.SHEET_SONGS_LONG);
   const shSnap = ss.getSheetByName(CFG.SHEET_SNAPSHOT);
   const shRank = ss.getSheetByName(targetSheetName) || ss.insertSheet(targetSheetName);
+
+  // SONGS_LONG のヘッダー確認
+  ensureSongsHeader_(shSongsLong);
 
   // 【視認性改善】列構造を強制更新（Genre/Visual Conceptなどの不足をチェック）
   const currentHeaders = shRank.getLastRow() > 0 ? shRank.getRange(1, 1, 1, Math.max(shRank.getLastColumn(), 1)).getValues()[0].map(h => String(h).trim()) : [];
@@ -461,7 +459,7 @@ function generateRanking(lookbackDays, targetSheetName) {
   const hasShortInsight = currentHeaders.includes('shortInsight');
 
   if (!hasGenre || !hasVisual || !hasShortInsight || currentHeaders.length < 24) {
-    shRank.clear();
+    // 列が不足している場合のみ、ヘッダーを上書き（内容のクリアは行わない）
     const colName = lookbackDays === 1 ? 'トレンド(1d)' : 'トレンド(7d)';
     const diffColName = lookbackDays === 1 ? '増加数(1d)' : '増加数(7d)';
     const prevColName = lookbackDays === 1 ? '1日前' : '7日前';
@@ -472,8 +470,8 @@ function generateRanking(lookbackDays, targetSheetName) {
       'Heatスコア', 'コメ品質', '成長率(%)', '反応率', diffColName, '現在再生数', prevColName,
       'YouTube', 'Facebook', '備考', 'videoId', 'historyRaw'
     ];
-    shRank.appendRow(newHeaders);
-    Logger.log(`RANKING sheet header forced update. Current length: ${currentHeaders.length}, Target: ${newHeaders.length}`);
+    shRank.getRange(1, 1, 1, newHeaders.length).setValues([newHeaders]);
+    Logger.log(`RANKING sheet header updated safely.`);
   }
 
   const tz = Session.getScriptTimeZone();
@@ -500,7 +498,20 @@ function generateRanking(lookbackDays, targetSheetName) {
     songById.set(videoId, {
       artist: String(songs[i][CFG.SONGS_COLS.artist] || '').trim(),
       title: String(songs[i][CFG.SONGS_COLS.title] || '').trim(),
-      publishedAt: songs[i][CFG.SONGS_COLS.publishedAt]
+      publishedAt: songs[i][CFG.SONGS_COLS.publishedAt],
+      isLongTerm: false
+    });
+  }
+  // SONGS_LONG も追加
+  const songsLong = shSongsLong.getDataRange().getValues();
+  for (let i = 1; i < songsLong.length; i++) {
+    const videoId = toId(songsLong[i][CFG.SONGS_COLS.videoId]);
+    if (!videoId) continue;
+    songById.set(videoId, {
+      artist: String(songsLong[i][CFG.SONGS_COLS.artist] || '').trim(),
+      title: String(songsLong[i][CFG.SONGS_COLS.title] || '').trim(),
+      publishedAt: songsLong[i][CFG.SONGS_COLS.publishedAt],
+      isLongTerm: true
     });
   }
 
@@ -583,11 +594,19 @@ function generateRanking(lookbackDays, targetSheetName) {
 
   const now = new Date();
   const list = [];
+  const isLongTermTarget = (targetSheetName === CFG.SHEET_RANKING_LONG);
 
   for (const [id, L] of latest.entries()) {
     let B = base.get(id);
     const meta = songById.get(id);
     if (!meta) continue;
+
+    // ターゲットシートに応じてフィルタリング
+    if (isLongTermTarget) {
+      if (!meta.isLongTerm) continue; // LONGシート生成時は SONGS_LONG の曲のみ
+    } else {
+      if (meta.isLongTerm) continue; // メインランキング（Daily/Weekly）からは除外
+    }
 
     const pub = (meta.publishedAt && !isNaN(new Date(meta.publishedAt).getTime())) ? new Date(meta.publishedAt) : null;
 
@@ -608,7 +627,7 @@ function generateRanking(lookbackDays, targetSheetName) {
       }
     }
 
-    if (pub) {
+    if (pub && !meta.isLongTerm) {
       const daysSince = (now - pub) / (1000 * 60 * 60 * 24);
       if (daysSince < CFG.MIN_AGE_DAYS) continue;
       if (daysSince > CFG.LOOKBACK_DAYS_SONGS) continue;
@@ -702,6 +721,7 @@ function generateRanking(lookbackDays, targetSheetName) {
       reason,
       fbUrl,
       publishedAt: meta.publishedAt,
+      isLongTerm: meta.isLongTerm,
       history: vHistory
     });
   }
@@ -826,11 +846,14 @@ function generateRanking(lookbackDays, targetSheetName) {
   // 決定したTop Nを書き込み（ヘッダーは冒頭で作成済みのためクリアせず追加）
   // 以前のデータ行のみを削除して書き込み
 
-  if (shRank.getLastRow() > 1 && top.length > 5) {
-    // Only clear content if we successfully processed a reasonable number of songs
-    shRank.getRange(2, 1, shRank.getLastRow() - 1, shRank.getLastColumn()).clearContent();
-  } else if (shRank.getLastRow() > 1 && top.length <= 5) {
-    Logger.log('CRITICAL WARNING: Generated array has too few items (' + top.length + '). Skipping sheet wipe to prevent data loss.');
+  if (top.length > 0) {
+    // 過去のランキングデータをクリア（書き込み直前に行う）
+    if (shRank.getLastRow() > 1) {
+      shRank.getRange(2, 1, shRank.getLastRow() - 1, shRank.getLastColumn()).clearContent();
+    }
+  } else {
+    logToSheet_(`WARNING: Ranking generation produced 0 items. Keeping previous data to avoid empty sheet.`);
+    return; // 0件なら何もしない（前日のデータを守る）
   }
 
   const out = top.map((x, i) => [
@@ -864,7 +887,8 @@ function generateRanking(lookbackDays, targetSheetName) {
     x.fbUrl ? `=HYPERLINK("${x.fbUrl}","Facebook")` : '',
     x.alert + x.reason,
     x.id,
-    "'" + x.history.slice(-14).join(';')
+    "'" + x.history.slice(-14).join(';'),
+    x.isLongTerm ? 'TRUE' : '' // LongTermFlag for internal use
   ]);
 
   logToSheet_(`シート書込開始: ${out.length} 行...`);
@@ -899,11 +923,51 @@ function pruneSongs60d_(shSongs, keepDays) {
   if (values.length < 2) return 0;
 
   const keep = [values[0]]; // header
+  const movedToLong = [];
+
+  // 現在のランキングに入っている曲を取得 (videoId のリスト)
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const shRank = ss.getSheetByName(CFG.SHEET_RANKING_DAILY);
+  const currentHitIds = new Set();
+  if (shRank) {
+    const rankData = shRank.getDataRange().getValues();
+    if (rankData.length > 1) {
+      // RANKING_DAILY の w:videoId (23列目、0-indexed: 23)
+      for (let i = 1; i < rankData.length; i++) {
+        const vid = String(rankData[i][23] || '').trim();
+        if (vid) currentHitIds.add(vid);
+      }
+    }
+  }
+
   for (let i = 1; i < values.length; i++) {
+    const videoId = values[i][CFG.SONGS_COLS.videoId];
     const publishedAt = values[i][CFG.SONGS_COLS.publishedAt];
     const d = new Date(publishedAt || '');
     if (!d || isNaN(d.getTime())) continue;
-    if (d >= cutoff) keep.push(values[i]);
+
+    if (d >= cutoff) {
+      keep.push(values[i]);
+    } else if (currentHitIds.has(videoId)) {
+      // 60日経過しているが、現在ランキング入りしている場合は SONGS_LONG へ
+      movedToLong.push(values[i]);
+      Logger.log(`Song [${videoId}] moved to SONGS_LONG (Hit survived > 60 days)`);
+    }
+  }
+
+  // SONGS_LONG への書き込み
+  if (movedToLong.length > 0) {
+    const shLong = ss.getSheetByName(CFG.SHEET_SONGS_LONG) || ss.insertSheet(CFG.SHEET_SONGS_LONG);
+    ensureSongsHeader_(shLong);
+    
+    // 重複チェック
+    const longData = shLong.getDataRange().getValues();
+    const existingLongIds = new Set(longData.map(r => String(r[0]).trim()));
+    const finalToMove = movedToLong.filter(row => !existingLongIds.has(String(row[0]).trim()));
+    
+    if (finalToMove.length > 0) {
+      shLong.getRange(shLong.getLastRow() + 1, 1, finalToMove.length, finalToMove[0].length).setValues(finalToMove);
+    }
   }
 
   if (keep.length !== values.length) {
@@ -1000,8 +1064,49 @@ function toDateKey_(v, tz) {
   return s;
 }
 
+/**
+ * 動画が条件に合致するか判定し、SONGS用行データを生成する
+ */
+function validateAndCreateSongRow_(v, artistInfo) {
+  const title = String(v.snippet.title || '').trim();
+  const publishedAt = v.snippet.publishedAt || '';
+  const categoryId = String(v.snippet.categoryId || '');
+  const viewCount = Number(v.statistics.viewCount || 0);
+  const durSec = iso8601DurationToSeconds_(v.contentDetails.duration || 'PT0S');
+  const now = new Date();
+
+  // 音楽・エンタメ・ブログ以外を除外
+  if (categoryId !== '10' && categoryId !== '24' && categoryId !== '22') return null;
+  // Shorts を除外
+  if (durSec < CFG.MIN_DURATION_SEC) return null;
+  // 古すぎる動画を除外
+  const pub = new Date(publishedAt);
+  const ageDays = (now - pub) / (1000 * 60 * 60 * 24);
+  if (ageDays > CFG.LOOKBACK_DAYS_SONGS) return null;
+
+  // リンク付きタイトル
+  const videoUrl = "https://www.youtube.com/watch?v=" + v.id;
+  const linkedTitle = '=HYPERLINK("' + videoUrl + '", "' + title.replace(/"/g, '""') + '")';
+  
+  return [v.id, artistInfo.name, linkedTitle, publishedAt];
+}
+
+/**
+ * 配列を指定サイズごとに分割するヘルパー
+ */
+function chunk_(arr, size) {
+  const out = [];
+  if (!arr) return out;
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size));
+  }
+  return out;
+}
+
+/**
+ * ISO 8601 形式の期間（PT1M30Sなど）を秒数に変換する
+ */
 function iso8601DurationToSeconds_(dur) {
-  // 例: PT1H2M3S
   const m = String(dur || '').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
   if (!m) return 0;
   const h = parseInt(m[1] || '0', 10);
