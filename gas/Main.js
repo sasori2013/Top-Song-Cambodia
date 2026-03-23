@@ -803,26 +803,39 @@ function getStatsData_() {
 
             const sortedDates = Object.keys(dateMap).sort();
             if (sortedDates.length >= 2) {
-                // Calculate daily deltas for all available dates
+                const minD = new Date(sortedDates[0]);
+                const maxD = new Date(sortedDates[sortedDates.length - 1]);
+                
+                // 1. Create a continuous daily views array (filling gaps)
+                const fullDailyViews = [];
+                let lastKnownV = 0;
+                const current = new Date(minD);
+                while (current <= maxD) {
+                    const key = toDateKey_(current, tz);
+                    if (dateMap[key] !== undefined) {
+                        lastKnownV = dateMap[key];
+                    }
+                    fullDailyViews.push(lastKnownV);
+                    current.setDate(current.getDate() + 1);
+                }
+
+                // 2. Calculate daily deltas
                 const allDailyDeltas = [];
-                for (let i = 1; i < sortedDates.length; i++) {
-                    const todayV = dateMap[sortedDates[i]];
-                    const prevV = dateMap[sortedDates[i-1]];
-                    allDailyDeltas.push(Math.max(0, todayV - prevV));
+                for (let i = 1; i < fullDailyViews.length; i++) {
+                    allDailyDeltas.push(Math.max(0, fullDailyViews[i] - fullDailyViews[i-1]));
                 }
 
                 if (allDailyDeltas.length >= 7) {
-                    // Weekly aggregation (Last 12 weeks if possible)
+                    // 3. Aggregate into weekly buckets (8 weeks for "2 months")
                     const weeklyTrend = [];
-                    // Group by 7 days from the end
                     for (let i = allDailyDeltas.length; i >= 7; i -= 7) {
-                        const weekSum = allDailyDeltas.slice(Math.max(0, i - 7), i).reduce((a, b) => a + b, 0);
+                        const weekSum = allDailyDeltas.slice(i - 7, i).reduce((a, b) => a + b, 0);
                         weeklyTrend.unshift(weekSum);
-                        if (weeklyTrend.length >= 12) break; // Limit to 12 weeks
+                        if (weeklyTrend.length >= 8) break; 
                     }
                     stats.heatTrend = weeklyTrend;
 
-                    // Growth calculation (This week vs Last week)
+                    // 4. Growth calculation (Current week vs Previous 7 days)
                     const thisWeek = allDailyDeltas.slice(-7).reduce((a, b) => a + b, 0);
                     const lastWeek = allDailyDeltas.slice(-14, -7).reduce((a, b) => a + b, 0);
                     if (lastWeek > 0) {
