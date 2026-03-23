@@ -40,30 +40,29 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                     <div className="relative h-full w-full">
                         <motion.img
                             src={item.thumbnail}
-                            className="h-full w-full object-cover mixture-blend-lighten"
+                            className="h-full w-full object-cover"
                             alt={cleanedTitle}
                             animate={{
-                                opacity: [0.6, 0.85, 0.6],
+                                opacity: [0.8, 1, 0.8],
                                 filter: [
-                                    "brightness(0.9) contrast(1.4)",
-                                    "brightness(1.2) contrast(1.4)",
-                                    "brightness(0.9) contrast(1.4)"
+                                    "brightness(1.0) contrast(1.1)",
+                                    "brightness(1.2) contrast(1.2)",
+                                    "brightness(1.0) contrast(1.1)"
                                 ]
                             }}
                             transition={{
-                                duration: 5,
+                                duration: 8,
                                 repeat: Infinity,
                                 ease: "easeInOut",
-                                delay: Math.random() * 2 // 個別にタイミングをずらして自然に
+                                delay: Math.random() * 5
                             }}
                         />
                         {/* デジタル・メッシュ・オーバーレイ */}
-                        <div className="absolute inset-0 opacity-[0.15] pointer-events-none" style={{
+                        <div className="absolute inset-0 opacity-[0.05] pointer-events-none" style={{
                             backgroundImage: `
-                                radial-gradient(circle, #fff 0.5px, transparent 0.5px),
-                                linear-gradient(to bottom, transparent 1px, rgba(255,255,255,0.05) 1px, rgba(255,255,255,0.05) 2px, transparent 2px)
+                                radial-gradient(circle, #fff 0.5px, transparent 0.5px)
                             `,
-                            backgroundSize: '3px 3px, 100% 3px'
+                            backgroundSize: '4px 4px'
                         }} />
                     </div>
 

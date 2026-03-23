@@ -908,8 +908,8 @@ function parseRankingSheet_(sh) {
         engagement: findHeader(['反応率', 'Engagement']),
         views: findHeader(['増加数(1d)', '増加数(7d)', 'Views', 'Views(1d)']),
         totalViews: findHeader(['現在再生数', 'TotalViews']),
-        videoId: findHeader(['videoId', 'VideoID']),
-        history: findHeader(['historyRaw', 'History']),
+        videoId: findHeader(['videoId', 'VideoID', 'YouTube', 'URL', '動画']),
+        history: findHeader(['historyRaw', 'History', '履歴']),
         rankChange: -1 // 後で計算
     };
 
@@ -929,7 +929,14 @@ function parseRankingSheet_(sh) {
             engagement: row[idx.engagement],
             views: row[idx.views],
             totalViews: row[idx.totalViews],
-            videoId: String(row[idx.videoId] || ''),
+            videoId: (() => {
+                let v = String(row[idx.videoId] || '').trim();
+                if (!v) return '';
+                // URLからIDを抽出するフォールバック
+                if (v.includes('youtu.be/')) v = v.split('youtu.be/')[1].split('?')[0];
+                if (v.includes('watch?v=')) v = v.split('watch?v=')[1].split('&')[0];
+                return v;
+            })(),
             history: (() => {
                 const raw = String(row[idx.history] || '');
                 if (!raw) return [];
