@@ -8,50 +8,132 @@ interface HeatIndexMetricsProps {
     trend?: number[];
 }
 
+const RollingValue: React.FC<{ value: number; duration?: number; suffix?: string }> = ({ value, duration = 2000, suffix = "" }) => {
+    const [displayValue, setDisplayValue] = React.useState(0);
+
+    React.useEffect(() => {
+        let start = 0;
+        const end = value;
+        const startTime = performance.now();
+
+        const animate = (currentTime: number) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const easeOutExpo = (t: number) => t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+            const current = easeOutExpo(progress) * end;
+
+            setDisplayValue(current);
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            }
+        };
+
+        requestAnimationFrame(animate);
+    }, [value, duration]);
+
+    return (
+        <span className="tabular-nums">
+            {displayValue.toFixed(displayValue > 99 ? 0 : 1)}
+            {suffix && <span className="text-white/30 ml-1">{suffix}</span>}
+        </span>
+    );
+};
+
 export const HeatIndexMetrics: React.FC<HeatIndexMetricsProps> = ({ growth = 0, trend = [] }) => {
-    // Generate some mock data if trend is empty for design purposes during dev
-    const displayTrend = trend.length > 0 ? trend : [10, 15, 8, 12, 20, 18, 25, 22, 30, 28, 35, 32, 40, 38];
+    // Dummy trend for fallback
+    const displayTrend = (trend && trend.length > 0) ? trend : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     const maxVal = Math.max(...displayTrend, 1);
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 1, ease: "easeOut" }}
-            className="flex flex-col items-center mb-12"
+            initial={{ opacity: 0, scale: 0.98 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
+            className="w-full max-w-4xl mx-auto mb-20 p-8 md:p-12 border border-white/5 bg-black/40 backdrop-blur-xl relative overflow-hidden"
         >
-            <div className="flex flex-col items-center mb-6">
-                <span className="text-[10px] font-bold tracking-[0.5em] text-white/30 uppercase mb-2">
-                    Heat Index Velocity
-                </span>
-                <div className="flex items-baseline gap-2">
-                    <span className="text-4xl md:text-5xl font-black text-white tracking-tighter tabular-nums">
-                        {growth > 0 ? `+${growth}` : growth}%
-                    </span>
-                    <span className="text-[10px] font-bold text-white/20 uppercase tracking-widest">
-                        vs prev week
-                    </span>
-                </div>
-            </div>
+            {/* Background Aesthetics */}
+            <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{
+                backgroundImage: `radial-gradient(circle, #fff 1px, transparent 1px)`,
+                backgroundSize: '24px 24px'
+            }} />
+            <div className="absolute inset-0 bg-gradient-to-tr from-white/[0.02] via-transparent to-transparent pointer-events-none" />
 
-            {/* Bar Graph */}
-            <div className="flex items-end gap-1 h-12 md:h-16">
-                {displayTrend.slice(-14).map((val, i) => (
+            <div className="relative z-10 flex flex-col items-center">
+                <header className="flex flex-col items-center mb-10 text-center">
                     <motion.div
-                        key={i}
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: `${(val / maxVal) * 100}%`, opacity: 1 }}
-                        transition={{ 
-                            duration: 0.8, 
-                            delay: 0.5 + i * 0.05,
-                            ease: "easeOut"
-                        }}
-                        className="w-1 md:w-1.5 bg-gradient-to-t from-white/5 to-white/40 rounded-full"
+                        initial={{ width: 0 }}
+                        whileInView={{ width: 40 }}
+                        transition={{ duration: 1, delay: 0.5 }}
+                        className="h-px bg-white/20 mb-6"
                     />
-                ))}
+                    <h2 className="text-[11px] md:text-[13px] font-black tracking-[0.6em] text-white/40 uppercase mb-2">
+                        Heat Index Status
+                    </h2>
+                    <div className="h-1 w-8 bg-white/10 rounded-full mb-8" />
+                </header>
+                
+                <div className="flex flex-col md:flex-row items-center justify-center gap-10 md:gap-20 mb-12 w-full">
+                    {/* Velocity Number */}
+                    <div className="flex flex-col items-center md:items-start">
+                        <div className="text-7xl md:text-9xl font-black text-white tracking-tighter leading-none">
+                            {growth > 0 && <span className="text-4xl md:text-6xl text-white/30 mr-1">+</span>}
+                            <RollingValue value={growth} suffix="%" />
+                        </div>
+                        <p className="text-[10px] md:text-[11px] font-bold text-white/20 uppercase tracking-[0.5em] mt-4 ml-1">
+                            Velocity Index <span className="text-white/40">7D TRD</span>
+                        </p>
+                    </div>
+
+                    {/* Trend Graph */}
+                    <div className="flex-1 w-full max-w-md">
+                        <div className="flex items-end justify-between h-24 md:h-32 gap-1.5 md:gap-2 px-2">
+                            {displayTrend.slice(-14).map((val, i) => (
+                                <div key={i} className="flex-1 flex flex-col justify-end items-center h-full group/bar relative">
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        whileInView={{ height: `${(val / maxVal) * 100}%`, opacity: 1 }}
+                                        transition={{ 
+                                            duration: 1, 
+                                            delay: 0.4 + i * 0.05,
+                                            ease: [0.33, 1, 0.68, 1]
+                                        }}
+                                        className="w-full bg-gradient-to-t from-white/[0.05] via-white/[0.1] to-white/50 rounded-t-sm group-hover/bar:to-white group-hover/bar:via-white/40 transition-all duration-300"
+                                    />
+                                    {/* Tooltip on hover */}
+                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover/bar:opacity-100 transition-all duration-300 pointer-events-none scale-90 group-hover/bar:scale-100">
+                                        <div className="bg-white/10 backdrop-blur-md px-2 py-1 rounded border border-white/10 text-[9px] font-mono text-white">
+                                            {val.toLocaleString()}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="mt-6 flex justify-between items-center border-t border-white/5 pt-3">
+                            <span className="text-[8px] md:text-[9px] text-white/10 font-black uppercase tracking-[0.3em] font-mono whitespace-nowrap">
+                                14 Day Pulse Monitor
+                            </span>
+                            <div className="flex gap-2">
+                                <div className="w-1.5 h-1.5 bg-white/20 rounded-full animate-pulse" />
+                                <div className="w-1.5 h-1.5 bg-white/5 rounded-full" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <motion.div 
+                    initial={{ opacity: 0 }}
+                    whileInView={{ opacity: 1 }}
+                    transition={{ delay: 1.5 }}
+                    className="flex flex-col items-center gap-6 mt-4"
+                >
+                    <div className="w-px h-16 bg-gradient-to-b from-white/20 via-white/5 to-transparent shadow-[0_0_20px_rgba(255,255,255,0.1)]" />
+                    <span className="text-[10px] font-black tracking-[0.8em] text-white pl-[0.8em] uppercase opacity-20">
+                        Descending into Index
+                    </span>
+                </motion.div>
             </div>
-            
-            <div className="mt-4 w-px h-12 bg-gradient-to-b from-white/20 to-transparent" />
         </motion.div>
     );
 };
