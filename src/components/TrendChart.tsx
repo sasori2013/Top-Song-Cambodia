@@ -75,9 +75,10 @@ export const TrendChart: React.FC<TrendChartProps> = ({
 
     const pathId = `path-${uniqueId}`;
     const strokeGradientId = `stroke-grad-${uniqueId}`;
+    const rankGradientId = `rank-grad-${uniqueId}`;
+    const rankAreaGradientId = `rank-area-grad-${uniqueId}`;
 
     // Flow settings based on heatScore
-    // Speed: higher score = faster flow = shorter duration, bounded between 2s and 12s
     const flowDuration = Math.max(2, Math.min(12, 14 - (heatScore / 10)));
     const glowOpacity = Math.min(1, 0.4 + (heatScore / 400));
 
@@ -85,13 +86,26 @@ export const TrendChart: React.FC<TrendChartProps> = ({
         <div className="relative w-full overflow-hidden" style={{ height }}>
             <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
                 <defs>
-                    {/* Fill Area Gradient */}
+                    {/* Rank Horizontal Gradient (White to Light Blue) */}
+                    <linearGradient id={rankGradientId} x1="0%" y1="0%" x2="100%" y2="0%" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stopColor="#ffffff" />
+                        <stop offset="60%" stopColor="#ffffff" />
+                        <stop offset="100%" stopColor="#00E5FF" />
+                    </linearGradient>
+
+                    {/* Rank Area Gradient (Vertical Fade) */}
+                    <linearGradient id={rankAreaGradientId} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#00E5FF" stopOpacity="0.15" />
+                        <stop offset="100%" stopColor="#00E5FF" stopOpacity="0" />
+                    </linearGradient>
+
+                    {/* Standard Fill Area Gradient */}
                     <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor={color} stopOpacity="0.4" />
                         <stop offset="100%" stopColor={color} stopOpacity="0" />
                     </linearGradient>
 
-                    {/* Flowing Stroke Gradient */}
+                    {/* Flowing Stroke Gradient (for non-rank charts) */}
                     <linearGradient id={strokeGradientId} x1="0%" y1="0%" x2="100%" y2="0%" gradientUnits="userSpaceOnUse">
                         <motion.stop
                             offset="0%"
@@ -131,16 +145,14 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                     </filter>
                 </defs>
 
-                {/* Fill Area - Only for trend, hide for rank */}
-                {!isRank && (
-                    <motion.path
-                        d={areaPath}
-                        fill={`url(#${gradientId})`}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 1, delay: 0.5 }}
-                    />
-                )}
+                {/* Fill Area - Subtle for rank, standard for trend */}
+                <motion.path
+                    d={areaPath}
+                    fill={isRank ? `url(#${rankAreaGradientId})` : `url(#${gradientId})`}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 1, delay: 0.5 }}
+                />
 
                 {/* Background static line for consistency */}
                 <path
@@ -157,7 +169,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                     id={pathId}
                     d={pathData}
                     fill="none"
-                    stroke={isRank ? "#ffffff" : `url(#${strokeGradientId})`}
+                    stroke={isRank ? `url(#${rankGradientId})` : `url(#${strokeGradientId})`}
                     strokeWidth={isRank ? "2" : "1.8"}
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -174,18 +186,25 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                 />
 
                 {/* All point dots for rank graph */}
-                {isRank && points.map((p, i) => (
-                    <motion.circle
-                        key={i}
-                        cx={p.x}
-                        cy={p.y}
-                        r="2"
-                        fill="#fff"
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        transition={{ delay: 1.5 + (i * 0.1) }}
-                    />
-                ))}
+                {isRank && points.map((p, i) => {
+                    const isLast = i === points.length - 1;
+                    const progress = i / (points.length - 1);
+                    // Match the line gradient: white until 60%, then transition to light blue
+                    const dotColor = progress > 0.6 ? "#00E5FF" : "#ffffff";
+                    
+                    return (
+                        <motion.circle
+                            key={i}
+                            cx={p.x}
+                            cy={p.y}
+                            r={isLast ? "2.5" : "1.8"}
+                            fill={dotColor}
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            transition={{ delay: 1.5 + (i * 0.1) }}
+                        />
+                    );
+                })}
 
                 {/* Pulsing Dot on Last Point (only if not rank or special focus) */}
                 {!isRank && (
