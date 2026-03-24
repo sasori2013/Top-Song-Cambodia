@@ -59,14 +59,6 @@ export const HeatScore: React.FC<HeatScoreProps> = ({
             }}
         >
             {/* Rank Label if exists */}
-            {rank !== undefined && (
-                <div
-                    className={`${isLg ? 'text-[11px]' : 'text-[8px]'} font-bold tracking-[0.3em] mb-2 opacity-80`}
-                    style={{ color }}
-                >
-                    DAILY RANK {rank < 10 ? `0${rank}` : rank}
-                </div>
-            )}
 
             {/* Pulsating Glow Backdrop */}
             {!disableAnimation && (

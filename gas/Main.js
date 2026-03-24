@@ -937,7 +937,7 @@ function parseRankingSheet_(sh, rankHistoryMap, last7Dates) {
 
         const item = {
             rank: parseInt(row[idx.rank]) || i,
-            prevRank: row[idx.prevRank] === '-' ? 100 : (parseInt(row[idx.prevRank]) || 100),
+            prevRank: (row[idx.prevRank] === '-' || !row[idx.prevRank]) ? 100 : (parseInt(row[idx.prevRank]) || 100),
             artist: String(row[idx.artist] || ''),
             title: String(row[idx.title] || ''),
             publishedAt: row[idx.publishedAt],

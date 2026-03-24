@@ -103,7 +103,7 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                     </p>
                 </a>
                 {/* Rank Change Status - Smart Integrated Design */}
-                <div className="mb-3 h-6 flex items-center justify-center">
+                <div className="mb-1 h-6 flex items-center justify-center">
                     {item.rankChange !== undefined ? (
                         <div className="flex items-center gap-2 text-[9px] md:text-[10px] font-black tracking-[0.2em] uppercase transition-all duration-300">
                             {item.rankChange === 'NEW' ? (
@@ -141,12 +141,12 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                     size="sm"
                     color="#ffffff"
                     disableAnimation={true}
-                    className="mb-2 opacity-80 scale-90 md:scale-100"
+                    className="mb-1 opacity-80 scale-90 md:scale-100"
                 />
 
-                {/* Graph as a separator */}
+                {/* Graph as a separator - Expanded for higher resolution */}
                 <div className="w-full max-w-[240px] px-2 mb-3">
-                    <TrendChart data={item.history} width={240} height={48} color="#ffffff" heatScore={item.heatScore} />
+                    <TrendChart data={item.history} width={240} height={80} color="#ffffff" heatScore={item.heatScore} />
                 </div>
 
                 <div className="flex items-center gap-2 md:gap-4 border-t border-white/5 pt-3 w-full justify-center max-w-[220px] opacity-80">

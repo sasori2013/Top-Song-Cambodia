@@ -785,7 +785,7 @@ function generateRanking(lookbackDays, targetSheetName) {
         historicalRank = parseInt(prevData[i][rankIdx]);
       }
 
-      if (vid && !isNaN(historicalRank) && historicalRank !== 100 && historicalRank !== 0) {
+      if (vid && !isNaN(historicalRank) && historicalRank !== 0) {
         prevRankMap.set(vid, historicalRank);
       }
     }
@@ -859,7 +859,7 @@ function generateRanking(lookbackDays, targetSheetName) {
   const out = top.map((x, i) => [
     latestDate,
     i + 1,
-    x.prevRank || '-', // PrevRank
+    (x.prevRank && x.prevRank !== 100) ? x.prevRank : '-', // PrevRank (Visual Cleanup)
     x.artist,
     x.title,
     (() => {
