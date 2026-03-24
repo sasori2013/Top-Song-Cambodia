@@ -4,6 +4,7 @@ import { RankingList } from '@/components/RankingList';
 import { Footer } from '@/components/Footer';
 import { getRankingData } from '@/lib/api';
 import Link from 'next/link';
+export const dynamic = 'force-dynamic';
 
 export default async function Home() {
   const data = await getRankingData();
