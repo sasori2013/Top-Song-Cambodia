@@ -864,8 +864,17 @@ function getRankingData_() {
     const shDaily = ss.getSheetByName('RANKING_DAILY');
     const shLong = ss.getSheetByName('RANKING_LONG');
     
-    const ranking = shDaily ? parseRankingSheet_(shDaily) : [];
-    const rankingLong = shLong ? parseRankingSheet_(shLong) : [];
+    const tz = Session.getScriptTimeZone();
+    const last7Dates = [];
+    for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        last7Dates.push(toDateKey_(d, tz));
+    }
+    const rankHistoryMap = getRankHistoryMap_(ss, last7Dates, tz);
+
+    const ranking = shDaily ? parseRankingSheet_(shDaily, rankHistoryMap, last7Dates) : [];
+    const rankingLong = shLong ? parseRankingSheet_(shLong, rankHistoryMap, last7Dates) : [];
 
     return {
         updatedAt: new Date().toISOString(),
@@ -878,7 +887,10 @@ function getRankingData_() {
 /**
  * 指定したランキングシートをパースしてオブジェクトの配列で返す
  */
-function parseRankingSheet_(sh) {
+/**
+ * 指定したランキングシートをパースしてオブジェクトの配列で返す
+ */
+function parseRankingSheet_(sh, rankHistoryMap, last7Dates) {
     const values = sh.getDataRange().getValues();
     if (values.length < 2) return [];
 
@@ -938,6 +950,14 @@ function parseRankingSheet_(sh) {
                 return v;
             })(),
             history: (() => {
+                // historyRaw の再生数推移ではなく、順位推移を優先
+                if (rankHistoryMap && last7Dates) {
+                    const artist = String(row[idx.artist] || '');
+                    const title = String(row[idx.title] || '');
+                    const songKey = artist + '|' + title;
+                    return last7Dates.map(date => rankHistoryMap[date] ? (rankHistoryMap[date][songKey] || 100) : 100);
+                }
+
                 const raw = String(row[idx.history] || '');
                 if (!raw) return [];
                 // '123;456;789' または '123,456,789' の形式を想定
@@ -1269,4 +1289,50 @@ function flushApiUsage_() {
   } catch (e) {
     console.error("Failed to flush API usage: " + e.message);
   }
+}
+
+/**
+ * スナップショットから直近7日間の全曲の順位マップを作成する
+ */
+function getRankHistoryMap_(ss, last7Dates, tz) {
+    try {
+        const shSnap = ss.getSheetByName('SNAPSHOT');
+        if (!shSnap) return {};
+        const snapData = shSnap.getDataRange().getValues();
+        
+        // date -> [ {key, views}, ... ]
+        const dateToSongs = {};
+        last7Dates.forEach(d => dateToSongs[d] = []);
+        
+        for (let i = 1; i < snapData.length; i++) {
+            const row = snapData[i];
+            if (!row[0] || !row[3]) continue;
+            const dateKey = toDateKey_(row[0], tz);
+            if (dateToSongs[dateKey]) {
+                dateToSongs[dateKey].push({
+                    key: row[1] + '|' + row[2], // Artist|Title
+                    views: Number(row[3] || 0)
+                });
+            }
+        }
+        
+        // date -> songKey -> rank
+        const historyMap = {};
+        Object.keys(dateToSongs).forEach(date => {
+            const songs = dateToSongs[date];
+            if (songs.length === 0) return;
+            
+            songs.sort((a, b) => b.views - a.views);
+            const ranks = {};
+            songs.forEach((s, idx) => {
+                ranks[s.key] = idx + 1;
+            });
+            historyMap[date] = ranks;
+        });
+        
+        return historyMap;
+    } catch (e) {
+        console.error("Error generating rank history map:", e);
+        return {};
+    }
 }

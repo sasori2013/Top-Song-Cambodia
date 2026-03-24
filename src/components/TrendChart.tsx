@@ -9,6 +9,7 @@ interface TrendChartProps {
     height?: number;
     color?: string;
     heatScore?: number;
+    isRank?: boolean;
 }
 
 export const TrendChart: React.FC<TrendChartProps> = ({
@@ -16,27 +17,37 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     width = 300,
     height = 50,
     color = "#ffffff",
-    heatScore = 0
+    heatScore = 0,
+    isRank = true // Default to true as per new requirement
 }) => {
     const uniqueId = React.useId().replace(/[^a-zA-Z0-9]/g, '');
     const gradientId = `gradient-${uniqueId}`;
     const filterId = `glow-${uniqueId}`;
 
-    // 描画データがない場合は中位の平坦な線を生成
+    // 描画データがない場合は最下位(100)の平坦な線を生成
     const data = (!rawData || rawData.length === 0)
-        ? [50, 50]
+        ? [100, 100]
         : rawData.length === 1
             ? [rawData[0], rawData[0]]
             : rawData;
 
-    const min = Math.min(...data);
-    const max = Math.max(...data);
-    const padding = 5;
+    // Rank グラフの場合、1を最高（最上部）、20を最低（最下部）とする
+    // 20位以下はグラフの底を突き抜けて「圏外」へ抜ける表現にする
+    const min = isRank ? 1 : Math.min(...data);
+    const max = isRank ? 20 : Math.max(...data);
+    const padding = 8; // 上下の余白
 
     // Scale functions
     const getX = (index: number) => (index / (data.length - 1)) * width;
     const getY = (value: number) => {
         const range = (max - min) || 100;
+        if (isRank) {
+            // Rankの場合: 1 -> padding, 20 -> height - padding
+            // 20位より下（21位〜）はグラフの下側に突き抜ける
+            const normalized = (value - 1) / (20 - 1); // 0 (rank 1) to 1 (rank 20)
+            return padding + normalized * (height - padding * 2);
+        }
+        
         const baseOffset = (max === min) ? height / 2 : height - padding;
         if (max === min) return baseOffset;
         return height - padding - ((value - min) / range) * (height - padding * 2);
