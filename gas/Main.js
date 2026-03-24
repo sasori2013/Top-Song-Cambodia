@@ -865,6 +865,10 @@ function getRankingData_() {
     const shLong = ss.getSheetByName('RANKING_LONG');
     
     const tz = Session.getScriptTimeZone();
+    
+    // 初回起動・データ不足時にシートのPrevRankから履歴を自動生成
+    seedRankHistory_(ss, tz);
+    
     const last7Dates = [];
     for (let i = 6; i >= 0; i--) {
         const d = new Date();
@@ -1298,43 +1302,122 @@ function flushApiUsage_() {
  */
 function getRankHistoryMap_(ss, last7Dates, tz) {
     try {
-        const shSnap = ss.getSheetByName('SNAPSHOT');
-        if (!shSnap) return {};
-        const snapData = shSnap.getDataRange().getValues();
-        
-        // date -> [ {key, views}, ... ]
-        const dateToSongs = {};
-        last7Dates.forEach(d => dateToSongs[d] = []);
-        
-        for (let i = 1; i < snapData.length; i++) {
-            const row = snapData[i];
-            if (!row[0] || !row[1]) continue;
-            const dateKey = toDateKey_(row[0], tz);
-            if (dateToSongs[dateKey]) {
-                dateToSongs[dateKey].push({
-                    key: String(row[1]), // videoId
-                    views: Number(row[2] || 0)
-                });
+        const historyMap = {};
+        last7Dates.forEach(d => historyMap[d] = {});
+
+        // 1. 公式履歴 (RANK_HISTORY) から読み込み
+        const shHist = ss.getSheetByName('RANK_HISTORY');
+        if (shHist) {
+            const histData = shHist.getDataRange().getValues();
+            for (let i = 1; i < histData.length; i++) {
+                const dateKey = toDateKey_(histData[i][0], tz);
+                const vid = String(histData[i][1]);
+                const rank = parseInt(histData[i][3]);
+                if (historyMap[dateKey] && vid && !isNaN(rank)) {
+                    historyMap[dateKey][vid] = rank;
+                }
             }
         }
-        
-        // date -> songKey -> rank
-        const historyMap = {};
-        Object.keys(dateToSongs).forEach(date => {
-            const songs = dateToSongs[date];
-            if (songs.length === 0) return;
-            
-            songs.sort((a, b) => b.views - a.views);
-            const ranks = {};
-            songs.forEach((s, idx) => {
-                ranks[s.key] = idx + 1;
+
+        // 2. スナップショット (SNAPSHOT) から再生数ベースで補完（公式履歴がない日用）
+        const shSnap = ss.getSheetByName('SNAPSHOT');
+        if (shSnap) {
+            const snapData = shSnap.getDataRange().getValues();
+            const dateToSongs = {};
+            last7Dates.forEach(d => dateToSongs[d] = []);
+
+            for (let i = 1; i < snapData.length; i++) {
+                const row = snapData[i];
+                const dateKey = toDateKey_(row[0], tz);
+                if (dateToSongs[dateKey]) {
+                    // すでに公式履歴がある組み合わせはスキップして計算コスト削減
+                    if (historyMap[dateKey][String(row[1])] !== undefined) continue;
+                    
+                    dateToSongs[dateKey].push({
+                        key: String(row[1]),
+                        views: Number(row[2] || 0)
+                    });
+                }
+            }
+
+            // まだ順位が決まっていない日付についてのみ、再生数順で計算
+            Object.keys(dateToSongs).forEach(date => {
+                const songs = dateToSongs[date];
+                if (songs.length === 0) return;
+                
+                songs.sort((a, b) => b.views - a.views);
+                songs.forEach((s, idx) => {
+                    if (historyMap[date][s.key] === undefined) {
+                      historyMap[date][s.key] = idx + 1;
+                    }
+                });
             });
-            historyMap[date] = ranks;
-        });
+        }
         
         return historyMap;
     } catch (e) {
         console.error("Error generating rank history map:", e);
         return {};
     }
+}
+/**
+ * 現在のランキングシートから履歴をシードする（移行用・初回用）
+ */
+function seedRankHistory_(ss, tz) {
+  try {
+    const shHist = ss.getSheetByName('RANK_HISTORY');
+    const todayStr = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = Utilities.formatDate(yesterday, tz, 'yyyy-MM-dd');
+
+    // すでに今日と昨日のデータがある程度あればスキップ（無限実行防止）
+    if (shHist && shHist.getLastRow() > 10) {
+      const samples = shHist.getRange(Math.max(2, shHist.getLastRow() - 20), 1, Math.min(20, shHist.getLastRow() - 1), 1).getValues();
+      const hasToday = samples.some(row => toDateKey_(row[0]) === todayStr);
+      if (hasToday) return;
+    }
+
+    logToSheet_('RANK_HISTORY: 初期シードを開始します...');
+    const sh = shHist || ss.insertSheet('RANK_HISTORY');
+    if (!shHist) sh.appendRow(['date', 'videoId', 'type', 'rank', 'heatScore']);
+
+    const seedFromSheet = (sheetName, typeLabel) => {
+      const shRank = ss.getSheetByName(sheetName);
+      if (!shRank || shRank.getLastRow() < 2) return;
+      
+      const data = shRank.getDataRange().getValues();
+      const headers = data[0].map(h => String(h || '').trim());
+      const idxRank = headers.indexOf('順位');
+      const idxPrev = headers.indexOf('PrevRank');
+      const idxVid = headers.indexOf('videoId');
+      const idxHeat = headers.indexOf('HEAT');
+
+      const rows = [];
+      for (let i = 1; i < data.length; i++) {
+        const vid = String(data[i][idxVid]);
+        const curRank = parseInt(data[i][idxRank]);
+        const prevRank = parseInt(data[i][idxPrev]);
+        const heat = Math.round(Number(data[i][idxHeat] || 0) * 100) / 100;
+
+        if (!vid || isNaN(curRank)) continue;
+
+        // 今日のランク
+        rows.push([todayStr, vid, typeLabel, curRank, heat]);
+        
+        // 昨日のランク (PrevRankがあれば記録)
+        if (!isNaN(prevRank) && prevRank !== 0 && prevRank !== 100) {
+          rows.push([yesterdayStr, vid, typeLabel, prevRank, heat]);
+        }
+      }
+      if (rows.length > 0) sh.getRange(sh.getLastRow() + 1, 1, rows.length, 5).setValues(rows);
+    };
+
+    seedFromSheet('RANKING_DAILY', 'DAILY');
+    seedFromSheet('RANKING_LONG', 'LONG');
+    
+    logToSheet_('RANK_HISTORY: 初期シードが完了しました。');
+  } catch (e) {
+    console.error("Error in seedRankHistory_:", e);
+  }
 }

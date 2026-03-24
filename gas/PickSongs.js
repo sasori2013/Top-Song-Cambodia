@@ -897,7 +897,90 @@ function generateRanking(lookbackDays, targetSheetName) {
     range.setValues(out);
     shRank.getRange(2, 2, out.length, 1).setNumberFormat('0');
   }
+
+  // --- 公式順位履歴の記録 ---
+  recordRankHistory_(top, targetSheetName);
+  // -------------------------
+
   logToSheet_(`【完了】generateRanking (${targetSheetName}) 全工程終了`);
+}
+
+/**
+ * ランキング履歴を保存する（グラフ表示用）
+ */
+function recordRankHistory_(top, typeLabel) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sh = ss.getSheetByName('RANK_HISTORY');
+    if (!sh) {
+      sh = ss.insertSheet('RANK_HISTORY');
+      sh.appendRow(['date', 'videoId', 'type', 'rank', 'heatScore']);
+    }
+
+    const tz = Session.getScriptTimeZone();
+    const todayStr = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+    
+    // 現在の履歴を読み込み（重複防止用）
+    const lastRow = sh.getLastRow();
+    const historyData = lastRow > 1 ? sh.getRange(2, 1, lastRow - 1, 3).getValues() : [];
+    const existingKeys = new Set(historyData.map(row => `${toDateKey(row[0])}_${row[1]}_${row[2]}`));
+
+    const rows = [];
+    top.forEach((item, i) => {
+      const key = `${todayStr}_${item.id}_${typeLabel}`;
+      if (!existingKeys.has(key)) {
+        rows.push([
+          todayStr,
+          item.id,
+          typeLabel,
+          i + 1,
+          Math.round(item.heat * 100) / 100
+        ]);
+      }
+    });
+
+    if (rows.length > 0) {
+      sh.getRange(sh.getLastRow() + 1, 1, rows.length, 5).setValues(rows);
+      logToSheet_(`RANK_HISTORY: ${rows.length} 件の履歴を記録しました。`);
+    }
+
+    // 30日以上前の古い履歴を削除
+    pruneRankHistory_(sh, 30);
+
+  } catch (e) {
+    logToSheet_('Error in recordRankHistory_: ' + e.message);
+  }
+}
+
+/**
+ * 古いランキング履歴を削除する
+ */
+function pruneRankHistory_(sh, keepDays) {
+  try {
+    const lastRow = sh.getLastRow();
+    if (lastRow < 2) return;
+
+    const data = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - (keepDays * 24 * 60 * 60 * 1000));
+    
+    const rowsToDelete = [];
+    for (let i = data.length - 1; i >= 0; i--) {
+      const rowDate = new Date(data[i][0]);
+      if (!isNaN(rowDate.getTime()) && rowDate < cutoff) {
+        rowsToDelete.push(i + 2);
+      }
+    }
+
+    // 連続する行をまとめて削除するなどの最適化はせず、後ろから1つずつ（または数個ずつ）
+    // 大量にある場合はパフォーマンス注意だが、1日20件×30日=600件程度なら問題ない
+    rowsToDelete.forEach(row => sh.deleteRow(row));
+    if (rowsToDelete.length > 0) {
+      logToSheet_(`RANK_HISTORY: ${rowsToDelete.length} 件の古い履歴を削除しました。`);
+    }
+  } catch (e) {
+    logToSheet_('Error in pruneRankHistory_: ' + e.message);
+  }
 }
 
 /* ---------------- helpers ---------------- */
