@@ -62,7 +62,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
         return height - padding - ((effectiveVal - chartMin) / trendRange) * (height - padding * 2);
     };
 
-    // Helper function to generate a smooth Bezier path
+    // Helper function to generate a smooth path using Quadratic midpoints
     const getCurvedPath = (pts: { x: number, y: number }[]) => {
         if (pts.length < 2) return "";
         let d = `M ${pts[0].x},${pts[0].y}`;
@@ -70,21 +70,22 @@ export const TrendChart: React.FC<TrendChartProps> = ({
         for (let i = 0; i < pts.length - 1; i++) {
             const curr = pts[i];
             const next = pts[i + 1];
+            const midX = (curr.x + next.x) / 2;
+            const midY = (curr.y + next.y) / 2;
             
-            // Tension for smoothing
-            const tension = 0.3;
-            
-            // Previous and next-next points for slope calculation
-            const prev = pts[i - 1] || curr;
-            const nextNext = pts[i + 2] || next;
-            
-            const cp1x = curr.x + (next.x - prev.x) * tension;
-            const cp1y = curr.y + (next.y - prev.y) * tension;
-            const cp2x = next.x - (nextNext.x - curr.x) * tension;
-            const cp2y = next.y - (nextNext.y - curr.y) * tension;
-            
-            d += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${next.x},${next.y}`;
+            // To make it look "organic", we use the current point as control 
+            // and the midpoint as the anchor.
+            if (i === 0) {
+                d += ` L ${midX},${midY}`;
+            } else {
+                d += ` Q ${curr.x},${curr.y} ${midX},${midY}`;
+            }
         }
+        
+        // Final segment to the last point
+        const last = pts[pts.length - 1];
+        d += ` L ${last.x},${last.y}`;
+        
         return d;
     };
 
