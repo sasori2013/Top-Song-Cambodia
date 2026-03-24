@@ -951,9 +951,13 @@ function parseRankingSheet_(sh, rankHistoryMap, last7Dates) {
             totalViews: row[idx.totalViews],
             videoId: videoIdValue,
             history: (() => {
-                // historyRaw の再生数推移ではなく、順位推移を優先
                 if (rankHistoryMap && last7Dates) {
-                    return last7Dates.map(date => rankHistoryMap[date] ? (rankHistoryMap[date][videoIdValue] || 100) : 100);
+                    const curRank = parseInt(row[idx.rank]) || i;
+                    return last7Dates.map((date, dayIdx) => {
+                        // 7日目（今日）はスナップショットが未作成の場合が多いため、現在の実測順位を注入する
+                        if (dayIdx === 6) return curRank;
+                        return rankHistoryMap[date] ? (rankHistoryMap[date][videoIdValue] || 100) : 100;
+                    });
                 }
 
                 const raw = String(row[idx.history] || '');
