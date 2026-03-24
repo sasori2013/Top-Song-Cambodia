@@ -40,16 +40,19 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     // Scale functions
     const getX = (index: number) => (index / (data.length - 1)) * width;
     const getY = (value: number) => {
-        const range = (max - min) || 100;
         if (isRank) {
-            // Rankの場合: 1 -> padding, 20 -> height - padding
-            // 20位より下（21位〜）はグラフの下側に突き抜ける
-            const normalized = (value - 1) / (20 - 1); // 0 (rank 1) to 1 (rank 20)
-            return padding + normalized * (height - padding * 2);
+            // Ranking focus: 1 (top) to 20 (bottom)
+            // Anything > 20 is "off the bottom"
+            const effectiveRank = Math.min(Math.max(value, 1), 21);
+            if (effectiveRank > 20) return height - padding;
+            
+            const range = 20 - 1;
+            return padding + ((effectiveRank - 1) / range) * (height - padding * 2);
         }
         
-        const baseOffset = (max === min) ? height / 2 : height - padding;
-        if (max === min) return baseOffset;
+        // Standard trend focus (higher is upper)
+        const range = max - min;
+        if (range === 0) return height / 2;
         return height - padding - ((value - min) / range) * (height - padding * 2);
     };
 
@@ -68,12 +71,12 @@ export const TrendChart: React.FC<TrendChartProps> = ({
     const strokeGradientId = `stroke-grad-${uniqueId}`;
 
     // Flow settings based on heatScore
-    // Speed: higher score = faster flow, bounded between 2s and 12s
+    // Speed: higher score = faster flow = shorter duration, bounded between 2s and 12s
     const flowDuration = Math.max(2, Math.min(12, 14 - (heatScore / 10)));
     const glowOpacity = Math.min(1, 0.4 + (heatScore / 400));
 
     return (
-        <div className="relative w-full" style={{ height }}>
+        <div className="relative w-full overflow-hidden" style={{ height }}>
             <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
                 <defs>
                     {/* Fill Area Gradient */}
