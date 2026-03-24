@@ -20,8 +20,8 @@ export const RankingList: React.FC<RankingListProps> = ({ items, stats }) => {
                 </h2>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-x-4 md:gap-x-12 gap-y-12 md:gap-y-20">
-                {items.map((item, index) => (
-                    <RankingCard key={item.videoId} item={item} index={index + 1} />
+                {[...items].sort((a, b) => a.rank - b.rank).map((item, index) => (
+                    <RankingCard key={item.videoId || `rank-${item.rank}-${index}`} item={item} index={item.rank} />
                 ))}
             </div>
 

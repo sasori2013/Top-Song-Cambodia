@@ -33,7 +33,7 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                     {/* Simple Rank Number Overlay */}
                     <div className="absolute top-2 left-3 z-30 flex items-baseline gap-1 pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
                         <span className="font-bold text-3xl md:text-4xl text-white/70 italic pr-1">
-                            {index}
+                            {item.rank}
                         </span>
                     </div>
 
@@ -137,7 +137,7 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
 
 
                 <HeatScore
-                    rank={undefined}
+                    rank={item.rank}
                     score={item.heatScore}
                     size="sm"
                     color="#ffffff"

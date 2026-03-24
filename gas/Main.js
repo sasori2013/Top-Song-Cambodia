@@ -927,6 +927,14 @@ function parseRankingSheet_(sh, rankHistoryMap, last7Dates) {
 
     for (let i = 1; i < values.length; i++) {
         const row = values[i];
+        const videoIdValue = (() => {
+            let v = String(row[idx.videoId] || '').trim();
+            if (!v) return '';
+            if (v.includes('youtu.be/')) v = v.split('youtu.be/')[1].split('?')[0];
+            if (v.includes('watch?v=')) v = v.split('watch?v=')[1].split('&')[0];
+            return v;
+        })();
+
         const item = {
             rank: parseInt(row[idx.rank]) || i,
             prevRank: row[idx.prevRank] === '-' ? 100 : (parseInt(row[idx.prevRank]) || 100),
@@ -941,19 +949,11 @@ function parseRankingSheet_(sh, rankHistoryMap, last7Dates) {
             engagement: row[idx.engagement],
             views: row[idx.views],
             totalViews: row[idx.totalViews],
-            videoId: (() => {
-                let v = String(row[idx.videoId] || '').trim();
-                if (!v) return '';
-                // URLからIDを抽出するフォールバック
-                if (v.includes('youtu.be/')) v = v.split('youtu.be/')[1].split('?')[0];
-                if (v.includes('watch?v=')) v = v.split('watch?v=')[1].split('&')[0];
-                return v;
-            })(),
+            videoId: videoIdValue,
             history: (() => {
                 // historyRaw の再生数推移ではなく、順位推移を優先
                 if (rankHistoryMap && last7Dates) {
-                    const videoId = String(item.videoId || '');
-                    return last7Dates.map(date => rankHistoryMap[date] ? (rankHistoryMap[date][videoId] || 100) : 100);
+                    return last7Dates.map(date => rankHistoryMap[date] ? (rankHistoryMap[date][videoIdValue] || 100) : 100);
                 }
 
                 const raw = String(row[idx.history] || '');
