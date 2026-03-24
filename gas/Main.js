@@ -947,7 +947,7 @@ function parseRankingSheet_(sh, rankHistoryMap, last7Dates) {
             shortInsight: String(row[idx.shortInsight] || '-'),
             growth: row[idx.growth],
             engagement: row[idx.engagement],
-            views: row[idx.views],
+            dailyViews: Number(row[idx.views] || 0),
             totalViews: row[idx.totalViews],
             videoId: videoIdValue,
             history: (() => {

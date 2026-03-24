@@ -122,39 +122,41 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                     </filter>
                 </defs>
 
-                {/* Fill Area */}
-                <motion.path
-                    d={areaPath}
-                    fill={`url(#${gradientId})`}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 1, delay: 0.5 }}
-                />
+                {/* Fill Area - Only for trend, hide for rank */}
+                {!isRank && (
+                    <motion.path
+                        d={areaPath}
+                        fill={`url(#${gradientId})`}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 1, delay: 0.5 }}
+                    />
+                )}
 
                 {/* Background static line for consistency */}
                 <path
                     d={pathData}
                     fill="none"
                     stroke={color}
-                    strokeWidth="1.2"
+                    strokeWidth="1"
                     strokeOpacity="0.1"
                     strokeLinecap="round"
                 />
 
-                {/* Flowing Trend Line */}
+                {/* Main Trend/Rank Line */}
                 <motion.path
                     id={pathId}
                     d={pathData}
                     fill="none"
-                    stroke={`url(#${strokeGradientId})`}
-                    strokeWidth="1.8"
+                    stroke={isRank ? "#ffffff" : `url(#${strokeGradientId})`}
+                    strokeWidth={isRank ? "2" : "1.8"}
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    filter={`url(#${filterId})`}
+                    filter={isRank ? "none" : `url(#${filterId})`}
                     initial={{ pathLength: 0, opacity: 0 }}
                     animate={{
                         pathLength: 1,
-                        opacity: glowOpacity,
+                        opacity: isRank ? 0.8 : glowOpacity,
                     }}
                     transition={{
                         pathLength: { duration: 1.5, ease: "easeInOut" },
@@ -162,24 +164,40 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                     }}
                 />
 
-                {/* Last point dot - pulses with sync */}
-                <motion.circle
-                    cx={getX(data.length - 1)}
-                    cy={getY(data[data.length - 1])}
-                    r="2.5"
-                    fill="#fff"
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{
-                        scale: [1, 1.4, 1],
-                        opacity: 1,
-                        filter: "drop-shadow(0 0 4px #fff)"
-                    }}
-                    transition={{
-                        scale: { duration: flowDuration / 2, repeat: Infinity, ease: "easeInOut" },
-                        delay: 1.5,
-                        duration: 0.5
-                    }}
-                />
+                {/* All point dots for rank graph */}
+                {isRank && points.map((p, i) => (
+                    <motion.circle
+                        key={i}
+                        cx={p.x}
+                        cy={p.y}
+                        r="2"
+                        fill="#fff"
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ delay: 1.5 + (i * 0.1) }}
+                    />
+                ))}
+
+                {/* Pulsing Dot on Last Point (only if not rank or special focus) */}
+                {!isRank && (
+                    <motion.circle
+                        cx={getX(data.length - 1)}
+                        cy={getY(data[data.length - 1])}
+                        r="2.5"
+                        fill="#fff"
+                        initial={{ scale: 0, opacity: 0 }}
+                        animate={{
+                            scale: [1, 1.4, 1],
+                            opacity: 1,
+                            filter: "drop-shadow(0 0 4px #fff)"
+                        }}
+                        transition={{
+                            scale: { duration: flowDuration / 2, repeat: Infinity, ease: "easeInOut" },
+                            delay: 1.5,
+                            duration: 0.5
+                        }}
+                    />
+                )}
             </svg>
         </div>
     );
