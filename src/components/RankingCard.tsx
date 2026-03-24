@@ -145,8 +145,8 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                 />
 
                 {/* Graph as a separator */}
-                <div className="w-full max-w-[240px] px-2 mb-4">
-                    <TrendChart data={item.history} width={240} height={40} color="#ffffff" heatScore={item.heatScore} />
+                <div className="w-full max-w-[240px] px-2 mb-3">
+                    <TrendChart data={item.history} width={240} height={48} color="#ffffff" heatScore={item.heatScore} />
                 </div>
 
                 <div className="flex items-center gap-2 md:gap-4 border-t border-white/5 pt-3 w-full justify-center max-w-[220px] opacity-80">

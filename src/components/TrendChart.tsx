@@ -33,27 +33,33 @@ export const TrendChart: React.FC<TrendChartProps> = ({
 
     // Rank グラフの場合、1を最高（最上部）、20を最低（最下部）とする
     // 20位以下はグラフの底を突き抜けて「圏外」へ抜ける表現にする
-    const min = isRank ? 1 : Math.min(...data);
-    const max = isRank ? 20 : Math.max(...data);
     const padding = 8; // 上下の余白
 
-    // Scale functions
+    // Normalize data for ranking (1 to 21)
+    const normalizedData = isRank ? data.map(v => Math.min(Math.max(v, 1), 21)) : data;
+    
+    // Calculate dynamic vertical bounds
+    const chartMin = Math.min(...normalizedData);
+    const chartMax = Math.max(...normalizedData);
+    const chartRange = chartMax - chartMin;
+
     const getX = (index: number) => (index / (data.length - 1)) * width;
     const getY = (value: number) => {
+        const effectiveVal = isRank ? Math.min(Math.max(value, 1), 21) : value;
+        
         if (isRank) {
-            // Ranking focus: 1 (top) to 20 (bottom)
-            // Anything > 20 is "off the bottom"
-            const effectiveRank = Math.min(Math.max(value, 1), 21);
-            if (effectiveRank > 20) return height - padding;
-            
-            const range = 20 - 1;
-            return padding + ((effectiveRank - 1) / range) * (height - padding * 2);
+            if (chartRange === 0) {
+                // Stable rank: use global 1-20 scale to show its absolute level
+                const globalRange = 20 - 1;
+                return padding + ((effectiveVal - 1) / globalRange) * (height - padding * 2);
+            }
+            // Moving rank: use relative scale to amplify "ups and downs"
+            return padding + ((effectiveVal - chartMin) / chartRange) * (height - padding * 2);
         }
         
         // Standard trend focus (higher is upper)
-        const range = max - min;
-        if (range === 0) return height / 2;
-        return height - padding - ((value - min) / range) * (height - padding * 2);
+        const trendRange = chartRange || 1;
+        return height - padding - ((effectiveVal - chartMin) / trendRange) * (height - padding * 2);
     };
 
     // Construct SVG path using straight lines for an "analytical" ranking feel
