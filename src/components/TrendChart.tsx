@@ -53,24 +53,12 @@ export const TrendChart: React.FC<TrendChartProps> = ({
         return height - padding - ((value - min) / range) * (height - padding * 2);
     };
 
-    // Construct SVG path using smooth curves (simplified Catmull-Rom or Bezier approach)
+    // Construct SVG path using straight lines for an "analytical" ranking feel
     const points = data.map((val, i) => ({ x: getX(i), y: getY(val) }));
 
     let pathData = `M ${points[0].x},${points[0].y}`;
-    if (points.length > 2) {
-        for (let i = 0; i < points.length - 1; i++) {
-            const p0 = points[i];
-            const p1 = points[i + 1];
-            const controlX = (p0.x + p1.x) / 2;
-            pathData += ` C ${controlX},${p0.y} ${controlX},${p1.y} ${p1.x},${p1.y}`;
-        }
-    } else {
-        // Just 2 points: use a slight curve for "shinari"
-        const p0 = points[0];
-        const p1 = points[1];
-        const cx1 = p0.x + (p1.x - p0.x) * 0.4;
-        const cx2 = p0.x + (p1.x - p0.x) * 0.6;
-        pathData += ` C ${cx1},${p0.y} ${cx2},${p1.y} ${p1.x},${p1.y}`;
+    for (let i = 1; i < points.length; i++) {
+        pathData += ` L ${points[i].x},${points[i].y}`;
     }
 
     // Area path
