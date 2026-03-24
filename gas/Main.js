@@ -952,10 +952,8 @@ function parseRankingSheet_(sh, rankHistoryMap, last7Dates) {
             history: (() => {
                 // historyRaw の再生数推移ではなく、順位推移を優先
                 if (rankHistoryMap && last7Dates) {
-                    const artist = String(row[idx.artist] || '');
-                    const title = String(row[idx.title] || '');
-                    const songKey = artist + '|' + title;
-                    return last7Dates.map(date => rankHistoryMap[date] ? (rankHistoryMap[date][songKey] || 100) : 100);
+                    const videoId = String(item.videoId || '');
+                    return last7Dates.map(date => rankHistoryMap[date] ? (rankHistoryMap[date][videoId] || 100) : 100);
                 }
 
                 const raw = String(row[idx.history] || '');
@@ -1306,12 +1304,12 @@ function getRankHistoryMap_(ss, last7Dates, tz) {
         
         for (let i = 1; i < snapData.length; i++) {
             const row = snapData[i];
-            if (!row[0] || !row[3]) continue;
+            if (!row[0] || !row[1]) continue;
             const dateKey = toDateKey_(row[0], tz);
             if (dateToSongs[dateKey]) {
                 dateToSongs[dateKey].push({
-                    key: row[1] + '|' + row[2], // Artist|Title
-                    views: Number(row[3] || 0)
+                    key: String(row[1]), // videoId
+                    views: Number(row[2] || 0)
                 });
             }
         }
