@@ -62,16 +62,38 @@ export const TrendChart: React.FC<TrendChartProps> = ({
         return height - padding - ((effectiveVal - chartMin) / trendRange) * (height - padding * 2);
     };
 
-    // Construct SVG path using straight lines for an "analytical" ranking feel
+    // Helper function to generate a smooth Bezier path
+    const getCurvedPath = (pts: { x: number, y: number }[]) => {
+        if (pts.length < 2) return "";
+        let d = `M ${pts[0].x},${pts[0].y}`;
+        
+        for (let i = 0; i < pts.length - 1; i++) {
+            const curr = pts[i];
+            const next = pts[i + 1];
+            
+            // Tension for smoothing
+            const tension = 0.3;
+            
+            // Previous and next-next points for slope calculation
+            const prev = pts[i - 1] || curr;
+            const nextNext = pts[i + 2] || next;
+            
+            const cp1x = curr.x + (next.x - prev.x) * tension;
+            const cp1y = curr.y + (next.y - prev.y) * tension;
+            const cp2x = next.x - (nextNext.x - curr.x) * tension;
+            const cp2y = next.y - (nextNext.y - curr.y) * tension;
+            
+            d += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${next.x},${next.y}`;
+        }
+        return d;
+    };
+
+    // Construct SVG path using curved lines
     const points = data.map((val, i) => ({ x: getX(i), y: getY(val) }));
+    const curvedPathData = getCurvedPath(points);
 
-    let pathData = `M ${points[0].x},${points[0].y}`;
-    for (let i = 1; i < points.length; i++) {
-        pathData += ` L ${points[i].x},${points[i].y}`;
-    }
-
-    // Area path
-    const areaPath = `${pathData} L ${getX(data.length - 1).toFixed(1)},${height} L ${getX(0).toFixed(1)},${height} Z`;
+    // Area path matching the curve
+    const areaPath = `${curvedPathData} L ${getX(data.length - 1).toFixed(1)},${height} L ${getX(0).toFixed(1)},${height} Z`;
 
     const pathId = `path-${uniqueId}`;
     const strokeGradientId = `stroke-grad-${uniqueId}`;
@@ -86,11 +108,12 @@ export const TrendChart: React.FC<TrendChartProps> = ({
         <div className="relative w-full overflow-hidden" style={{ height }}>
             <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
                 <defs>
-                    {/* Rank Horizontal Gradient (White to Light Blue) */}
+                    {/* Rank Horizontal Gradient (Faded at left 20%, White to Light Blue) */}
                     <linearGradient id={rankGradientId} x1="0%" y1="0%" x2="100%" y2="0%" gradientUnits="userSpaceOnUse">
-                        <stop offset="0%" stopColor="#ffffff" />
-                        <stop offset="60%" stopColor="#ffffff" />
-                        <stop offset="100%" stopColor="#00E5FF" />
+                        <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
+                        <stop offset="20%" stopColor="#ffffff" stopOpacity="1" />
+                        <stop offset="60%" stopColor="#ffffff" stopOpacity="1" />
+                        <stop offset="100%" stopColor="#00E5FF" stopOpacity="1" />
                     </linearGradient>
 
                     {/* Rank Area Gradient (Vertical Fade) */}
@@ -156,18 +179,18 @@ export const TrendChart: React.FC<TrendChartProps> = ({
 
                 {/* Background static line for consistency */}
                 <path
-                    d={pathData}
+                    d={curvedPathData}
                     fill="none"
                     stroke={color}
                     strokeWidth="1"
                     strokeOpacity="0.1"
                     strokeLinecap="round"
                 />
-
+ 
                 {/* Main Trend/Rank Line */}
                 <motion.path
                     id={pathId}
-                    d={pathData}
+                    d={curvedPathData}
                     fill="none"
                     stroke={isRank ? `url(#${rankGradientId})` : `url(#${strokeGradientId})`}
                     strokeWidth={isRank ? "2" : "1.8"}
@@ -184,10 +207,12 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                         opacity: { duration: 1 }
                     }}
                 />
-
+ 
                 {/* All point dots for rank graph */}
                 {isRank && points.map((p, i) => {
                     const isLast = i === points.length - 1;
+                    const xRatio = p.x / width;
+                    const isFaded = xRatio < 0.2;
                     const progress = i / (points.length - 1);
                     // Match the line gradient: white until 60%, then transition to light blue
                     const dotColor = progress > 0.6 ? "#00E5FF" : "#ffffff";
@@ -199,9 +224,12 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                             cy={p.y}
                             r={isLast ? "2.5" : "1.8"}
                             fill={dotColor}
-                            initial={{ scale: 0 }}
-                            animate={{ scale: 1 }}
-                            transition={{ delay: 1.5 + (i * 0.1) }}
+                            initial={{ scale: 0, opacity: 0 }}
+                            animate={{ scale: 1, opacity: isFaded ? 0 : 1 }}
+                            transition={{ 
+                                scale: { delay: 1.5 + (i * 0.1) },
+                                opacity: { delay: 1.5 + (i * 0.1) }
+                            }}
                         />
                     );
                 })}

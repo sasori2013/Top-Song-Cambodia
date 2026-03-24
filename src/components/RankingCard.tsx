@@ -144,8 +144,8 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                     className="mb-1 opacity-80 scale-90 md:scale-100"
                 />
 
-                {/* Graph as a separator - Full width to match thumbnail */}
-                <div className="w-full mb-3 px-0.5">
+                {/* Graph as a separator - 85% width of thumbnail, centered */}
+                <div className="w-[85%] mb-3 px-0.5">
                     <TrendChart data={item.history} width={400} height={80} color="#ffffff" heatScore={item.heatScore} />
                 </div>
 
