@@ -135,38 +135,37 @@ export const RankingCard: React.FC<RankingCardProps> = ({ item, index }) => {
                     )}
                 </div>
 
-
                 <HeatScore
                     rank={item.rank}
                     score={item.heatScore}
                     size="sm"
                     color="#ffffff"
                     disableAnimation={true}
-                    className="mb-4 opacity-80 scale-90 md:scale-100"
+                    className="mb-2 opacity-80 scale-90 md:scale-100"
                 />
 
-                <div className="flex flex-col items-center gap-2 opacity-80 w-full px-4">
-                    <div className="md:scale-100 origin-center h-12 md:h-auto overflow-visible w-full max-w-[200px]">
-                        <TrendChart data={item.history} width={200} height={48} color="#ffffff" heatScore={item.heatScore} />
+                {/* Graph as a separator */}
+                <div className="w-full max-w-[240px] px-2 mb-4">
+                    <TrendChart data={item.history} width={240} height={40} color="#ffffff" heatScore={item.heatScore} />
+                </div>
+
+                <div className="flex items-center gap-2 md:gap-4 border-t border-white/5 pt-3 w-full justify-center max-w-[220px] opacity-80">
+                    <div className="flex flex-col items-center">
+                        <span className="text-[7px] md:text-[8px] text-white/40 font-bold uppercase tracking-widest leading-none flex items-center gap-0.5">VEL <span className="text-[1.6em] leading-none select-none">*</span></span>
+                        <span className="text-[9px] md:text-[11px] text-white/60 font-mono">+{item.growth}%</span>
                     </div>
-                    <div className="flex items-center gap-2 md:gap-4 border-t border-white/5 pt-2 w-full justify-center max-w-[200px]">
-                        <div className="flex flex-col items-center">
-                            <span className="text-[7px] md:text-[8px] text-white/40 font-bold uppercase tracking-widest leading-none flex items-center gap-0.5">VEL <span className="text-[1.6em] leading-none select-none">*</span></span>
-                            <span className="text-[9px] md:text-[11px] text-white/60 font-mono">+{item.growth}%</span>
-                        </div>
-                        <div className="flex flex-col items-center">
-                            <span className="text-[7px] md:text-[8px] text-white/40 font-bold uppercase tracking-widest leading-none flex items-center gap-0.5">RCT <span className="text-[1.6em] leading-none select-none">*</span></span>
-                            <span className="text-[9px] md:text-[11px] text-white/60 font-mono">{item.engagement}%</span>
-                        </div>
-                        <div className="flex flex-col items-center">
-                            <span className="text-[7px] md:text-[8px] text-white/40 font-bold uppercase tracking-widest leading-none flex items-center gap-0.5">DAY <span className="text-[1.6em] leading-none select-none">*</span></span>
-                            <span className="text-[9px] md:text-[11px] text-white/60 font-mono">
-                                {(() => {
-                                    const boostedViews = Math.floor(item.dailyViews * 1.2);
-                                    return boostedViews > 1000 ? Math.floor(boostedViews / 1000) + 'K' : boostedViews;
-                                })()}
-                            </span>
-                        </div>
+                    <div className="flex flex-col items-center">
+                        <span className="text-[7px] md:text-[8px] text-white/40 font-bold uppercase tracking-widest leading-none flex items-center gap-0.5">RCT <span className="text-[1.6em] leading-none select-none">*</span></span>
+                        <span className="text-[9px] md:text-[11px] text-white/60 font-mono">{item.engagement}%</span>
+                    </div>
+                    <div className="flex flex-col items-center">
+                        <span className="text-[7px] md:text-[8px] text-white/40 font-bold uppercase tracking-widest leading-none flex items-center gap-0.5">DAY <span className="text-[1.6em] leading-none select-none">*</span></span>
+                        <span className="text-[9px] md:text-[11px] text-white/60 font-mono">
+                            {(() => {
+                                const boostedViews = Math.floor(item.dailyViews * 1.2);
+                                return boostedViews > 1000 ? Math.floor(boostedViews / 1000) + 'K' : boostedViews;
+                            })()}
+                        </span>
                     </div>
                 </div>
             </div>
