@@ -308,6 +308,7 @@ function backfillFacebookLinks() {
             try {
                 // Snippet (説明欄) から取得
                 const res = YouTube.Channels.list('snippet', { id: channelId });
+                updateApiUsage_('YouTube', 1);
                 let fbUrl = null;
 
                 if (res.items && res.items.length > 0) {
@@ -1138,6 +1139,7 @@ function syncChannelIds() {
             }
 
             const res = YouTube.Channels.list('snippet,statistics', params);
+            updateApiUsage_('YouTube', 1);
             if (res.items && res.items.length > 0) {
                 const item = res.items[0];
                 const realId = item.id;

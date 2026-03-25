@@ -223,6 +223,7 @@ function updateVannDaOnly() {
       order: 'date',
       type: 'video'
     });
+    updateApiUsage_('YouTube', 100);
 
     const ids = (searchRes.items || []).map(it => it.id.videoId);
     Logger.log(`Search found ${ids.length} videos: ${ids.join(', ')}`);
