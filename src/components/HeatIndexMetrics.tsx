@@ -70,7 +70,7 @@ export const HeatIndexMetrics: React.FC<HeatIndexMetricsProps> = ({ growth = 0, 
                     <div className="flex flex-col items-center md:items-start text-white">
                         <div className="text-7xl md:text-9xl font-extralight tracking-tighter leading-none tabular-nums">
                             {growth > 0 && <span className="text-4xl md:text-6xl text-white/40 mr-1">+</span>}
-                            <RollingValue value={growth} suffix="%" />
+                            <RollingValue value={growth} suffix="%*" />
                         </div>
                         <p className="text-[10px] md:text-[11px] font-bold text-white/60 uppercase tracking-[0.5em] mt-6 ml-1">
                             WEEKLY COMPARISON <span className="text-white/30 ml-2 font-mono">VS LAST WEEK</span>
