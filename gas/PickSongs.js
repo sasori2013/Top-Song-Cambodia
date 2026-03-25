@@ -17,7 +17,8 @@ const CFG = {
   SHEET_RANKING_DAILY: 'RANKING_DAILY',
   SHEET_RANKING_WEEKLY: 'RANKING_WEEKLY',
   SHEET_RANKING_LONG: 'RANKING_LONG',
-  SHEET_SONGS_LONG: 'SONGS_LONG', // 長期ヒット曲
+  SHEET_RANKING_AI_TEST: 'RANKING_AI_TEST',
+  SHEET_SONGS_LONG: 'SONGS_LONG', 
 
   // SONGS列: A videoId / B artist / C title / D publishedAt
   SONGS_COLS: { videoId: 0, artist: 1, title: 2, publishedAt: 3 },
@@ -615,6 +616,20 @@ function autoGenerateWeeklyRanking() {
 }
 
 /**
+ * 【実験用】AIのみのロジックでランキングを生成し、別シートに出力する
+ */
+function generateAiTestRanking() {
+  logToSheet_('【実行】AIランキング試作（実験）開始');
+  try {
+    generateRanking(1, 'RANKING_AI_TEST');
+    SpreadsheetApp.getUi().alert('完了: RANKING_AI_TEST シートを更新しました。AI独自の判断に基づいたランキングです。');
+  } catch (e) {
+    logToSheet_('Error in generateAiTestRanking: ' + e.toString());
+    SpreadsheetApp.getUi().alert('エラーが発生しました: ' + e.toString());
+  }
+}
+
+/**
  * 汎用ランキング生成エンジン
  * @param {number} lookbackDays 遡る日数 (1 = Daily, 7 = Weekly)
  * @param {string} targetSheetName 出力先シート名
@@ -889,16 +904,19 @@ function generateRanking(lookbackDays, targetSheetName) {
 
     list.push({
       id,
-      artist: meta.artist, // 仮（後でAIパース）
-      title: meta.title,   // 仮（後でAIパース）
+      artist: meta.artist, 
+      title: meta.title,   
       role: artistMeta.role,
       heat,
       dv: dvRaw,
-      currentV: L.v,
-      baseV: B.v,
+      dl: dlRaw,
+      dc: dcRaw,
+      totalV: L.v,
+      totalL: L.l,
+      totalC: L.c,
       growth: growthRate,
       eng: engagement,
-      commUnique: 1.0, // コメント監査廃止につき固定
+      commUnique: 1.0, 
       spark: sparkFormula,
       alert,
       reason,
@@ -1002,17 +1020,21 @@ function generateRanking(lookbackDays, targetSheetName) {
         }
         if (aiData.title) c.title = aiData.title;
 
-        c.aiScore = aiData.aiScore || aiData.aiscore;
+        c.aiScore = aiData.aiHeatScore || aiData.aiheatscore || aiData.aiScore || 0;
         c.aiInsight = aiData.insight || aiData.aiInsight || aiData.aiinsight;
         c.shortInsight = aiData.shortInsight || aiData.shortinsight;
         c.genre = aiData.genre || aiData.Genre;
         c.visualConcept = aiData.visualConcept || aiData.visual_concept || aiData.visualconcept || aiData.VisualConcept;
 
-        // コメント品質スコアの適用とスコア再計算
-        const qScore = Number(aiData.commentQualityScore || aiData.commentqualityscore || 1.0);
-        c.commUnique = qScore;
-        // 品質スコアに基づき最終Heatを調整 (0.0なら半分に減点、1.0なら等倍)
-        c.heat = c.heat * ((qScore + 1.0) / 2.0);
+        // AI独自のHeatスコア（0-200想定）を採用する試験的ロジック
+        if (targetSheetName === 'RANKING_AI_TEST') {
+          c.heat = Number(c.aiScore);
+        } else {
+          // 通常時: コメント品質スコアの適用とスコア再計算
+          const qScore = Number(aiData.commentQualityScore || aiData.commentqualityscore || 1.0);
+          c.commUnique = qScore;
+          c.heat = c.heat * ((qScore + 1.0) / 2.0);
+        }
       }
     });
     // AI分析の結果（品質減点など）を反映して再ソート
@@ -1441,15 +1463,17 @@ function analyzeRankingWithAi(contextData, typeLabel) {
       const chunkData = contextData.slice(i, i + chunkSize);
       const simplifiedData = chunkData.map(c => ({
         id: c.id,
-        rank: c.rank,
-        prevRank: c.prevRank,
-        change: c.rankChange,
         artist: c.artist,
         title: c.title,
-        role: c.role,
-        views: c.views,
-        growth: c.growth,
-        heat: c.heat,
+        daily_views: c.dv,
+        daily_likes: c.dl,
+        daily_comments: c.dc,
+        total_views: c.totalV,
+        total_likes: c.totalL,
+        total_comments: c.totalC,
+        growth_rate: c.growth,
+        engagement: c.eng,
+        published_at: c.publishedAt,
         comments_sample: fetchComments_(c.id)
       }));
 
@@ -1465,14 +1489,16 @@ ${JSON.stringify(simplifiedData)}
 - title: Remove artist names and label names. Show ONLY the pure song title.
 
 【Insight Tasks】
-1. insight (English): Narrative based on DATA TRENDS (Momentum, Stability, Debut).
-2. shortInsight (English): 8-10 words summarizing the chart performance factor.
-3. aiScore: 0-100 score reflecting growth momentum.
-4. commentQualityScore: Rate authenticity (0.0 to 1.0). 1.0=Natural, <0.7=Repetitive/Bot-like, <0.5=Spam.
-5. genre: e.g., Khmer Pop, Hip Hop.
+1. insight (English): High-quality narrative.
+2. shortInsight (English): 8-10 words.
+3. aiHeatScore: 0-200 score. Evaluate "Sustainability" and "Heat Quality". 
+   - Weight actual volume vs. growth. 
+   - Penalize "boost-only" songs with no total views compared to high-traffic legends.
+4. commentQualityScore: Rate authenticity (0.0 to 1.0).
+5. genre: Khmer Pop, etc.
 6. visualConcept: 1-2 words.
 
-【Format】 JSON Array of objects with keys: id, artist, title, aiScore, commentQualityScore, insight, shortInsight, genre, visualConcept.
+【Format】 JSON Array: id, artist, title, aiHeatScore, commentQualityScore, insight, shortInsight, genre, visualConcept.
 `;
 
       logToSheet_(`Batch ${Math.floor(i / chunkSize) + 1} call...`);
