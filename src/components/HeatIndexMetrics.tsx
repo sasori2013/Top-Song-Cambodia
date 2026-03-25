@@ -61,7 +61,7 @@ export const HeatIndexMetrics: React.FC<HeatIndexMetricsProps> = ({ growth = 0, 
             <div className="relative z-10 flex flex-col items-center">
                 <header className="flex flex-col items-center mb-12 text-center text-white">
                     <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.8em] uppercase pl-[0.8em]">
-                        Heat Index Status
+                        WEEKLY TRAFFIC
                     </h2>
                 </header>
                 
