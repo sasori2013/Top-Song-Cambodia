@@ -24,7 +24,7 @@ const CFG = {
 
   // Artists列（あなたのシートに合わせる）
   // A:Artist Name / B:YouTube URL / C:Channel ID / D:Subscribers / E:Facebook / F:Role (P for Production)
-  ART_COLS: { name: 0, youtubeUrl: 1, channelId: 2, subscribers: 3, facebook: 4, role: 5 },
+  ART_COLS: { name: 0, youtubeUrl: 1, channelId: 2, subscribers: 3, facebook: 4, role: 5, lastSync: 6 },
 
   LOOKBACK_DAYS_SONGS: 60,   // 新曲収集の対象期間
   LOOKBACK_DAYS_RANK: 7,     // ランキング差分期間
@@ -79,7 +79,7 @@ function updateSongs() {
     const name = String(artists[i][CFG.ART_COLS.name] || '').trim();
     const channelId = String(artists[i][CFG.ART_COLS.channelId] || '').trim();
     if (name && channelId) {
-      targets.push({ name, channelId });
+      targets.push({ name, channelId, rowIndex: i });
     }
   }
 
@@ -124,6 +124,10 @@ function updateSongs() {
           plist.items.forEach(it => playlistVideoIds.push(it.contentDetails.videoId));
         }
         successCount++;
+        // 同期成功時刻を記録
+        if (artists[t.rowIndex]) {
+          artists[t.rowIndex][CFG.ART_COLS.lastSync] = new Date();
+        }
       } catch (e) {
         Logger.log(`Playlist error for ${t.name}: ${e.message}`);
         failures.push(`${t.name} (Playlist Error)`);
@@ -187,9 +191,23 @@ function updateSongs() {
   logToSheet_(`SYNC: Update cycle completed. Added: ${addedCount}, Deleted: ${deletedCount}`);
   sendTelegramNotification_(msg);
 
-  // 9. 使用状況の反映とソート
+  // 9. 使用状況の反映とソート、およびアーティストシートの更新（同期時刻）
   flushApiUsage_();
   sortSongsSheet_(shS);
+
+  // ヘッダーがなければ追加
+  if (artists[0] && artists[0].length <= CFG.ART_COLS.lastSync) {
+    artists[0][CFG.ART_COLS.lastSync] = "Last Sync";
+  } else if (artists[0] && !artists[0][CFG.ART_COLS.lastSync]) {
+    artists[0][CFG.ART_COLS.lastSync] = "Last Sync";
+  }
+  
+  // 最大列数を確認して必要なら拡張
+  const maxCols = Math.max(...artists.map(row => row.length));
+  shA.getRange(1, 1, artists.length, maxCols).setValues(artists.map(row => {
+    while(row.length < maxCols) row.push("");
+    return row;
+  }));
   
   Logger.log(`Finished. Added: ${addedCount}, Success: ${successCount}/${targets.length}`);
 }
