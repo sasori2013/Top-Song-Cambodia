@@ -32,9 +32,18 @@ const RollingValue: React.FC<{ value: number; duration?: number; suffix?: string
     }, [value, duration]);
 
     return (
-        <span className="tabular-nums">
+        <span className="tabular-nums flex items-baseline justify-center md:justify-start">
             {displayValue.toFixed(displayValue > 99 ? 0 : 1)}
-            {suffix && <span className="text-white/30 ml-1">{suffix}</span>}
+            {suffix && (
+                <span className="text-white/30 ml-2 relative inline-flex items-start">
+                    {suffix.includes('%') && <span className="text-[0.4em] md:text-[0.3em] self-center">%</span>}
+                    {suffix.includes('*') && (
+                        <span className="text-[11px] md:text-[13px] text-white/40 leading-none select-none absolute -right-3 -top-1 md:-right-4 md:top-1 font-bold">
+                            *
+                        </span>
+                    )}
+                </span>
+            )}
         </span>
     );
 };
