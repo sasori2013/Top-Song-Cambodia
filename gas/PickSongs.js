@@ -664,7 +664,7 @@ function generateRanking(lookbackDays, targetSheetName) {
 
     const newHeaders = [
       '日付', '順位', 'PrevRank', 'アーティスト', '曲名', '公開日', colName,
-      'AIスコア', 'AIインサイト', 'shortInsight', 'Genre', 'Visual Concept',
+      'AIスコア', 'AI理由', 'AIインサイト', 'shortInsight', 'Genre', 'Visual Concept',
       'Heatスコア', 'コメ品質', '成長率(%)', '反応率', diffColName, '現在再生数', prevColName,
       'YouTube', 'Facebook', '備考', 'videoId', 'historyRaw'
     ];
@@ -1021,6 +1021,7 @@ function generateRanking(lookbackDays, targetSheetName) {
         if (aiData.title) c.title = aiData.title;
 
         c.aiScore = aiData.aiHeatScore || aiData.aiheatscore || aiData.aiScore || 0;
+        c.aiReason = aiData.aiReason || aiData.aireason || '';
         c.aiInsight = aiData.insight || aiData.aiInsight || aiData.aiinsight;
         c.shortInsight = aiData.shortInsight || aiData.shortinsight;
         c.genre = aiData.genre || aiData.Genre;
@@ -1064,7 +1065,7 @@ function generateRanking(lookbackDays, targetSheetName) {
   const out = top.map((x, i) => [
     latestDate,
     i + 1,
-    (x.prevRank && x.prevRank !== 100) ? x.prevRank : '-', // PrevRank (Visual Cleanup)
+    (x.prevRank && x.prevRank !== 100) ? x.prevRank : '-', 
     x.artist,
     x.title,
     (() => {
@@ -1077,8 +1078,9 @@ function generateRanking(lookbackDays, targetSheetName) {
     })(),
     x.spark,
     (x.aiScore !== undefined && x.aiScore !== null) ? x.aiScore : '-',
+    x.aiReason || '-',
     x.aiInsight || '-',
-    x.shortInsight || '-', // NEW FIELD FOR OG IMAGE
+    x.shortInsight || '-', 
     x.genre || '-',
     x.visualConcept || '-',
     Math.round(x.heat * 100) / 100,
@@ -1488,17 +1490,15 @@ ${JSON.stringify(simplifiedData)}
 - For cleaning: Remove suffixes like "Official", "Official Channel", "Production", etc.
 - title: Remove artist names and label names. Show ONLY the pure song title.
 
-【Insight Tasks】
-1. insight (English): High-quality narrative.
-2. shortInsight (English): 8-10 words.
 3. aiHeatScore: 0-200 score. Evaluate "Sustainability" and "Heat Quality". 
    - Weight actual volume vs. growth. 
    - Penalize "boost-only" songs with no total views compared to high-traffic legends.
-4. commentQualityScore: Rate authenticity (0.0 to 1.0).
-5. genre: Khmer Pop, etc.
-6. visualConcept: 1-2 words.
+4. aiReason (Japanese): Reason for the score and rank (approx. 50-80 characters).
+5. commentQualityScore: Rate authenticity (0.0 to 1.0).
+6. genre: Khmer Pop, etc.
+7. visualConcept: 1-2 words.
 
-【Format】 JSON Array: id, artist, title, aiHeatScore, commentQualityScore, insight, shortInsight, genre, visualConcept.
+【Format】 JSON Array: id, artist, title, aiHeatScore, aiReason, commentQualityScore, insight, shortInsight, genre, visualConcept.
 `;
 
       logToSheet_(`Batch ${Math.floor(i / chunkSize) + 1} call...`);
