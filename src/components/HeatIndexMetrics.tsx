@@ -69,45 +69,73 @@ export const HeatIndexMetrics: React.FC<HeatIndexMetricsProps> = ({ growth = 0, 
                     {/* Growth Number - Weekly Comparison */}
                     <div className="flex flex-col items-center md:items-start text-white">
                         <div className="text-7xl md:text-9xl font-extralight tracking-tighter leading-none tabular-nums">
-                            {growth > 0 && <span className="text-4xl md:text-6xl text-white/20 mr-1">+</span>}
+                            {growth > 0 && <span className="text-4xl md:text-6xl text-white/40 mr-1">+</span>}
                             <RollingValue value={growth} suffix="%" />
                         </div>
-                        <p className="text-[10px] md:text-[11px] font-bold text-white/30 uppercase tracking-[0.5em] mt-6 ml-1">
-                            WEEKLY COMPARISON <span className="text-white/10 ml-2 font-mono">VS LAST WEEK</span>
+                        <p className="text-[10px] md:text-[11px] font-bold text-white/60 uppercase tracking-[0.5em] mt-6 ml-1">
+                            WEEKLY COMPARISON <span className="text-white/30 ml-2 font-mono">VS LAST WEEK</span>
                         </p>
                     </div>
 
                     {/* Trend Graph - Weekly Volume */}
                     <div className="flex-1 w-full max-w-md pt-8">
-                        <div className="flex items-end justify-between h-24 md:h-32 gap-3 md:gap-4 px-2">
-                            {displayTrend.map((val, i) => (
-                                <div key={i} className="flex-1 flex flex-col justify-end items-center h-full group/bar relative">
-                                    {/* Abbreviated value displayed permanently */}
-                                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 opacity-40 group-hover/bar:opacity-100 transition-opacity duration-300 pointer-events-none z-20">
-                                        <div className="text-[8px] font-mono text-[#AEEFFF] font-bold whitespace-nowrap">
-                                            {formatCompactNumber(val)}
+                        <div className="flex flex-col h-full">
+                            <div className="flex items-end justify-between h-24 md:h-32 gap-3 md:gap-4 px-2">
+                                {displayTrend.map((val, i) => (
+                                    <div key={i} className="flex-1 flex flex-col justify-end items-center h-full group/bar relative">
+                                        {/* Abbreviated value displayed permanently */}
+                                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 opacity-60 group-hover/bar:opacity-100 transition-opacity duration-300 pointer-events-none z-20">
+                                            <div className="text-[8px] font-mono text-[#AEEFFF] font-black whitespace-nowrap">
+                                                {formatCompactNumber(val)}
+                                            </div>
                                         </div>
+                                        <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            whileInView={{ height: `${(val / maxVal) * 100}%`, opacity: 1 }}
+                                            transition={{ 
+                                                duration: 1, 
+                                                delay: 0.4 + i * 0.1,
+                                                ease: [0.33, 1, 0.68, 1]
+                                            }}
+                                            className="w-full bg-gradient-to-t from-[#AEEFFF]/5 via-[#AEEFFF]/20 to-[#AEEFFF]/60 hover:to-white rounded-t-sm transition-all duration-300"
+                                        />
                                     </div>
-                                    <motion.div
-                                        initial={{ height: 0, opacity: 0 }}
-                                        whileInView={{ height: `${(val / maxVal) * 100}%`, opacity: 1 }}
-                                        transition={{ 
-                                            duration: 1, 
-                                            delay: 0.4 + i * 0.1,
-                                            ease: [0.33, 1, 0.68, 1]
-                                        }}
-                                        className="w-full bg-gradient-to-t from-[#AEEFFF]/5 via-[#AEEFFF]/20 to-[#AEEFFF]/60 hover:to-white rounded-t-sm transition-all duration-300"
-                                    />
-                                </div>
-                            ))}
+                                ))}
+                            </div>
+                            {/* Week Labels */}
+                            <div className="flex justify-between px-2 mt-3">
+                                {displayTrend.map((_, i) => {
+                                    const total = displayTrend.length;
+                                    let label = "";
+                                    let opacity = "opacity-20";
+                                    
+                                    if (i === total - 1) {
+                                        label = "THIS WEEK";
+                                        opacity = "opacity-60";
+                                    } else if (i === total - 2) {
+                                        label = "LAST WEEK";
+                                        opacity = "opacity-40";
+                                    } else if (i === 0) {
+                                        label = `${total - 1}W AGO`;
+                                    } else if ((total - 1 - i) % 2 === 0) {
+                                        label = `${total - 1 - i}W`;
+                                    }
+
+                                    return (
+                                        <div key={i} className={`flex-1 text-center text-[7px] font-black tracking-tighter ${opacity} text-white truncate`}>
+                                            {label}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                         <div className="mt-8 flex justify-between items-center border-t border-white/5 pt-4">
-                            <span className="text-[9px] text-white/20 font-black uppercase tracking-[0.3em] font-mono whitespace-nowrap">
+                            <span className="text-[9px] text-white/50 font-black uppercase tracking-[0.3em] font-mono whitespace-nowrap">
                                 WEEKLY HEAT VOLUME
                             </span>
                             <div className="flex gap-2 items-center">
                                 <div className="w-1 h-1 bg-[#AEEFFF] rounded-full animate-pulse opacity-40" />
-                                <span className="text-[8px] text-white/10 font-bold uppercase tracking-widest whitespace-nowrap">Week-by-Week</span>
+                                <span className="text-[8px] text-white/20 font-bold uppercase tracking-widest whitespace-nowrap">Pulse-check</span>
                             </div>
                         </div>
                     </div>
