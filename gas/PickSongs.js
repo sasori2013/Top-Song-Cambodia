@@ -24,7 +24,7 @@ const CFG = {
 
   // Artists列（あなたのシートに合わせる）
   // A:Artist Name / B:YouTube URL / C:Channel ID / D:Subscribers / E:Facebook / F:Role (P for Production)
-  ART_COLS: { name: 0, youtubeUrl: 1, channelId: 2, subscribers: 3, facebook: 4, role: 5, lastSync: 6 },
+  ART_COLS: { name: 0, youtubeUrl: 1, channelId: 2, subscribers: 3, facebook: 4, role: 5, lastSync: 6, deepSearch: 7 },
 
   LOOKBACK_DAYS_SONGS: 60,   // 新曲収集の対象期間
   LOOKBACK_DAYS_RANK: 7,     // ランキング差分期間
@@ -78,19 +78,23 @@ function updateSongs() {
   for (let i = 1; i < artists.length; i++) {
     const name = String(artists[i][CFG.ART_COLS.name] || '').trim();
     const channelId = String(artists[i][CFG.ART_COLS.channelId] || '').trim();
+    const isDeepSearch = String(artists[i][CFG.ART_COLS.deepSearch] || '').toUpperCase() === 'TRUE';
     if (name && channelId) {
-      targets.push({ name, channelId, rowIndex: i });
+      targets.push({ name, channelId, rowIndex: i, isDeepSearch });
     }
   }
 
-  Logger.log(`Processing ${targets.length} artists in batches.`);
+  const plTargets = targets.filter(t => !t.isDeepSearch);
+  const dsTargets = targets.filter(t => t.isDeepSearch);
+
+  Logger.log(`Processing ${targets.length} artists (${dsTargets.length} Deep Search, ${plTargets.length} Playlist).`);
   const allVideoIdsToFetch = new Map(); // videoId -> artistInfo
 
   // 3. 【最適化】Channel ID から Uploads Playlist ID を一括取得 (50件ずつ)
   const channelToPlaylist = new Map();
-  const targetIds = targets.map(t => t.channelId);
+  const plTargetIds = plTargets.map(t => t.channelId);
   
-  for (const chunk of chunk_(targetIds, 50)) {
+  for (const chunk of chunk_(plTargetIds, 50)) {
     try {
       const res = YouTube.Channels.list('contentDetails', { id: chunk.join(',') });
       updateApiUsage_('YouTube', 1);
@@ -105,11 +109,12 @@ function updateSongs() {
     }
   }
 
-  // 4. 各アーティストの最新動画 ID を収集 (PlaylistItems)
+  // 4. 各アーティストの最新動画 ID を収集
   const failures = [];
   let successCount = 0;
 
-  for (const t of targets) {
+  // 4-1. Playlist targets
+  for (const t of plTargets) {
     const playlistId = channelToPlaylist.get(t.channelId);
     let playlistVideoIds = [];
 
@@ -142,6 +147,39 @@ function updateSongs() {
         allVideoIdsToFetch.set(vid, { name: t.name, channelId: t.channelId });
       }
     });
+  }
+
+  // 4-2. Deep Search targets
+  for (const t of dsTargets) {
+    try {
+      const searchRes = YouTube.Search.list('snippet', {
+        channelId: t.channelId,
+        maxResults: 15,
+        order: 'date',
+        type: 'video'
+      });
+      updateApiUsage_('YouTube', 100);
+      
+      let searchVideoIds = [];
+      if (searchRes && searchRes.items) {
+          searchRes.items.forEach(it => searchVideoIds.push(it.id.videoId));
+      }
+      successCount++;
+      // 同期成功時刻を記録
+      if (artists[t.rowIndex]) {
+        artists[t.rowIndex][CFG.ART_COLS.lastSync] = new Date();
+      }
+      
+      // 重複を弾いて「詳細取得待ち」に送る
+      searchVideoIds.forEach(vid => {
+        if (!existing.has(vid)) {
+          allVideoIdsToFetch.set(vid, { name: t.name, channelId: t.channelId });
+        }
+      });
+    } catch(e) {
+      Logger.log(`Search error for ${t.name}: ${e.message}`);
+      failures.push(`${t.name} (Search Error)`);
+    }
   }
 
   // 5. 【最適化】全アーティストの未登録動画の詳細を一括取得 (50件ずつ)
@@ -200,6 +238,11 @@ function updateSongs() {
     artists[0][CFG.ART_COLS.lastSync] = "Last Sync";
   } else if (artists[0] && !artists[0][CFG.ART_COLS.lastSync]) {
     artists[0][CFG.ART_COLS.lastSync] = "Last Sync";
+  }
+  if (artists[0] && artists[0].length <= CFG.ART_COLS.deepSearch) {
+    artists[0][CFG.ART_COLS.deepSearch] = "Deep Search";
+  } else if (artists[0] && !artists[0][CFG.ART_COLS.deepSearch]) {
+    artists[0][CFG.ART_COLS.deepSearch] = "Deep Search";
   }
   
   // 最大列数を確認して必要なら拡張
@@ -260,6 +303,77 @@ function updateVannDaOnly() {
   sortSongsSheet_(shS);
 
   SpreadsheetApp.getUi().alert('VannDaの再探査とソートが完了しました。ログ（表示 > 実行ログ）を確認し、SONGSシートの最上部に曲が追加されたか見てください。');
+}
+
+/**
+ * プロダクションおよび個人トップ20名のDeep Search設定を自動適用する
+ */
+function autoConfigureDeepSearch() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const shA = ss.getSheetByName(CFG.SHEET_ARTISTS);
+  const shS = ss.getSheetByName(CFG.SHEET_SONGS);
+  
+  const artists = shA.getDataRange().getValues();
+  const songs = shS.getDataRange().getValues();
+  
+  // Count songs per artist in SONGS sheet (current catalog size)
+  const songCounts = new Map();
+  for (let i = 1; i < songs.length; i++) {
+    const artist = String(songs[i][CFG.SONGS_COLS.artist] || '').trim();
+    if (artist) {
+      songCounts.set(artist, (songCounts.get(artist) || 0) + 1);
+    }
+  }
+  
+  // Add 'Deep Search' header if missing
+  if (artists[0].length <= CFG.ART_COLS.deepSearch) {
+    artists[0][CFG.ART_COLS.deepSearch] = "Deep Search";
+  } else if (!artists[0][CFG.ART_COLS.deepSearch]) {
+    artists[0][CFG.ART_COLS.deepSearch] = "Deep Search";
+  }
+  
+  // separate artists
+  const individualStats = [];
+  
+  for (let i = 1; i < artists.length; i++) {
+    const role = String(artists[i][CFG.ART_COLS.role] || '').trim().toUpperCase();
+    const name = String(artists[i][CFG.ART_COLS.name] || '').trim();
+    if (!name) continue;
+    
+    // Reset to FALSE first
+    artists[i][CFG.ART_COLS.deepSearch] = false;
+    
+    if (role === 'P' || role === 'PRODUCTION') {
+      artists[i][CFG.ART_COLS.deepSearch] = true;
+    } else {
+      // Individual
+      individualStats.push({
+        rowIndex: i,
+        name: name,
+        hits: songCounts.get(name) || 0
+      });
+    }
+  }
+  
+  // Sort individuals by hits
+  individualStats.sort((a, b) => b.hits - a.hits);
+  
+  // Top 20 individuals
+  const top20 = individualStats.slice(0, 20);
+  top20.forEach(stat => {
+    artists[stat.rowIndex][CFG.ART_COLS.deepSearch] = true;
+  });
+  
+  const top20Names = top20.map(s => `${s.name} (${s.hits})`).join('\\n');
+  
+  // Write back
+  const maxCols = Math.max(...artists.map(row => row.length));
+  shA.getRange(1, 1, artists.length, maxCols).setValues(artists.map(row => {
+    while(row.length < maxCols) row.push("");
+    return row;
+  }));
+  
+  SpreadsheetApp.getUi().alert(`Deep Search設定完了\\n\\n全プロダクションと、楽曲数の多い個人トップ20名に確実なSearch方式（TRUE）を設定しました。\\n\\n【個人トップ20名 (曲数)】\\n${top20Names}`);
 }
 
 /**
