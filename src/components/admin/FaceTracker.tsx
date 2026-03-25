@@ -13,6 +13,8 @@ const FaceTracker = ({ onResult, cameraMode = 'mono' }: FaceTrackerProps) => {
   const landmarkerRef = useRef<FaceLandmarker | null>(null);
   const lastUpdateTime = useRef(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     const originalConsoleError = console.error;
@@ -24,47 +26,74 @@ const FaceTracker = ({ onResult, cameraMode = 'mono' }: FaceTrackerProps) => {
     };
 
     const setup = async () => {
-      const vision = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
-      );
-      
-      landmarkerRef.current = await FaceLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-          delegate: "GPU"
-        },
-        outputFaceBlendshapes: true,
-        runningMode: "VIDEO",
-        numFaces: 1
-      });
-      
-      setLoading(false);
-      startCamera();
+      setError(null);
+      setLoading(true);
+      try {
+        const vision = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+        );
+        
+        landmarkerRef.current = await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+            delegate: "GPU"
+          },
+          outputFaceBlendshapes: true,
+          runningMode: "VIDEO",
+          numFaces: 1
+        });
+      } catch (err) {
+        console.error("MediaPipe initialization error:", err);
+        // We don't necessarily block the camera if face tracking fails, 
+        // but we should warn the user.
+      } finally {
+        setLoading(false);
+        startCamera();
+      }
     };
 
     setup();
 
     return () => {
       console.error = originalConsoleError;
+      if (videoRef.current && videoRef.current.srcObject) {
+         const stream = videoRef.current.srcObject as MediaStream;
+         stream.getTracks().forEach(track => track.stop());
+      }
     };
-  }, []);
+  }, [retryCount]);
 
   const startCamera = async () => {
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 1280, height: 720 },
+          video: { 
+            width: { ideal: 1280 }, 
+            height: { ideal: 720 },
+            facingMode: 'user'
+          },
           audio: false
         });
+        
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          videoRef.current.onloadeddata = () => {
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch(e => console.error("Video play error:", e));
             predictWebcam();
           };
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Camera access error:", err);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          setError("CAMERA_PERMISSION_DENIED");
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          setError("CAMERA_NOT_FOUND");
+        } else {
+          setError("CAMERA_INIT_FAIL: " + (err.message || "UNKNOWN"));
+        }
       }
+    } else {
+      setError("MEDIA_DEVICES_NOT_SUPPORTED");
     }
   };
 
@@ -101,12 +130,27 @@ const FaceTracker = ({ onResult, cameraMode = 'mono' }: FaceTrackerProps) => {
   };
 
   return (
-    <div className="absolute inset-0 overflow-hidden flex items-center justify-center z-0">
+    <div className="absolute inset-0 overflow-hidden flex items-center justify-center z-0 bg-black">
       {loading && (
-        <div className="z-50 text-2xl font-black text-black animate-pulse uppercase">
+        <div className="z-50 text-2xl font-black text-white animate-pulse uppercase tracking-[0.2em]">
           INITIALIZING BIOMETRIC SCANNER...
         </div>
       )}
+      
+      {error && (
+        <div className="z-50 flex flex-col items-center gap-4 p-8 border-2 border-red-500/50 bg-black/80 backdrop-blur-md">
+          <div className="text-xl font-black text-red-500 uppercase tracking-widest">
+            SYSTEM_ERROR: {error}
+          </div>
+          <button 
+            onClick={() => setRetryCount(prev => prev + 1)}
+            className="px-6 py-2 border-2 border-white/20 text-white font-black hover:bg-white/10 transition-colors uppercase tracking-widest text-sm"
+          >
+            [ REBOOT_CAMERA_SYSTEM ]
+          </button>
+        </div>
+      )}
+
       <video
         ref={videoRef}
         style={{
@@ -114,7 +158,9 @@ const FaceTracker = ({ onResult, cameraMode = 'mono' }: FaceTrackerProps) => {
           width: '100%',
           height: '100%',
           objectFit: 'cover',
-          minHeight: '1px'
+          minHeight: '1px',
+          opacity: (loading || error) ? 0 : 1,
+          transition: 'opacity 0.5s ease-in-out'
         }}
         autoPlay
         playsInline
