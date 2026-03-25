@@ -90,18 +90,30 @@ function updateSongs() {
   Logger.log(`Processing ${targets.length} artists (${dsTargets.length} Deep Search, ${plTargets.length} Playlist).`);
   const allVideoIdsToFetch = new Map(); // videoId -> artistInfo
 
-  // 3. 【最適化】Channel ID から Uploads Playlist ID を一括取得 (50件ずつ)
+  // 3. 【最適化】Channel ID から Uploads Playlist ID と登録者数を一括取得 (50件ずつ)
   const channelToPlaylist = new Map();
-  const plTargetIds = plTargets.map(t => t.channelId);
+  const targetIds = targets.map(t => t.channelId);
+  const channelIdToRowIndex = new Map();
+  targets.forEach(t => channelIdToRowIndex.set(t.channelId, t.rowIndex));
   
-  for (const chunk of chunk_(plTargetIds, 50)) {
+  for (const chunk of chunk_(targetIds, 50)) {
     try {
-      const res = YouTube.Channels.list('contentDetails', { id: chunk.join(',') });
+      const res = YouTube.Channels.list('contentDetails,statistics', { id: chunk.join(',') });
       updateApiUsage_('YouTube', 1);
       if (res && res.items) {
         res.items.forEach(item => {
-          const pid = item.contentDetails.relatedPlaylists.uploads;
-          if (pid) channelToPlaylist.set(item.id, pid);
+          // Playlist ID
+          if (item.contentDetails && item.contentDetails.relatedPlaylists) {
+            const pid = item.contentDetails.relatedPlaylists.uploads;
+            if (pid) channelToPlaylist.set(item.id, pid);
+          }
+          // Subscriber Count Update
+          if (item.statistics && item.statistics.subscriberCount) {
+            const rIdx = channelIdToRowIndex.get(item.id);
+            if (rIdx !== undefined && artists[rIdx]) {
+              artists[rIdx][CFG.ART_COLS.subscribers] = parseInt(item.statistics.subscriberCount, 10);
+            }
+          }
         });
       }
     } catch (e) {
