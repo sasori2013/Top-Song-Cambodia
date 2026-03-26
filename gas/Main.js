@@ -405,32 +405,46 @@ function sendTelegramNotification_(text) {
  * Facebook への自動投稿を一括実行 (Parallelized for GAS 6-min limit)
  */
 function autoPostToFacebook() {
-    sendTelegramNotification_('【実行】Facebook自動投稿を開始します (並列処理版)');
-    const PAGE_ID = '971418716059046';
-    const props = PropertiesService.getScriptProperties();
-    const token = props.getProperty('FB_ACCESS_TOKEN');
-
-    if (!token) {
-        logToSheet_('FB_POST: エラー - アクセストークンが未設定です');
-        sendTelegramNotification_('エラー: FB投稿失敗: アクセストークンが未設定です。');
-        return;
-    }
-
-    // 重複投稿防止ロック (10分間)
-    const lockKey = 'FB_POST_LOCK';
-    const now = new Date().getTime();
-    const lastRun = Number(props.getProperty(lockKey) || 0);
-    if (now - lastRun < 10 * 60 * 1000) {
-        logToSheet_('FB_POST: 10分以内に実行済みのためスキップします (Lock active)');
-        return;
-    }
-    props.setProperty(lockKey, String(now));
-
+    const lock = LockService.getScriptLock();
     try {
-        const data = getRankingData_();
-        if (!data || !data.ranking || data.ranking.length === 0) {
-            throw new Error('Ranking data is empty');
+        // 最大1分間ロック取得を待機
+        if (!lock.tryLock(60000)) {
+            logToSheet_('FB_POST: スキップ - 他のプロセスが実行中です (Lock Timeout)');
+            return;
         }
+
+        sendTelegramNotification_('【実行】Facebook自動投稿を開始します (高速並列版/排他制御中)');
+        const PAGE_ID = '971418716059046';
+        const props = PropertiesService.getScriptProperties();
+        const token = props.getProperty('FB_ACCESS_TOKEN');
+
+        if (!token) {
+            logToSheet_('FB_POST: エラー - アクセストークンが未設定です');
+            sendTelegramNotification_('エラー: FB投稿失敗: アクセストークンが未設定です。');
+            return;
+        }
+
+        // 1. 本日すでに投稿済みかチェック (日付ベースの排他制御)
+        const tz = Session.getScriptTimeZone();
+        const todayStr = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+        const lastPostDate = props.getProperty('LAST_POST_DATE');
+        
+        if (lastPostDate === todayStr) {
+            logToSheet_(`FB_POST: スキップ - ${todayStr}分は既に投稿済みです (Idempotency check)`);
+            return;
+        }
+
+        // 2. 重複投稿防止ロック (10分間の短時間ロックも併用)
+        const lockKey = 'FB_POST_LOCK';
+        const now = new Date().getTime();
+        const lastRunTime = Number(props.getProperty(lockKey) || 0);
+        if (now - lastRunTime < 10 * 60 * 1000) {
+            logToSheet_('FB_POST: 10分以内に実行済みのためスキップします (Short-term lock active)');
+            return;
+        }
+        props.setProperty(lockKey, String(now));
+
+        const data = getRankingData_();
         logToSheet_(`Ranking data loaded: ${data.ranking.length} items`);
 
         const ranking = data.ranking;
@@ -582,8 +596,8 @@ function autoPostToFacebook() {
         logToSheet_(`FB_POST: 全工程完了`);
         sendTelegramNotification_(`【成功】Facebook自動投稿完了(高速版)\n日付: ${dateStr}\n#1: ${r1.artist}`);
 
-        // 今後は手動（AI）による詳細な日報へ移行するため、ここでの自動生成は停止します
-
+        // 成功フラグを保存 (本日分の再実行を防止)
+        props.setProperty('LAST_POST_DATE', todayStr);
 
     } catch (e) {
         console.error(e);
@@ -592,6 +606,9 @@ function autoPostToFacebook() {
             errorMsg = "Facebook permission error (403). The token might be missing scopes.";
         }
         sendTelegramNotification_(`【エラー】Facebook自動投稿に失敗しました。\nエラー: ${errorMsg}`);
+    } finally {
+        // ロックを解除
+        lock.releaseLock();
     }
 }
 
