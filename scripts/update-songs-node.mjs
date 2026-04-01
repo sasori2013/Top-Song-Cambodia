@@ -8,9 +8,11 @@ import { sendTelegramNotification } from './telegram-node.mjs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../.env.local') });
 
-const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID;
-const PROJECT_ID = process.env.GCP_PROJECT_ID;
-const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
+const getEnv = (key) => (process.env[key] || '').trim().replace(/^['"]|['"]$/g, '');
+
+const SHEET_ID = getEnv('NEXT_PUBLIC_SHEET_ID');
+const PROJECT_ID = getEnv('GCP_PROJECT_ID');
+const YOUTUBE_API_KEY = getEnv('YOUTUBE_API_KEY');
 const DATASET_ID = 'heat_ranking';
 const TABLE_SONGS = 'songs_master';
 

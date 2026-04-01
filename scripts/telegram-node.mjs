@@ -1,8 +1,8 @@
 import fetch from 'node-fetch';
 
 export async function sendTelegramNotification(message) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
+  const token = (process.env.TELEGRAM_BOT_TOKEN || '').trim().replace(/^['"]|['"]$/g, '');
+  const chatId = (process.env.TELEGRAM_CHAT_ID || '').trim().replace(/^['"]|['"]$/g, '');
 
   if (!token || !chatId) {
     console.warn('Telegram token or chat ID is missing. Notification skipped.');

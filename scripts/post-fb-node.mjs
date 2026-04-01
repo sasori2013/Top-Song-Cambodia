@@ -9,10 +9,11 @@ import { sendTelegramNotification } from './telegram-node.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../.env.local') });
+const getEnv = (key) => (process.env[key] || '').trim().replace(/^['"]|['"]$/g, '');
 
-const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID;
-const PROJECT_ID = process.env.GCP_PROJECT_ID;
-const FB_ACCESS_TOKEN = process.env.FB_ACCESS_TOKEN;
+const SHEET_ID = getEnv('NEXT_PUBLIC_SHEET_ID');
+const PROJECT_ID = getEnv('GCP_PROJECT_ID');
+const FB_ACCESS_TOKEN = getEnv('FB_ACCESS_TOKEN');
 const PAGE_ID = '971418716059046';
 const OG_BASE_URL = 'https://heat-kh.vercel.app/api/og/ranking';
 

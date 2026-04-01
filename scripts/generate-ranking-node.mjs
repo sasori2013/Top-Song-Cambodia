@@ -8,8 +8,10 @@ import { sendTelegramNotification } from './telegram-node.mjs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../.env.local') });
 
-const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID;
-const PROJECT_ID = process.env.GCP_PROJECT_ID;
+const getEnv = (key) => (process.env[key] || '').trim().replace(/^['"]|['"]$/g, '');
+
+const SHEET_ID = getEnv('NEXT_PUBLIC_SHEET_ID');
+const PROJECT_ID = getEnv('GCP_PROJECT_ID');
 const DATASET_ID = 'heat_ranking';
 const TABLE_SNAPSHOTS = 'snapshots';
 const TABLE_HISTORY = 'rank_history';
