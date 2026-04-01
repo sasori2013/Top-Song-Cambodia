@@ -21,7 +21,9 @@ if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON || !YOUTUBE_API_KEY || !GEMINI_API_
   process.exit(1);
 }
 
-const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+const jsonStr = (rawJson || '').trim().replace(/^['"]|['"]$/g, '');
+const credentials = JSON.parse(jsonStr);
 if (credentials.private_key) {
   credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
 }

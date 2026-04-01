@@ -8,7 +8,10 @@ dotenv.config({ path: join(__dirname, '../.env.local') });
 
 const PROJECT_ID = process.env.GCP_PROJECT_ID;
 const DATASET_ID = 'heat_ranking';
-const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '';
+const jsonStr = rawJson.trim().replace(/^['"]|['"]$/g, '');
+const credentials = JSON.parse(jsonStr);
+
 if (credentials.private_key) credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
 
 const bq = new BigQuery({ projectId: PROJECT_ID, credentials });
