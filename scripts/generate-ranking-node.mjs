@@ -64,38 +64,40 @@ async function runRankingNode() {
     console.error('Not enough snapshot dates in BigQuery.');
     return;
   }
-  const latestDate = dateRows[0].date.value || dateRows[0].date;
-  const baseDate = dateRows[1].date.value || dateRows[1].date;
+  const latestDate = dateRows[0].date.value;
+  const baseDate = dateRows[1].date.value;
+
   console.log(`Analyzing: ${latestDate} (Latest) vs ${baseDate} (Base)`);
 
   // 2. Query snapshots for these two dates
   const sql = `
     WITH latest AS (
-      SELECT * FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\` 
-      WHERE date = '${latestDate}'
-      QUALIFY ROW_NUMBER() OVER(PARTITION BY videoId ORDER BY views DESC) = 1
+        SELECT * FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\` 
+        WHERE CAST(date AS STRING) = '${latestDate}'
+        QUALIFY ROW_NUMBER() OVER(PARTITION BY videoId ORDER BY views DESC) = 1
     ),
     base AS (
-      SELECT * FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\` 
-      WHERE date = '${baseDate}'
-      QUALIFY ROW_NUMBER() OVER(PARTITION BY videoId ORDER BY views DESC) = 1
+        SELECT * FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\` 
+        WHERE CAST(date AS STRING) = '${baseDate}'
+        QUALIFY ROW_NUMBER() OVER(PARTITION BY videoId ORDER BY views DESC) = 1
     ),
     history AS (
         -- Get previous rank from history table if available
         SELECT videoId, rank as prevRank 
         FROM \`${DATASET_ID}.${TABLE_HISTORY}\` 
-        WHERE CAST(date AS STRING) LIKE '${baseDate}%' AND UPPER(type) = 'DAILY'
+        WHERE CAST(date AS STRING) = '${baseDate}' AND UPPER(type) = 'DAILY'
         QUALIFY ROW_NUMBER() OVER(PARTITION BY videoId ORDER BY rank ASC) = 1
     )
     SELECT 
       l.videoId,
       l.views as totalV, l.likes as totalL, l.comments as totalC,
-      l.qualityScore, l.qualitySummary,
       b.views as baseV, b.likes as baseL, b.comments as baseC,
-      h.prevRank
+      h.prevRank,
+      s.publishedAt
     FROM latest l
     LEFT JOIN base b ON l.videoId = b.videoId
     LEFT JOIN history h ON l.videoId = h.videoId
+    LEFT JOIN \`${DATASET_ID}.songs_master\` s ON l.videoId = s.videoId
   `;
   const [rows] = await bq.query(sql);
   console.log(`Fetched ${rows.length} records.`);
@@ -115,14 +117,29 @@ async function runRankingNode() {
 
   // 4. Calculate Scores
   const rankedList = rows.map(row => {
-    const dv = Math.max(0, row.totalV - (row.baseV || 0));
-    const dl = Math.max(0, row.totalL - (row.baseL || 0));
-    const dc = Math.max(0, row.totalC - (row.baseC || 0));
-    const growthRate = row.baseV > 0 ? dv / row.baseV : (dv > 0 ? 1.0 : 0);
-    const engagement = row.totalV > 0 ? (row.totalL + row.totalC) / row.totalV : 0;
+    const totalV = parseInt(row.totalV);
+    const totalL = parseInt(row.totalL);
+    const totalC = parseInt(row.totalC);
+    
+    // Safety check for growth: 
+    // If we have yesterday's data, use it.
+    // If not, only treat it as "new growth" if the song was published in the last 48 hours.
+    const baseV = row.baseV ? parseInt(row.baseV) : null;
+    const baseL = row.baseL ? parseInt(row.baseL) : 0;
+    const baseC = row.baseC ? parseInt(row.baseC) : 0;
+
+    // If we have yesterday's data, calculate the actual increase.
+    // If not (song just discovered today), set growth to 0 for safety.
+    // This avoids old songs with no baseline being treated as rocket-ships.
+    const dv = baseV !== null ? Math.max(0, totalV - baseV) : 0;
+
+    const dl = Math.max(0, totalL - baseL);
+    const dc = Math.max(0, totalC - baseC);
+    const growthRate = (baseV && baseV > 0) ? dv / baseV : (dv > 0 ? 1.0 : 0);
+    const engagement = totalV > 0 ? (totalL + totalC) / totalV : 0;
     const qFactor = row.qualityScore || 1.0;
     
-    const heat = calculateHeatScore(dv, dl, dc, row.totalV, growthRate, engagement, qFactor);
+    const heat = calculateHeatScore(dv, dl, dc, totalV, growthRate, engagement, qFactor);
     const meta = songMeta.get(row.videoId) || { artist: 'Unknown', title: 'Unknown', publishedAt: '' };
     const aMeta = artistMeta.get(meta.artist) || { subs: 0, fb: '' };
 
@@ -173,14 +190,14 @@ async function runRankingNode() {
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
       range: 'RANKING_DAILY!A2:AA41',
-      valueInputOption: 'USER_ENTERED',
+      valueInputOption: 'RAW',
       requestBody: { values: Array(40).fill(Array(27).fill('')) },
     });
     // Write new
     await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
       range: `RANKING_DAILY!A2:AA${output.length + 1}`,
-      valueInputOption: 'USER_ENTERED',
+      valueInputOption: 'RAW',
       requestBody: { values: output },
     });
     console.log(`Updated RANKING_DAILY with ${output.length} items.`);
