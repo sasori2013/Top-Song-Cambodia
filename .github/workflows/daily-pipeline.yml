@@ -15,7 +15,8 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm install
-      - name: Run Song Vectorization
+
+      - name: Run Full Pipeline
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
@@ -23,4 +24,11 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node scripts/vectorize-songs-node.mjs
+          FB_ACCESS_TOKEN: ${{ secrets.FB_ACCESS_TOKEN }}
+          NEXT_PUBLIC_SHEET_ID: ${{ secrets.NEXT_PUBLIC_SHEET_ID }}
+        run: |
+          node scripts/update-songs-node.mjs
+          node scripts/daily-snapshot-node.mjs
+          node scripts/generate-ranking-node.mjs
+          node scripts/vectorize-songs-node.mjs
+          node scripts/post-fb-node.mjs
