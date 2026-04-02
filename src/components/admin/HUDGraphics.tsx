@@ -1149,7 +1149,8 @@ interface ProcessStatus {
 }
 
 export const ProcessMonitor = ({ status, isWhite }: { status: ProcessStatus | null, isWhite?: boolean }) => {
-  if (!status || status.status === 'idle') return null;
+  // Guard against null, error status, or missing essential properties
+  if (!status || status.status === 'idle' || status.status === 'error' || !status.name) return null;
 
   const color = isWhite ? "#fff" : "#000";
   const textColor = isWhite ? "text-white" : "text-black";

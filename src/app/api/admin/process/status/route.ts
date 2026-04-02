@@ -6,23 +6,36 @@ const DATASET_ID = 'heat_ranking';
 const TABLE_ID = 'process_status';
 
 // Credentials Setup
-const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}';
+const rawJson = (process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}').trim();
 let credentials;
+let bq: BigQuery | null = null;
+
 try {
-  credentials = JSON.parse(rawJson.trim().replace(/^['"]|['"]$/g, ''));
+  // Remove potential wrapper quotes from Vercel env vars
+  const cleanJson = rawJson.replace(/^['"]|['"]$/g, '');
+  credentials = JSON.parse(cleanJson);
+  
   if (credentials.private_key) {
     credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+  }
+
+  if (credentials.client_email && credentials.project_id) {
+    bq = new BigQuery({
+      projectId: PROJECT_ID || credentials.project_id,
+      credentials,
+    });
+  } else {
+    console.error("BigQuery credentials missing required fields (client_email or project_id)");
   }
 } catch (e) {
   console.error("Failed to parse BigQuery credentials in API:", e);
 }
 
-const bq = new BigQuery({
-  projectId: PROJECT_ID,
-  credentials,
-});
-
 export async function GET() {
+  if (!bq) {
+    return NextResponse.json({ status: 'idle', message: 'BigQuery client not initialized' });
+  }
+
   const query = `SELECT * FROM \`${PROJECT_ID}.${DATASET_ID}.${TABLE_ID}\` WHERE id = 'main_process' LIMIT 1`;
 
   try {
@@ -65,6 +78,10 @@ export async function GET() {
 }
 
 export async function DELETE() {
+  if (!bq) {
+    return NextResponse.json({ status: 'idle' });
+  }
+
   const query = `UPDATE \`${PROJECT_ID}.${DATASET_ID}.${TABLE_ID}\` SET status = 'idle' WHERE id = 'main_process'`;
   try {
     await bq.query({ query });
