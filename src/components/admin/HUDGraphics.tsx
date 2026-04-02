@@ -1137,3 +1137,66 @@ export const ResourceMonitor = React.memo(({
 });
 
 ResourceMonitor.displayName = 'ResourceMonitor';
+// --- Process Monitor Component ---
+
+interface ProcessStatus {
+  name: string;
+  progress: number;
+  total: number;
+  status: string;
+  percent: number;
+  lastUpdate: string;
+}
+
+export const ProcessMonitor = ({ status, isWhite }: { status: ProcessStatus | null, isWhite?: boolean }) => {
+  if (!status || status.status === 'idle') return null;
+
+  const color = isWhite ? "#fff" : "#000";
+  const textColor = isWhite ? "text-white" : "text-black";
+  const isStale = status.status === 'stale';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      className={`flex flex-col gap-2 p-4 border ${isWhite ? 'border-white/20 bg-white/5' : 'border-black/20 bg-black/5'} backdrop-blur-sm rounded-sm w-[280px] shadow-2xl relative overflow-hidden ${isStale ? 'opacity-60 grayscale' : ''}`}
+    >
+      <div className={`absolute top-0 left-0 w-1 h-full ${isStale ? 'bg-yellow-500' : 'bg-[#D1FF00]'} opacity-50`} />
+      
+      <div className="flex justify-between items-start">
+        <div className="flex flex-col">
+          <div className={`text-[9px] font-black tracking-[0.3em] opacity-40 ${textColor}`}>
+            {isStale ? 'STATUS :: WAITING' : `ACTIVE_PROCESS // ${status.status.toUpperCase()}`}
+          </div>
+          <div className={`text-sm font-black tracking-widest ${textColor} truncate w-[180px]`}>{status.name.toUpperCase()}</div>
+        </div>
+        <div className={`text-xl font-black tabular-nums ${textColor}`}>{status.percent}%</div>
+      </div>
+
+      <div className="w-full h-1.5 bg-black/10 relative rounded-full overflow-hidden">
+        <motion.div 
+          initial={{ width: 0 }}
+          animate={{ width: `${status.percent}%` }}
+          className="absolute inset-y-0 left-0 bg-[#D1FF00]"
+        />
+      </div>
+
+      <div className="flex justify-between items-center mt-1">
+        <div className={`text-[10px] font-mono opacity-50 ${textColor}`}>
+          {status.progress} / {status.total} ITEMS
+        </div>
+        <div className="flex gap-1">
+          {[0, 1, 2].map(i => (
+            <motion.div 
+              key={i}
+              animate={{ opacity: [0.2, 1, 0.2] }}
+              transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+              className="w-1 h-1 rounded-full bg-[#D1FF00]"
+            />
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+};

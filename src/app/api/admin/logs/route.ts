@@ -45,92 +45,51 @@ export async function GET() {
       
       if (!message) continue;
 
-      // Date filtering: Only keep today's logs
-      let logDate = new Date();
-      if (timestampStr) {
-        const parsed = new Date(timestampStr);
-        if (!isNaN(parsed.getTime())) {
-          logDate = parsed;
-        }
-      }
-
-      // Date filtering: Temporarily disabled to ensure all recent logs show up on HUD
-      /*
-      const logDayStr = logDate.toLocaleDateString('en-CA');
-      if (logDayStr !== todayStr && logDayStr !== yesterdayStr) {
-        // Skip this log if it's too old
-        continue; 
-      }
-      */
-
-      // Filter: We ONLY want messages that are meant for Telegram (they start with emojis usually)
-      // Main.js sends: ✅, ❌, ⚠️, 🏐, etc.
-      // We also look for specific system messages you might want to see.
+      // Filter: We ONLY want major system events to keep it simple
       let type: 'info' | 'success' | 'error' | 'warning' | 'expired' = 'info';
       
       const isImportant = 
         message.includes('✅') || 
         message.includes('❌') || 
         message.includes('⚠️') || 
-        message.includes('🏐') ||
-        message.includes('📊') ||
         message.includes('🚀') ||
-        message.includes('【実行】') ||
         message.includes('【完了】') ||
         message.includes('【成功】') ||
         message.includes('FB_POST') ||
         message.includes('TRACK_ADD') ||
-        message.includes('TRACK_EXPIRED') ||
-        message.includes('SYNC') ||
-        message.includes('System check') ||
-        message.includes('DATABASE');
+        message.includes('SYNC');
 
-      if (!isImportant) {
-        continue;
-      }
+      if (!isImportant) continue;
 
-      if (message.includes('❌') || message.includes('エラー') || message.includes('FAILURE')) {
+      if (message.includes('❌') || message.includes('エラー')) {
         type = 'error';
-      } else if (message.includes('✅') || message.includes('成功') || message.includes('TRACK_ADD') || message.includes('【完了】')) {
+      } else if (message.includes('✅') || message.includes('成功') || message.includes('【完了】')) {
         type = 'success';
-      } else if (message.includes('⚠️') || message.includes('警告') || message.includes('WARNING')) {
+      } else if (message.includes('⚠️') || message.includes('警告')) {
         type = 'warning';
-      } else if (message.includes('TRACK_EXPIRED')) {
-        type = 'expired';
-      } else if (message.includes('【実行】') || message.includes('SYNC') || message.includes('🚀')) {
-        type = 'info';
       }
 
-      // Clean up the message (remove the prefixes and emojis to make it fit better on the HUD)
+      // Cleanup message for HUD display
       let cleanMessage = message
         .replace(/[\u{1F300}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '') // Remove emojis
         .replace('【完了】', '')
         .replace('【成功】', '')
         .replace('【エラー】', '')
-        .replace('【テスト】', 'TEST:')
         .trim();
 
-      // Only take the first few lines if it's very long
-      const lines = cleanMessage.split('\n');
-      if (lines.length > 2) {
-        cleanMessage = lines[0] + ' ' + (lines[1] || '').substring(0, 50) + '...';
-      }
+      // Only first line
+      cleanMessage = cleanMessage.split('\n')[0].substring(0, 80);
 
       let timestamp = new Date();
       if (timestampStr) {
         const parsed = new Date(timestampStr);
-        if (!isNaN(parsed.getTime())) {
-          timestamp = parsed;
-        }
+        if (!isNaN(parsed.getTime())) timestamp = parsed;
       }
 
-      // Use a deterministic hash of the message and timestamp for persistence
-      const contentHash = Buffer.from(message + timestampStr).toString('base64').substring(0, 12);
+      const contentHash = Buffer.from(message + timestampStr).toString('base64').substring(0, 8);
       const stableId = `log-${i}-${contentHash}`;
 
-      if (dismissedIds.has(stableId)) {
-        continue;
-      }
+      if (dismissedIds.has(stableId)) continue;
 
       recentLogs.push({
         id: stableId,
@@ -139,9 +98,7 @@ export async function GET() {
         timestamp
       });
 
-      if (recentLogs.length >= MAX_LOGS_TO_RETURN) {
-        break;
-      }
+      if (recentLogs.length >= 10) break; // Simple: only show last 10
     }
 
     return NextResponse.json({ logs: recentLogs });

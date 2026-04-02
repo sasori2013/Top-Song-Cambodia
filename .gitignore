@@ -53,3 +53,6 @@ google-credentials.json
 /gas/tmp_gas/
 /gas/gas_response.json
 /gas/tmp.json
+
+# locks
+scripts/locks/

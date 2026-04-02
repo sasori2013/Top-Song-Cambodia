@@ -16,6 +16,7 @@ import {
   FaceTargetCircle,
   ResourceMonitor,
   TechBracket,
+  ProcessMonitor,
   type NotificationItem
 } from './HUDGraphics';
 
@@ -134,6 +135,7 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
   const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
   const [dismissedIds, setDismissedIds] = React.useState<Set<string>>(new Set());
   const [micLevels, setMicLevels] = React.useState<number[]>(Array(20).fill(20));
+  const [processStatus, setProcessStatus] = React.useState<any>(null);
 
   // Load dismissed IDs on mount
   React.useEffect(() => {
@@ -172,13 +174,30 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
     }
   };
 
+  const fetchProcessStatus = async () => {
+    try {
+      const res = await fetch('/api/admin/process/status');
+      const data = await res.json();
+      setProcessStatus(data.status === 'idle' ? null : data);
+    } catch (e) {
+      console.error("Failed to fetch process status:", e);
+    }
+  };
+
   // Initialize notifications on mount
   React.useEffect(() => {
     setNotifications([]);
     
     fetchUsage();
-    const interval = setInterval(fetchUsage, 60000); // Update every minute
-    return () => clearInterval(interval);
+    fetchProcessStatus();
+    
+    const usageInterval = setInterval(fetchUsage, 60000); // 1 min
+    const processInterval = setInterval(fetchProcessStatus, 5000); // 5 sec
+    
+    return () => {
+      clearInterval(usageInterval);
+      clearInterval(processInterval);
+    };
   }, []);
 
   // Microphone Audio Analyzer
@@ -421,6 +440,15 @@ const HUDOverlay = ({ faceData, sheetData, time, env, guiInverted, cameraMode, o
              isWhite={isHudWhite}
            />
         </div>
+
+        {processStatus && (
+          <div className="mt-4">
+             <ProcessMonitor 
+               status={processStatus} 
+               isWhite={isHudWhite} 
+             />
+          </div>
+        )}
 
         <div className="flex flex-col gap-1 relative z-10 transition-all duration-500 mt-4">
            <MetricWithCircle 
