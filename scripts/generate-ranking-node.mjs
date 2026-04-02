@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { sendTelegramNotification } from './telegram-node.mjs';
+import { updateProcessStatus } from './process-tracker.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../.env.local') });
@@ -57,6 +58,7 @@ function calculateHeatScore(dv, dl, dc, totalV, growthRate, engagement, qFactor 
 async function runRankingNode() {
   console.log('--- Ranking Generation (Node.js) Started ---');
   await sendTelegramNotification('🔥 <b>デイリーランキング生成 (generateRanking)</b> を開始します...');
+  await updateProcessStatus('Ranking: Analyzing Data', 0, 100);
 
   // 1. Get dates from BQ
   const [dateRows] = await bq.query(`SELECT DISTINCT date FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\` ORDER BY date DESC LIMIT 2`);
@@ -115,7 +117,8 @@ async function runRankingNode() {
     if (r[0]) artistMeta.set(r[0].trim(), { subs: parseInt(r[3]) || 0, fb: r[4] });
   });
 
-  // 4. Calculate Scores
+  console.log(`Fetched ${rows.length} records.`);
+  await updateProcessStatus('Ranking: Calculating Scores', 20, 100);
   const rankedList = rows.map(row => {
     const totalV = parseInt(row.totalV);
     const totalL = parseInt(row.totalL);
@@ -201,6 +204,7 @@ async function runRankingNode() {
       requestBody: { values: output },
     });
     console.log(`Updated RANKING_DAILY with ${output.length} items.`);
+    await updateProcessStatus('Ranking: Recording History', 80, 100);
 
     // 7. Record Rank History in BigQuery
     const historyRows = top40.map((x, i) => ({
@@ -225,6 +229,7 @@ async function runRankingNode() {
   }
 
   console.log('--- Ranking Generation (Node.js) Completed ---');
+  await updateProcessStatus('Ranking: Completed', 100, 100, 'completed');
   await sendTelegramNotification(`✅ <b>ランキング作成完了</b>\nTop 40 の生成とシート書込に成功しました。\n(比較対象: ${baseDate})`);
 }
 

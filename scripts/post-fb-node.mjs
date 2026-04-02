@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { sendTelegramNotification } from './telegram-node.mjs';
+import { updateProcessStatus } from './process-tracker.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../.env.local') });
@@ -37,6 +38,7 @@ const bq = new BigQuery({ projectId: PROJECT_ID, credentials });
 async function runPostFB() {
   console.log('--- Facebook Posting (Node.js) Started ---');
   await sendTelegramNotification('📱 <b>Facebookへの自動投稿 (postFB)</b> を開始します...');
+  await updateProcessStatus('Post: Fetching Rankings', 0, 100);
 
   // 1. Get Top Rankings from RANKING_DAILY sheet
   const resRank = await sheets.spreadsheets.values.get({ 
@@ -91,6 +93,7 @@ async function runPostFB() {
 
   // 3. Download Images
   console.log(`Downloading ${ogUrls.length} images...`);
+  await updateProcessStatus('Post: Generating Images', 20, 100);
   const imageBuffers = await Promise.all(ogUrls.map(async (url) => {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`OG Image Download failed: ${res.statusText}`);
@@ -99,6 +102,7 @@ async function runPostFB() {
 
   // 4. Upload to Facebook (Unpublished Photos)
   console.log('Uploading images to Facebook...');
+  await updateProcessStatus('Post: Uploading to FB', 50, 100);
   const photoIds = [];
   for (const buffer of imageBuffers) {
       const form = new FormData();
@@ -141,6 +145,7 @@ async function runPostFB() {
 
   // 6. Add Comment
   console.log('Adding Top Comment...');
+  await updateProcessStatus('Post: Adding Comment', 90, 100);
   const commentParams = new URLSearchParams();
   commentParams.append('message', 'Full Top 20:\nhttps://heat-kh.vercel.app/\nUpdated daily.');
   commentParams.append('access_token', FB_ACCESS_TOKEN);
@@ -160,6 +165,7 @@ async function runPostFB() {
   }
 
   console.log('--- Facebook Posting (Node.js) Completed ---');
+  await updateProcessStatus('Post: Completed', 100, 100, 'completed');
   await sendTelegramNotification(`✅ <b>Facebook自動投稿完了</b>\n本日の1位: <b>${r1.artist}</b>\n<a href="https://facebook.com/${postId}">🔗 投稿を見る</a>`);
 }
 

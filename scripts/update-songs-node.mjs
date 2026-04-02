@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { sendTelegramNotification } from './telegram-node.mjs';
+import { updateProcessStatus } from './process-tracker.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../.env.local') });
@@ -43,6 +44,7 @@ const youtube = google.youtube({ version: 'v3', auth: YOUTUBE_API_KEY });
 async function runUpdateSongs() {
   console.log('--- Song Discovery (Node.js) Started ---');
   await sendTelegramNotification('🎵 <b>新曲探索 (updateSongs)</b> を開始します...');
+  await updateProcessStatus('Discovery: Fetching Artists', 0, 100);
 
   // 1. Get Artists from Sheet
   const resArtists = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Artists!A2:H' });
@@ -52,6 +54,7 @@ async function runUpdateSongs() {
     isDeepSearch: String(r[7]).toUpperCase() === 'TRUE'
   })).filter(a => a.name && a.channelId);
   console.log(`Processing ${artists.length} artists...`);
+  await updateProcessStatus('Discovery: Checking Artists', 0, artists.length);
 
   // 2. Get existing video IDs from SONGS and SONGS_LONG
   const resSongs = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'SONGS!A2:A' });
@@ -141,6 +144,7 @@ async function runUpdateSongs() {
               console.log(`  NEW: ${vid.snippet.title}`);
           }
       }
+      await updateProcessStatus('Discovery: Checking Artists', artists.indexOf(artist) + 1, artists.length);
     } catch (err) {
       console.error(`  Error checking ${artist.name}:`, err.message);
     }
@@ -170,6 +174,7 @@ async function runUpdateSongs() {
   }
 
   console.log('--- Song Discovery (Node.js) Completed ---');
+  await updateProcessStatus('Discovery: Completed', newSongsData.length, newSongsData.length, 'completed');
   await sendTelegramNotification(`✅ <b>新曲探索完了</b>\n新たに追加された曲: ${newSongsData.length}件`);
 }
 

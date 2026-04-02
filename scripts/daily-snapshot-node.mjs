@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { sendTelegramNotification } from './telegram-node.mjs';
+import { updateProcessStatus } from './process-tracker.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../.env.local') });
@@ -123,6 +124,7 @@ async function analyzeCommentQuality(videoId, comments) {
 async function runSnapshotNode() {
   console.log('--- Daily Snapshot (Node.js) Started ---');
   await sendTelegramNotification('📊 <b>統計取得・AI監査 (dailySnapshot)</b> を開始します...');
+  await updateProcessStatus('Snapshot: Fetching Video IDs', 0, 100);
   const todayKey = await getTodayKey();
 
   // 1. Get video IDs from SONGS and SONGS_LONG
@@ -160,6 +162,7 @@ async function runSnapshotNode() {
   for (let i = 0; i < videoIds.length; i += 50) {
     const chunk = videoIds.slice(i, i + 50);
     console.log(`Fetching YouTube stats for chunk ${i / 50 + 1}...`);
+    await updateProcessStatus('Snapshot: YouTube Stats', i, videoIds.length);
     
     const res = await youtube.videos.list({
       part: ['statistics'],
@@ -196,6 +199,7 @@ async function runSnapshotNode() {
   
   for (const item of sortedForAudit) {
     console.log(`Analyzing comments for: ${item.videoId} (${songsMap.get(item.videoId)?.title || 'Unknown'})`);
+    await updateProcessStatus('Snapshot: AI Audit', sortedForAudit.indexOf(item), sortedForAudit.length);
     const commentsList = await fetchComments(item.videoId);
     const audit = await analyzeCommentQuality(item.videoId, commentsList);
     
@@ -231,6 +235,7 @@ async function runSnapshotNode() {
   }
 
   console.log('--- Daily Snapshot (Node.js) Completed ---');
+  await updateProcessStatus('Snapshot: Completed', 100, 100, 'completed');
   await sendTelegramNotification(`✅ <b>統計データ取得とAI監査が完了しました</b>`);
 }
 
