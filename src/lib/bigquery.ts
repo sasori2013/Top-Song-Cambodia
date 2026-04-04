@@ -99,13 +99,8 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
     if (dateRows.length === 0 || !dateRows[0].d) return null;
     const latestDate = dateRows[0].d.value;
 
-    // 2. Fetch Top 40 Ranking (with deduplicated songs master)
+    // 2. Fetch Top 40 Ranking (deduplicated by rank)
     const rankingQuery = `
-      WITH unique_songs AS (
-        SELECT videoId, MAX(artist) as artist, MAX(title) as title, MAX(publishedAt) as publishedAt
-        FROM \`${DATASET_ID}.songs_master\`
-        GROUP BY videoId
-      )
       SELECT 
         r.rank, r.heatScore, r.videoId,
         s.artist, s.title, s.publishedAt,
@@ -113,11 +108,12 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
         prev_snap.views as prevV,
         prev_rank.rank as prevRank
       FROM \`${DATASET_ID}.rank_history\` r
-      JOIN unique_songs s ON r.videoId = s.videoId
+      JOIN \`${DATASET_ID}.songs_master\` s ON r.videoId = s.videoId
       LEFT JOIN \`${DATASET_ID}.snapshots\` snap ON r.videoId = snap.videoId AND snap.date = r.date
       LEFT JOIN \`${DATASET_ID}.snapshots\` prev_snap ON r.videoId = prev_snap.videoId AND prev_snap.date = DATE_SUB(r.date, INTERVAL 1 DAY)
       LEFT JOIN \`${DATASET_ID}.rank_history\` prev_rank ON r.videoId = prev_rank.videoId AND prev_rank.date = DATE_SUB(r.date, INTERVAL 1 DAY) AND prev_rank.type = 'DAILY'
       WHERE r.date = '${latestDate}' AND r.type = 'DAILY'
+      QUALIFY ROW_NUMBER() OVER(PARTITION BY r.rank ORDER BY r.heatScore DESC) = 1
       ORDER BY r.rank ASC
       LIMIT 40
     `;
