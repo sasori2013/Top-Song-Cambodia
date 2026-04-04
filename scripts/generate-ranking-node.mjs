@@ -236,6 +236,11 @@ async function runRankingNode() {
       rank: i + 1,
       heatScore: Math.round(x.heat * 100) / 100
     }));
+
+    // NEW: Delete existing records for the same date and type to prevent duplicates
+    console.log(`Deleting existing ranking records for ${latestDate} (DAILY)...`);
+    await bq.query(`DELETE FROM \`${DATASET_ID}.${TABLE_HISTORY}\` WHERE date = '${latestDate}' AND type = 'DAILY'`);
+
     await bq.dataset(DATASET_ID).table(TABLE_HISTORY).insert(historyRows);
     console.log('Recorded rank history in BigQuery.');
 

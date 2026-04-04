@@ -242,6 +242,11 @@ async function runSnapshotNode() {
 
     // 4. Write to BigQuery (INSERT)
     console.log('Inserting into BigQuery...');
+
+    // NEW: Delete existing snapshots for the same date to prevent duplicates
+    console.log(`Deleting existing snapshots for ${todayKey}...`);
+    await bq.query(`DELETE FROM \`${DATASET_ID}.${TABLE_ID}\` WHERE date = '${todayKey}'`);
+
     await bq.dataset(DATASET_ID).table(TABLE_ID).insert(snapshotsRows);
     console.log('BigQuery insertion complete.');
   }
