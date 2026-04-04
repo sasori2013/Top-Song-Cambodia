@@ -119,7 +119,7 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
     `;
     const [rankingRows] = await bq.query(rankingQuery);
 
-    // 3. Fetch Weekly Volume Trend (Last 14 days of Daily Increase)
+    // 3. Fetch Weekly Volume Trend AND Growth Calculation in SQL
     const trendQuery = `
       WITH daily_stats AS (
         SELECT 
@@ -137,9 +137,18 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
         FROM daily_stats
         WHERE prev_views IS NOT NULL
         GROUP BY date
+      ),
+      growth_stats AS (
+        SELECT 
+          SUM(CASE WHEN date > DATE_SUB(DATE '${latestDate}', INTERVAL 7 DAY) THEN total_dv ELSE 0 END) as this_week,
+          SUM(CASE WHEN date <= DATE_SUB(DATE '${latestDate}', INTERVAL 7 DAY) AND date > DATE_SUB(DATE '${latestDate}', INTERVAL 14 DAY) THEN total_dv ELSE 0 END) as last_week
+        FROM daily_increase
+        WHERE date <= DATE '${latestDate}'
       )
-      SELECT total_dv, date
-      FROM daily_increase
+      SELECT 
+        di.total_dv, di.date,
+        gs.this_week, gs.last_week
+      FROM daily_increase di, growth_stats gs
       ORDER BY date ASC
     `;
     const [trendRows] = await bq.query(trendQuery);
@@ -154,19 +163,13 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
     // 5. Format Response
     const trendValues = trendRows.map(r => r.total_dv);
     
-    // Growth Calculation: Sum(7 days ending latestDate) vs Sum(7 days prior)
-    // latestDate = 4/3. 
-    // This Week: 3/28 - 4/3 (inclusive)
-    // Prev Week: 3/21 - 3/27 (inclusive)
-    const thisWeekSum = trendRows
-      .filter(r => r.date.value >= new Date(new Date(latestDate).getTime() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] && r.date.value <= latestDate)
-      .reduce((sum, r) => sum + r.total_dv, 0);
-      
-    const prevWeekSum = trendRows
-      .filter(r => r.date.value >= new Date(new Date(latestDate).getTime() - 13 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] && r.date.value < new Date(new Date(latestDate).getTime() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
-      .reduce((sum, r) => sum + r.total_dv, 0);
+    // Growth from SQL results (all rows have same GS values)
+    const thisWeekSum = trendRows[0]?.this_week || 0;
+    const prevWeekSum = trendRows[0]?.last_week || 0;
     
     const heatGrowth = prevWeekSum > 0 ? ((thisWeekSum - prevWeekSum) / prevWeekSum) * 100 : 0;
+    
+    console.log(`Growth Check [${latestDate}]: ThisWeek=${thisWeekSum}, PrevWeek=${prevWeekSum}, Growth=${heatGrowth}%`);
 
     const ranking = rankingRows.map(r => {
       const dv = Math.max(0, (r.totalV || 0) - (r.prevV || 0));
