@@ -173,6 +173,26 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
     // 5. Format Response
     const trendValues = trendRows.map(r => r.weekly_volume);
     
+    // 6. Fetch Rank History for Top 40 (for Sparklines)
+    const videoIds = rankingRows.map(r => r.videoId);
+    const historyMap = new Map<string, number[]>();
+    
+    if (videoIds.length > 0) {
+      const historyQuery = `
+        SELECT videoId, rank, date
+        FROM \`${DATASET_ID}.rank_history\`
+        WHERE videoId IN UNNEST(${JSON.stringify(videoIds)})
+          AND date >= DATE_SUB(DATE '${latestDate}', INTERVAL 14 DAY)
+          AND type = 'DAILY'
+        ORDER BY date ASC
+      `;
+      const [historyRows] = await bq.query(historyQuery);
+      historyRows.forEach(h => {
+        if (!historyMap.has(h.videoId)) historyMap.set(h.videoId, []);
+        historyMap.get(h.videoId)?.push(h.rank);
+      });
+    }
+    
     // Growth from SQL results (all rows have same GS values)
     const thisWeekSum = trendRows[0]?.this_week || 0;
     const prevWeekSum = trendRows[0]?.last_week || 0;
@@ -199,6 +219,7 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
         thumbnail: `https://img.youtube.com/vi/${r.videoId}/hqdefault.jpg`,
         url: `https://www.youtube.com/watch?v=${r.videoId}`,
         publishedAt: r.publishedAt?.value || r.publishedAt,
+        history: historyMap.get(r.videoId) || [],
         aiScore: r.aiScore,
         aiInsight: r.aiInsight
       } as RankingItem;
