@@ -106,8 +106,7 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
         s.artist, s.title, s.publishedAt,
         snap.views as totalV,
         prev_snap.views as prevV,
-        prev_rank.rank as prevRank,
-        r.aiScore, r.aiInsight
+        prev_rank.rank as prevRank
       FROM \`${DATASET_ID}.rank_history\` r
       JOIN \`${DATASET_ID}.songs_master\` s ON r.videoId = s.videoId
       LEFT JOIN \`${DATASET_ID}.snapshots\` snap ON r.videoId = snap.videoId AND snap.date = r.date
