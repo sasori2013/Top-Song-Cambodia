@@ -39,7 +39,7 @@ const auth = new google.auth.GoogleAuth({
 });
 const sheets = google.sheets({ version: 'v4', auth });
 const bq = new BigQuery({ projectId: PROJECT_ID, credentials });
-const youtube = google.youtube({ version: 'v3', auth: YOUTUBE_API_KEY });
+const youtube = google.youtube({ version: 'v3', auth: YOUTUBE_API_KEY, timeout: 15000 });
 
 async function runUpdateSongs() {
   console.log('--- Song Discovery (Node.js) Started ---');
@@ -48,11 +48,14 @@ async function runUpdateSongs() {
 
   // 1. Get Artists from Sheet
   const resArtists = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Artists!A2:H' });
-  const artists = (resArtists.data.values || []).map(r => ({
+  const artistRows = resArtists.data.values || [];
+  const artists = artistRows.map((r, i) => ({
     name: r[0],
     channelId: r[2],
-    isDeepSearch: String(r[7]).toUpperCase() === 'TRUE'
+    isDeepSearch: String(r[7]).toUpperCase() === 'TRUE',
+    rowIndex: i + 2 // 1-based index including header
   })).filter(a => a.name && a.channelId);
+  
   console.log(`Processing ${artists.length} artists...`);
   await updateProcessStatus('Discovery: Checking Artists', 0, artists.length);
 
@@ -67,6 +70,10 @@ async function runUpdateSongs() {
   const newSongsData = [];
   const lookbackDate = new Date();
   lookbackDate.setDate(lookbackDate.getDate() - 60);
+
+  let successCount = 0;
+  const failedArtists = [];
+  const lastSyncUpdates = []; // { row, value }
 
   // 3. Process each artist (Chunking for quota/concurrency)
   for (const artist of artists) {
@@ -107,10 +114,13 @@ async function runUpdateSongs() {
                 title: it.snippet.title,
                 publishedAt: it.snippet.publishedAt
             }));
+          } else {
+            throw new Error('No Uploads Playlist ID found');
           }
       }
 
       // 4. Batch check durations and filter
+      // (Optimization: chunk by 50 if needed, but 15 is small enough)
       const videoIdsToCheck = channelItems.map(it => it.id).filter(id => !existingIds.has(id));
       if (videoIdsToCheck.length > 0) {
           const resVideo = await youtube.videos.list({
@@ -127,8 +137,6 @@ async function runUpdateSongs() {
               if (publishedAt < lookbackDate) continue;
               if (NG_WORDS.some(ng => title.includes(ng))) continue;
               
-              // Duration Check (No Shorts < 61s)
-              // PT1M5S -> 65s
               const totalSec = parseDuration(duration);
               if (totalSec <= 60) {
                   console.log(`  Skipped (Short): ${vid.snippet.title} (${totalSec}s)`);
@@ -144,13 +152,37 @@ async function runUpdateSongs() {
               console.log(`  NEW: ${vid.snippet.title}`);
           }
       }
+      
+      // Mark as success and prepare lastSync update (Column G = index 6)
+      successCount++;
+      // Mark as success and prepare lastSync update (Column G = index 6)
+      successCount++;
+      const khrDate = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Asia/Phnom_Penh' }).format(new Date());
+      lastSyncUpdates.push({
+        range: `Artists!G${artist.rowIndex}`,
+        values: [[khrDate]] // YYYY-MM-DD in KHR
+      });
+
       await updateProcessStatus('Discovery: Checking Artists', artists.indexOf(artist) + 1, artists.length);
     } catch (err) {
       console.error(`  Error checking ${artist.name}:`, err.message);
+      failedArtists.push(`${artist.name} (${err.message})`);
     }
   }
 
-  // 5. Update Sheet and BQ
+  // 5. Bulk Update lastSync in Artists sheet
+  if (lastSyncUpdates.length > 0) {
+    console.log(`Updating lastSync for ${lastSyncUpdates.length} artists...`);
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SHEET_ID,
+      requestBody: {
+        valueInputOption: 'USER_ENTERED',
+        data: lastSyncUpdates
+      }
+    });
+  }
+
+  // 6. Update SONGS Sheet and BQ
   if (newSongsData.length > 0) {
     await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
@@ -160,7 +192,6 @@ async function runUpdateSongs() {
     });
     console.log(`Appended ${newSongsData.length} new songs to SONGS sheet.`);
 
-    // Sync to BigQuery
     const bqRows = newSongsData.map(r => ({
       videoId: r[0],
       artist: r[1],
@@ -169,13 +200,21 @@ async function runUpdateSongs() {
     }));
     await bq.dataset(DATASET_ID).table(TABLE_SONGS).insert(bqRows);
     console.log('Synced to BigQuery (songs_master).');
-  } else {
-    console.log('No new songs found.');
   }
 
   console.log('--- Song Discovery (Node.js) Completed ---');
   await updateProcessStatus('Discovery: Completed', newSongsData.length, newSongsData.length, 'completed');
-  await sendTelegramNotification(`✅ <b>新曲探索完了</b>\n新たに追加された曲: ${newSongsData.length}件`);
+  
+  const failureMsg = failedArtists.length > 0 
+    ? `\n❌ <b>失敗: ${failedArtists.length}名</b>\n${failedArtists.join('\n')}`
+    : '';
+
+  await sendTelegramNotification(
+    `✅ <b>新曲探索完了</b>\n` +
+    `対象: ${artists.length}名中 ${successCount}名成功\n` +
+    `追加された曲: ${newSongsData.length}件` +
+    failureMsg
+  );
 }
 
 function parseDuration(duration) {

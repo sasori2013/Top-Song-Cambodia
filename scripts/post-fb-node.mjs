@@ -36,10 +36,6 @@ const sheets = google.sheets({ version: 'v4', auth });
 const bq = new BigQuery({ projectId: PROJECT_ID, credentials });
 
 async function runPostFB() {
-  console.log('--- Facebook Posting (Node.js) Started ---');
-  await sendTelegramNotification('📱 <b>Facebookへの自動投稿 (postFB)</b> を開始します...');
-  await updateProcessStatus('Post: Fetching Rankings', 0, 100);
-
   // 1. Get Top Rankings from RANKING_DAILY sheet
   const resRank = await sheets.spreadsheets.values.get({ 
       spreadsheetId: SHEET_ID, 
@@ -68,6 +64,9 @@ async function runPostFB() {
 
   const r1 = ranking[0];
   const dateStr = r1.date.replace(/-/g, '.');
+
+  await sendTelegramNotification(`📱 <b>Facebookへの自動投稿 (postFB)</b> を開始します...\n(対象日: ${dateStr})`);
+  await updateProcessStatus('Post: Fetching Rankings', 0, 100);
 
   // 2. Generate OG Image URLs
   const ogUrls = [];

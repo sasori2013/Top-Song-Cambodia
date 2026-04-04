@@ -39,7 +39,7 @@ const auth = new google.auth.GoogleAuth({
 
 const sheets = google.sheets({ version: 'v4', auth });
 const bq = new BigQuery({ projectId: PROJECT_ID, credentials });
-const youtube = google.youtube({ version: 'v3', auth: YOUTUBE_API_KEY });
+const youtube = google.youtube({ version: 'v3', auth: YOUTUBE_API_KEY, timeout: 20000 });
 
 // Initialize Google AI
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
@@ -50,8 +50,21 @@ const generativeModel = genAI.getGenerativeModel({
 
 async function getTodayKey() {
   const d = new Date();
-  // Cambodia time/Local time key
-  return d.toISOString().split('T')[0];
+  const options = { timeZone: 'Asia/Phnom_Penh', year: 'numeric', month: '2-digit', day: '2-digit' };
+  const formatter = new Intl.DateTimeFormat('fr-CA', options); // returns YYYY-MM-DD
+  const dateStr = formatter.format(d);
+  
+  // If run VERY early morning (e.g. before 4 AM KHR), treat it as "Yesterday's" data
+  const khrHour = parseInt(new Intl.DateTimeFormat('en-US', { 
+    timeZone: 'Asia/Phnom_Penh', hour: 'numeric', hour12: false 
+  }).format(d));
+  
+  if (khrHour < 4) {
+    const yesterday = new Date(d);
+    yesterday.setDate(d.getDate() - 1);
+    return formatter.format(yesterday);
+  }
+  return dateStr;
 }
 
 async function fetchSheetData(range) {
@@ -164,32 +177,37 @@ async function runSnapshotNode() {
     console.log(`Fetching YouTube stats for chunk ${i / 50 + 1}...`);
     await updateProcessStatus('Snapshot: YouTube Stats', i, videoIds.length);
     
-    const res = await youtube.videos.list({
-      part: ['statistics'],
-      id: chunk,
-    });
-
-    const items = res.data.items || [];
-    const foundIds = new Set(items.map(it => it.id));
-
-    chunk.forEach(id => {
-      if (!foundIds.has(id)) {
-        missingVideos.push(id);
-      }
-    });
-
-    items.forEach(it => {
-      const st = it.statistics || {};
-      snapshotsRows.push({
-        date: todayKey,
-        videoId: it.id,
-        views: parseInt(st.viewCount) || 0,
-        likes: parseInt(st.likeCount) || 0,
-        comments: parseInt(st.commentCount) || 0,
-        qualityScore: null,
-        qualitySummary: null,
+    try {
+      const res = await youtube.videos.list({
+        part: ['statistics', 'snippet'],
+        id: chunk,
       });
-    });
+
+      const items = res.data.items || [];
+      const foundIds = new Set(items.map(it => it.id));
+
+      chunk.forEach(id => {
+        if (!foundIds.has(id)) {
+          const meta = songsMap.get(id);
+          missingVideos.push({ id, ...meta });
+        }
+      });
+
+      items.forEach(it => {
+        const st = it.statistics || {};
+        snapshotsRows.push({
+          date: todayKey,
+          videoId: it.id,
+          views: parseInt(st.viewCount) || 0,
+          likes: parseInt(st.likeCount) || 0,
+          comments: parseInt(st.commentCount) || 0,
+          qualityScore: null,
+          qualitySummary: null,
+        });
+      });
+    } catch (e) {
+      console.error(`  YouTube API Chunk error: ${e.message}`);
+    }
   }
 
   // 2.5 Perform AI Quality Audit on Top 30 (by views)
@@ -228,10 +246,32 @@ async function runSnapshotNode() {
     console.log('BigQuery insertion complete.');
   }
 
-  // 5. Handle missing videos (Highlight in RED)
+  // 5. Handle missing videos (Highlight in Sheet and Notify)
   if (missingVideos.length > 0) {
     console.warn(`Warning: ${missingVideos.length} videos missing/deleted.`);
-    await sendTelegramNotification(`⚠️ <b>警告: ${missingVideos.length}件の動画が非公開/削除されました</b>\nID: ${missingVideos.join(', ')}`);
+    
+    const sheetUpdates = missingVideos.map(m => ({
+      range: `${m.sheetName}!E${m.row}`, // Column E = Status
+      values: [['[DELETED/PRIVATE]']]
+    }));
+
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SHEET_ID,
+      requestBody: {
+        valueInputOption: 'USER_ENTERED',
+        data: sheetUpdates
+      }
+    });
+
+    const listStr = missingVideos.slice(0, 15).map(m => 
+      `- ${m.artist}: ${m.title}\n  <a href="https://youtu.be/${m.id}">🔗 リンクを表示</a>`
+    ).join('\n');
+
+    await sendTelegramNotification(
+      `⚠️ <b>警告: ${missingVideos.length}件の動画が非公開/削除されました</b>\n` +
+      `シート上で「[DELETED/PRIVATE]」とマークしました。\n\n` +
+      listStr + (missingVideos.length > 15 ? '\n...他多数' : '')
+    );
   }
 
   console.log('--- Daily Snapshot (Node.js) Completed ---');

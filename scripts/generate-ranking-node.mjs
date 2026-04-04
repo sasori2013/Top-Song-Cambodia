@@ -56,18 +56,40 @@ function calculateHeatScore(dv, dl, dc, totalV, growthRate, engagement, qFactor 
 }
 
 async function runRankingNode() {
+  const args = process.argv.slice(2);
+  const forcedDate = args.find(a => a.startsWith('--date='))?.split('=')[1];
+
   console.log('--- Ranking Generation (Node.js) Started ---');
-  await sendTelegramNotification('🔥 <b>デイリーランキング生成 (generateRanking)</b> を開始します...');
+  await sendTelegramNotification(`🔥 <b>デイリーランキング生成 (generateRanking)</b> を開始します...${forcedDate ? `\n(指定日: ${forcedDate})` : ''}`);
   await updateProcessStatus('Ranking: Analyzing Data', 0, 100);
 
-  // 1. Get dates from BQ
-  const [dateRows] = await bq.query(`SELECT DISTINCT date FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\` ORDER BY date DESC LIMIT 2`);
-  if (dateRows.length < 2) {
-    console.error('Not enough snapshot dates in BigQuery.');
-    return;
+  let latestDate, baseDate;
+
+  if (forcedDate) {
+    latestDate = forcedDate;
+    // Get the date immediately before the forced date
+    const [prevRows] = await bq.query(`SELECT DISTINCT date FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\` WHERE date < '${forcedDate}' ORDER BY date DESC LIMIT 1`);
+    if (prevRows.length === 0) {
+      throw new Error(`No base data found before ${forcedDate}`);
+    }
+    baseDate = prevRows[0].date.value;
+  } else {
+    // 1. Get dates from BQ
+    const [dateRows] = await bq.query(`SELECT DISTINCT date FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\` ORDER BY date DESC LIMIT 2`);
+    if (dateRows.length < 2) {
+      console.error('Not enough snapshot dates in BigQuery.');
+      return;
+    }
+    latestDate = dateRows[0].date.value;
+    baseDate = dateRows[1].date.value;
+
+    // Validation: Is latestDate actually "Today" or "Yesterday" in Cambodia?
+    const todayKHR = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Asia/Phnom_Penh' }).format(new Date());
+    if (latestDate !== todayKHR) {
+      console.warn(`⚠️ Warning: Latest snapshot date (${latestDate}) does not match Cambodia Today (${todayKHR}).`);
+      // We still proceed but we should highlight this.
+    }
   }
-  const latestDate = dateRows[0].date.value;
-  const baseDate = dateRows[1].date.value;
 
   console.log(`Analyzing: ${latestDate} (Latest) vs ${baseDate} (Base)`);
 

@@ -6,44 +6,56 @@ export const GAS_API_URL = process.env.NEXT_PUBLIC_GAS_API_URL || 'https://scrip
 export async function getRankingData(): Promise<RankingResponse> {
     const mock = getMockData();
 
-    if (!GAS_API_URL) {
-        console.warn('GAS_API_URL is empty');
+    // 1. If on Server, try BigQuery directly
+    if (typeof window === 'undefined') {
+        try {
+            const { getRankingDataFromBQ } = await import('./bigquery');
+            const bqData = await getRankingDataFromBQ();
+            if (bqData) {
+                console.log('Fetched ranking from BigQuery directly');
+                return bqData;
+            }
+        } catch (e) {
+            console.error('Server-side BQ fetch failed, falling back:', e);
+        }
+    }
+
+    // 2. If on Client or BQ failed, try our new internal API or GAS
+    const API_URL = typeof window !== 'undefined' ? '/api/ranking' : GAS_API_URL;
+
+    if (!API_URL) {
+        console.warn('API_URL is empty');
         return mock;
     }
 
     try {
-        console.log('Fetching from GAS:', GAS_API_URL);
-        const res = await fetch(GAS_API_URL, {
+        console.log('Fetching from:', API_URL);
+        const res = await fetch(API_URL, {
             cache: 'no-store',
             method: 'GET',
         });
 
-        console.log('GAS Response Status:', res.status);
-
         if (!res.ok) {
-            const text = await res.text();
-            console.error('GAS Fetch Error Body:', text.substring(0, 200));
             throw new Error(`Failed to fetch: ${res.status}`);
         }
 
         const data = await res.json();
-        console.log('GAS Data Ranking count:', data?.ranking?.length);
-
+        
         if (!data || !Array.isArray(data.ranking)) {
             console.error('Invalid API response structure');
             return mock;
         }
 
-        // Map thumbnails because GAS doesn't provide them directly
+        // Map thumbnails if needed (BQ API already does this, but for GAS fallback)
         const mapRanking = (list: any[]) => (list || []).map(item => ({
             ...item,
-            thumbnail: item.videoId ? `https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg` : ''
+            thumbnail: item.thumbnail || (item.videoId ? `https://img.youtube.com/vi/${item.videoId}/hqdefault.jpg` : '')
         }));
 
         return {
             ...data,
             ranking: mapRanking(data.ranking),
-            rankingLong: mapRanking(data.rankingLong)
+            rankingLong: mapRanking(data?.rankingLong || [])
         } as RankingResponse;
     } catch (error) {
         console.error('API Fetch Error:', error);
