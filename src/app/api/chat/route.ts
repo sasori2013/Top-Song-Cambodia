@@ -82,8 +82,8 @@ ${searchResults.map(item => `- ${item.title} by ${item.artist}`).join('\n') || "
       parts: [{ text: lastMessage.content }]
     });
 
-    // 6. Call Vertex AI REST Endpoint
-    const url = `https://${LOCATION}-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/${LOCATION}/publishers/google/models/gemini-1.5-flash:generateContent`;
+    // 6. Call Vertex AI REST Endpoint (Successful test with gemini-2.0-flash-001)
+    const url = `https://${LOCATION}-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/${LOCATION}/publishers/google/models/gemini-2.0-flash-001:generateContent`;
 
     const body = {
       contents: contents,
