@@ -58,10 +58,16 @@ ${searchResults.map(item => `- ${item.title} by ${item.artist} (Match Score: ${M
     });
     
     // Convert generic chat history into Gemini's expected format.
-    const history = messages.slice(0, -1).map((msg: any) => ({
-      role: msg.role === "user" ? "user" : "model",
-      parts: [{ text: msg.content }],
-    }));
+    // IMPORTANT: Gemini requires the history to start with a 'user' message.
+    const allMessages = messages.slice(0, -1);
+    const firstUserIndex = allMessages.findIndex((msg: any) => msg.role === "user");
+    
+    const history = firstUserIndex !== -1 
+      ? allMessages.slice(firstUserIndex).map((msg: any) => ({
+          role: msg.role === "user" ? "user" : "model",
+          parts: [{ text: msg.content }],
+        }))
+      : [];
 
     const chat = model.startChat({
       history: history,
