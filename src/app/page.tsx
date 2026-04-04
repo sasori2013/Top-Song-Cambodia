@@ -1,6 +1,6 @@
 import { Header } from '@/components/Header';
 import { PageHeader } from '@/components/PageHeader';
-import { MainRankingView } from '@/components/MainRankingView';
+import { RankingList } from '@/components/RankingList';
 import { Footer } from '@/components/Footer';
 import { getRankingData } from '@/lib/api';
 
@@ -15,8 +15,7 @@ export default async function Home() {
       <Header />
       <PageHeader stats={data?.stats} />
       
-      {/* AI Semantic Search & Ranking System */}
-      <MainRankingView initialItems={ranking} stats={data?.stats} />
+      <RankingList items={ranking} stats={data?.stats} />
 
       <Footer />
     </main>
