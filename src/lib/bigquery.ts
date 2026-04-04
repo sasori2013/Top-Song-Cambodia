@@ -118,7 +118,7 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
     `;
     const [rankingRows] = await bq.query(rankingQuery);
 
-    // 3. Fetch Weekly Volume Trend AND Growth Calculation in SQL
+    // 3. Fetch Weekly Volume Trend (10 weeks) AND Growth Calculation in SQL
     const trendQuery = `
       WITH daily_stats AS (
         SELECT 
@@ -127,7 +127,7 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
           views,
           LAG(views) OVER(PARTITION BY videoId ORDER BY date) as prev_views
         FROM \`${DATASET_ID}.snapshots\`
-        WHERE date >= DATE_SUB(DATE '${latestDate}', INTERVAL 15 DAY)
+        WHERE date >= DATE_SUB(DATE '${latestDate}', INTERVAL 71 DAY)
       ),
       daily_increase AS (
         SELECT 
@@ -143,12 +143,22 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
           SUM(CASE WHEN date <= DATE_SUB(DATE '${latestDate}', INTERVAL 7 DAY) AND date > DATE_SUB(DATE '${latestDate}', INTERVAL 14 DAY) THEN total_dv ELSE 0 END) as last_week
         FROM daily_increase
         WHERE date <= DATE '${latestDate}'
+      ),
+      weekly_agg AS (
+        SELECT 
+          FLOOR(DATE_DIFF(DATE '${latestDate}', date, DAY) / 7) as week_index,
+          SUM(total_dv) as weekly_volume
+        FROM daily_increase
+        WHERE date <= DATE '${latestDate}'
+          AND date > DATE_SUB(DATE '${latestDate}', INTERVAL 70 DAY)
+        GROUP BY week_index
       )
       SELECT 
-        di.total_dv, di.date,
+        wa.weekly_volume, wa.week_index,
         gs.this_week, gs.last_week
-      FROM daily_increase di, growth_stats gs
-      ORDER BY date ASC
+      FROM weekly_agg wa, growth_stats gs
+      WHERE wa.week_index < 10
+      ORDER BY wa.week_index DESC
     `;
     const [trendRows] = await bq.query(trendQuery);
 
@@ -160,7 +170,7 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
     `);
 
     // 5. Format Response
-    const trendValues = trendRows.map(r => r.total_dv);
+    const trendValues = trendRows.map(r => r.weekly_volume);
     
     // Growth from SQL results (all rows have same GS values)
     const thisWeekSum = trendRows[0]?.this_week || 0;
