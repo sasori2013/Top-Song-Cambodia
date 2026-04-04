@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { VertexAI } from "@google-cloud/vertexai";
 import { searchSongsByVector, getRankingDataFromBQ } from "@/lib/bigquery";
 
 export async function POST(req: NextRequest) {
@@ -21,15 +21,34 @@ export async function POST(req: NextRequest) {
       getRankingDataFromBQ()
     ]);
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    // GCP & Vertex AI Config
+    const PROJECT_ID = process.env.GCP_PROJECT_ID;
+    const rawJson = (process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '').trim().replace(/^['"]|['"]$/g, '');
+    const LOCATION = 'us-central1';
+
+    if (!rawJson || !PROJECT_ID) {
       return NextResponse.json(
-        { error: "API key is not configured" },
+        { error: "GCP Configuration is missing" },
         { status: 500 }
       );
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const credentials = JSON.parse(rawJson);
+    if (credentials.private_key) {
+      credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+    }
+
+    const vertexAI = new VertexAI({
+      project: PROJECT_ID,
+      location: LOCATION,
+      googleAuthOptions: {
+        credentials
+      }
+    });
+    
+    const generativeModel = vertexAI.getGenerativeModel({
+      model: "gemini-1.5-flash",
+    });
     
     // Construct the context-aware system instruction
     const systemInstruction = `あなたはカンボジア音楽とその歴史に関する専門家AI、そして「HEAT」の公式アシスタントです。
@@ -52,13 +71,7 @@ ${rankingData?.ranking.slice(0, 10).map(item => `No.${item.rank}: ${item.title} 
 ${searchResults.map(item => `- ${item.title} by ${item.artist} (Match Score: ${Math.round(item.cosine_similarity * 100)}%)`).join('\n') || "関連する楽曲は見つかりませんでした。"}
 ---`;
 
-    const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
-      systemInstruction: systemInstruction
-    });
-    
-    // Convert generic chat history into Gemini's expected format.
-    // IMPORTANT: Gemini requires the history to start with a 'user' message.
+    // History conversion for Vertex AI (starts with user)
     const allMessages = messages.slice(0, -1);
     const firstUserIndex = allMessages.findIndex((msg: any) => msg.role === "user");
     
@@ -69,21 +82,22 @@ ${searchResults.map(item => `- ${item.title} by ${item.artist} (Match Score: ${M
         }))
       : [];
 
-    const chat = model.startChat({
+    const chat = generativeModel.startChat({
       history: history,
-      generationConfig: {
-        maxOutputTokens: 1000,
-      },
+      systemInstruction: {
+        role: "system",
+        parts: [{ text: systemInstruction }]
+      }
     });
 
     const result = await chat.sendMessage(lastMessage.content);
-    const responseText = result.response.text();
+    const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "申し訳ございません、回答を生成できませんでした。";
 
     return NextResponse.json({ text: responseText });
   } catch (error) {
-    console.error("Error in AI Chat API:", error);
+    console.error("Error in AI Chat API (Vertex AI):", error);
     return NextResponse.json(
-      { error: "Failed to process chat request" },
+      { error: "Failed to process chat request via Vertex AI" },
       { status: 500 }
     );
   }
