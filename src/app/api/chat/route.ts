@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { VertexAI } from "@google-cloud/vertexai";
+import { GoogleAuth } from "google-auth-library";
 import { searchSongsByVector, getRankingDataFromBQ } from "@/lib/bigquery";
 
 export async function POST(req: NextRequest) {
@@ -7,30 +7,24 @@ export async function POST(req: NextRequest) {
     const { messages } = await req.json();
 
     if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json(
-        { error: "Invalid messages format" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid messages format" }, { status: 400 });
     }
 
     const lastMessage = messages[messages.length - 1];
     
-    // RAG: Fetch relevant data from BigQuery
+    // 1. RAG: Fetch relevant data from BigQuery
     const [searchResults, rankingData] = await Promise.all([
       searchSongsByVector(lastMessage.content, 5),
       getRankingDataFromBQ()
     ]);
 
-    // GCP & Vertex AI Config
+    // 2. GCP Config
     const PROJECT_ID = process.env.GCP_PROJECT_ID;
     const rawJson = (process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '').trim().replace(/^['"]|['"]$/g, '');
     const LOCATION = 'us-central1';
 
     if (!rawJson || !PROJECT_ID) {
-      return NextResponse.json(
-        { error: "GCP Configuration is missing" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "GCP Configuration is missing" }, { status: 500 });
     }
 
     const credentials = JSON.parse(rawJson);
@@ -38,67 +32,92 @@ export async function POST(req: NextRequest) {
       credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
     }
 
-    const vertexAI = new VertexAI({
-      project: PROJECT_ID,
-      location: LOCATION,
-      googleAuthOptions: {
-        credentials
-      }
+    // 3. Authenticate with Google Cloud
+    const auth = new GoogleAuth({
+      credentials,
+      scopes: 'https://www.googleapis.com/auth/cloud-platform',
     });
-    
-    const generativeModel = vertexAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-    });
-    
-    // Construct the context-aware system instruction
+    const client = await auth.getClient();
+    const tokenResponse = await client.getAccessToken();
+    const token = tokenResponse.token;
+
+    // 4. Construct System Instruction & Context
     const systemInstruction = `あなたはカンボジア音楽とその歴史に関する専門家AI、そして「HEAT」の公式アシスタントです。
 
 【あなたの立場と信頼性】
-あなたは、YouTube、Facebook、TikTokなどのSNSから膨大なデータを収集し、独自に開発した「不正検知AI」によってフェイクの再生数やエンゲージメントを排除した、世界で最も信頼できるカンボジア音楽ランキング「HEAT」のデータに基づいています。あなたの回答は、単なる推測ではなく、これらの厳格なデータ分析に基づいた裏付けのある情報であることを前提としてください。
+あなたは、YouTube、Facebook、TikTokなどのSNSからデータを収集し、「不正検知AI」によって信頼性を担保したカンボジア音楽ランキング「HEAT」のデータに基づいています。
 
 【回答のガイドライン】
-1. カンボジアの音楽、歴史、アーティスト、文化、または「HEAT」に関する質問に対して、専門的かつ熱意を持って答えてください。
-2. 提供された「検索結果コンテキスト」や「最新ランキングデータ」を最大限に活用し、具体的な曲名やアーティスト名、スコアに言及してください。
-3. ユーザーが使用した言語（例: 日本語）で親切に返答してください。
-4. 情報が不足している場合は、HEATのサイト上でさらに詳しく確認できることを案内してください。
+1. 提供されたランキングデータや検索結果（コンテキスト）を優先的に使用して答えてください。
+2. 常に日本語で、親切かつ情熱的に回答してください。
 
 【コンテキスト情報】
 ---
 ■ 最新のHEAT Topランキング:
-${rankingData?.ranking.slice(0, 10).map(item => `No.${item.rank}: ${item.title} - ${item.artist} (HeatScore: ${item.heatScore})`).join('\n') || "データ取得中"}
+${rankingData?.ranking.slice(0, 10).map(item => `No.${item.rank}: ${item.title} - ${item.artist}`).join('\n') || "データ取得中"}
 
-■ 関連する楽曲の検索結果 (ベクトル検索):
-${searchResults.map(item => `- ${item.title} by ${item.artist} (Match Score: ${Math.round(item.cosine_similarity * 100)}%)`).join('\n') || "関連する楽曲は見つかりませんでした。"}
+■ 関連楽曲 (ベクトル検索結果):
+${searchResults.map(item => `- ${item.title} by ${item.artist}`).join('\n') || "なし"}
 ---`;
 
-    // History conversion for Vertex AI (starts with user)
+    // 5. Format Chat History for Vertex AI REST API
     const allMessages = messages.slice(0, -1);
     const firstUserIndex = allMessages.findIndex((msg: any) => msg.role === "user");
     
-    const history = firstUserIndex !== -1 
-      ? allMessages.slice(firstUserIndex).map((msg: any) => ({
+    // Vertex AI expects contents: [{role: "user", parts: [{text: "..."}]}, {role: "model", parts: [...]}]
+    const contents = [];
+    
+    if (firstUserIndex !== -1) {
+      allMessages.slice(firstUserIndex).forEach((msg: any) => {
+        contents.push({
           role: msg.role === "user" ? "user" : "model",
-          parts: [{ text: msg.content }],
-        }))
-      : [];
+          parts: [{ text: msg.content }]
+        });
+      });
+    }
+    
+    // Add the current prompt
+    contents.push({
+      role: "user",
+      parts: [{ text: lastMessage.content }]
+    });
 
-    const chat = generativeModel.startChat({
-      history: history,
+    // 6. Call Vertex AI REST Endpoint
+    const url = `https://${LOCATION}-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/${LOCATION}/publishers/google/models/gemini-1.5-flash:generateContent`;
+
+    const body = {
+      contents: contents,
       systemInstruction: {
         role: "system",
         parts: [{ text: systemInstruction }]
+      },
+      generationConfig: {
+        maxOutputTokens: 1000,
+        temperature: 0.7,
       }
+    };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
     });
 
-    const result = await chat.sendMessage(lastMessage.content);
-    const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "申し訳ございません、回答を生成できませんでした。";
+    const data = await response.json();
+
+    if (!response.ok) {
+        console.error("Vertex AI REST Error:", JSON.stringify(data));
+        return NextResponse.json({ error: "Vertex AI API Error", detail: data }, { status: response.status });
+    }
+
+    const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || "申し訳ございません、回答を生成できませんでした。";
 
     return NextResponse.json({ text: responseText });
   } catch (error) {
-    console.error("Error in AI Chat API (Vertex AI):", error);
-    return NextResponse.json(
-      { error: "Failed to process chat request via Vertex AI" },
-      { status: 500 }
-    );
+    console.error("Error in AI Chat API (REST):", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
