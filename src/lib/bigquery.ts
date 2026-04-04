@@ -83,6 +83,45 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
   }
 }
 
+export async function searchSongsByVector(queryText: string, limit: number = 5): Promise<any[]> {
+  const bq = getBigQueryClient();
+  if (!bq) return [];
+
+  const vector = await generateEmbedding(queryText);
+  if (!vector) return [];
+
+  const DATASET_ID = 'heat_ranking';
+  const TABLE_VECTORS = 'songs_vector';
+  const TABLE_SONGS = 'songs_master';
+
+  const bqQuery = `
+    SELECT 
+      s.title, 
+      s.artist,
+      s.videoId,
+      (SELECT SUM(a*b) / (SQRT(SUM(a*a)) * SQRT(SUM(b*b))) 
+       FROM UNNEST(v.embedding) a WITH OFFSET pos
+       JOIN UNNEST(@queryVector) b WITH OFFSET pos2 ON pos = pos2
+      ) as cosine_similarity
+    FROM \`${DATASET_ID}.${TABLE_VECTORS}\` v
+    JOIN \`${DATASET_ID}.${TABLE_SONGS}\` s ON v.videoId = s.videoId
+    ORDER BY cosine_similarity DESC
+    LIMIT @limit
+  `;
+
+  try {
+    const [results] = await bq.query({
+      query: bqQuery,
+      params: { queryVector: vector, limit: limit },
+    });
+    return results;
+  } catch (error) {
+    console.error("Vector Search Error:", error);
+    return [];
+  }
+}
+
+
 import { RankingResponse, RankingItem } from './types';
 
 export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {

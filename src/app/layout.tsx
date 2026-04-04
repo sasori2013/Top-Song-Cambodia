@@ -1,5 +1,6 @@
 import { Exo, Inter } from "next/font/google";
 import "./globals.css";
+import ChatWidget from "../components/ChatWidget";
 
 const exo = Exo({
   variable: "--font-exo",
@@ -30,6 +31,7 @@ export default function RootLayout({
         className={`${exo.variable} ${inter.variable} antialiased`}
       >
         {children}
+        <ChatWidget />
       </body>
     </html>
   );
