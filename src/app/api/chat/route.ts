@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleAuth } from "google-auth-library";
-import { searchSongsByVector, getRankingDataFromBQ } from "@/lib/bigquery";
+import { searchSongsByVector, getRankingDataFromBQ, getArtistMetadata } from "@/lib/bigquery";
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,6 +17,13 @@ export async function POST(req: NextRequest) {
       searchSongsByVector(lastMessage.content, 5),
       getRankingDataFromBQ()
     ]);
+
+    // 1.1 Fetch metadata for the top matched artist (if any)
+    let artistMetadata = null;
+    if (searchResults.length > 0) {
+      const topArtist = searchResults[0].artist;
+      artistMetadata = await getArtistMetadata(topArtist);
+    }
 
     // 2. GCP Config
     const PROJECT_ID = process.env.GCP_PROJECT_ID;
@@ -68,6 +75,14 @@ ${rankingData?.ranking.slice(0, 10).map(item => `No.${item.rank}: ${item.title} 
 
 ■ 関連する楽曲の検索結果 (ベクトル検索):
 ${searchResults.map(item => `- ${item.title} by ${item.artist} (Match Score: ${Math.round(item.cosine_similarity * 100)}%)`).join('\n') || "関連する楽曲は見つかりませんでした。"}
+
+${artistMetadata ? `■ アーティスト詳細情報 (@${artistMetadata.name}):
+- プロダクション: ${artistMetadata.productionName || "不明"}
+- ジャンル: ${artistMetadata.genres || "不明"}
+- 略歴: ${artistMetadata.bio || "情報なし"}
+- 背景・エピソード: ${artistMetadata.artistInfo || "情報なし"}
+- YouTube登録者数: ${artistMetadata.subscribers || "不明"}
+- SNS: ${artistMetadata.links || "不明"}` : ""}
 ---`;
 
     // 5. Format Chat History for Vertex AI REST API

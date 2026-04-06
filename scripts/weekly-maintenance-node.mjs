@@ -42,7 +42,7 @@ async function runWeeklyMaintenance() {
     LEFT JOIN latest_snapshots ls ON m.videoId = ls.videoId
     WHERE ls.last_snap_date IS NULL 
        OR ls.last_snap_date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
-    LIMIT 500
+    LIMIT 1000
   `;
 
   const [rows] = await bq.query(query);

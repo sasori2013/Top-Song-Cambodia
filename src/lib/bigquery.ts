@@ -281,3 +281,55 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
     return null;
   }
 }
+
+export async function getArtistArchive(artistName: string): Promise<any[]> {
+  const bq = getBigQueryClient();
+  if (!bq) return [];
+
+  const DATASET_ID = 'heat_ranking';
+  const query = `
+    SELECT videoId, title, artist, publishedAt
+    FROM \`${DATASET_ID}.songs_master\`
+    WHERE artist = @artistName
+    ORDER BY publishedAt DESC
+  `;
+
+  try {
+    const [rows] = await bq.query({
+      query,
+      params: { artistName },
+    });
+    return rows.map(r => ({
+      ...r,
+      publishedAt: r.publishedAt?.value || r.publishedAt
+    }));
+  } catch (error) {
+    console.error(`Archive Fetch Error for ${artistName}:`, error);
+    return [];
+  }
+}
+export async function getArtistMetadata(artistName: string): Promise<any | null> {
+  const bq = getBigQueryClient();
+  if (!bq) return null;
+
+  const DATASET_ID = 'heat_ranking';
+  const query = `
+    SELECT 
+      name, bio, genres, links, artistInfo, productionName, subscribers, facebook
+    FROM \`${DATASET_ID}.artists_master\`
+    WHERE name = @artistName 
+       OR @artistName LIKE CONCAT('%', name, '%')
+    LIMIT 1
+  `;
+
+  try {
+    const [rows] = await bq.query({
+      query,
+      params: { artistName },
+    });
+    return rows[0] || null;
+  } catch (error) {
+    console.error(`Metadata Fetch Error for ${artistName}:`, error);
+    return null;
+  }
+}

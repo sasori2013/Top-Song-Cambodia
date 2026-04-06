@@ -58,30 +58,38 @@ function calculateHeatScore(dv, dl, dc, totalV, growthRate, engagement, qFactor 
 async function runRankingNode() {
   const args = process.argv.slice(2);
   const forcedDate = args.find(a => a.startsWith('--date='))?.split('=')[1];
+  const forcedBase = args.find(a => a.startsWith('--base='))?.split('=')[1];
 
   console.log('--- Ranking Generation (Node.js) Started ---');
   await sendTelegramNotification(`🔥 <b>デイリーランキング生成 (generateRanking)</b> を開始します...${forcedDate ? `\n(指定日: ${forcedDate})` : ''}`);
   await updateProcessStatus('Ranking: Analyzing Data', 0, 100);
 
   let latestDate, baseDate;
+  
+  // 1. Get dates from BQ
+  const [dateRows] = await bq.query(`SELECT DISTINCT date FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\` ORDER BY date DESC LIMIT 5`);
+  const availableDates = dateRows.map(r => r.date.value);
 
   if (forcedDate) {
     latestDate = forcedDate;
-    // Get the date immediately before the forced date
-    const [prevRows] = await bq.query(`SELECT DISTINCT date FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\` WHERE date < '${forcedDate}' ORDER BY date DESC LIMIT 1`);
-    if (prevRows.length === 0) {
-      throw new Error(`No base data found before ${forcedDate}`);
-    }
-    baseDate = prevRows[0].date.value;
   } else {
-    // 1. Get dates from BQ
-    const [dateRows] = await bq.query(`SELECT DISTINCT date FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\` ORDER BY date DESC LIMIT 2`);
-    if (dateRows.length < 2) {
-      console.error('Not enough snapshot dates in BigQuery.');
-      return;
+    latestDate = availableDates[0];
+  }
+
+  if (forcedBase) {
+    baseDate = forcedBase;
+  } else {
+    // Default to the first date before latestDate
+    const idx = availableDates.indexOf(latestDate);
+    if (idx !== -1 && idx + 1 < availableDates.length) {
+      baseDate = availableDates[idx + 1];
+    } else {
+      // Fallback
+      const [prevRows] = await bq.query(`SELECT DISTINCT date FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\` WHERE date < '${latestDate}' ORDER BY date DESC LIMIT 1`);
+      if (prevRows.length === 0) throw new Error(`No base data found before ${latestDate}`);
+      baseDate = prevRows[0].date.value;
     }
-    latestDate = dateRows[0].date.value;
-    baseDate = dateRows[1].date.value;
+  }
 
     // Validation: Is latestDate actually "Today" or "Yesterday" in Cambodia?
     const todayKHR = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Asia/Phnom_Penh' }).format(new Date());
@@ -89,7 +97,6 @@ async function runRankingNode() {
       console.warn(`⚠️ Warning: Latest snapshot date (${latestDate}) does not match Cambodia Today (${todayKHR}).`);
       // We still proceed but we should highlight this.
     }
-  }
 
   console.log(`Analyzing: ${latestDate} (Latest) vs ${baseDate} (Base)`);
 
@@ -117,21 +124,32 @@ async function runRankingNode() {
       l.views as totalV, l.likes as totalL, l.comments as totalC,
       b.views as baseV, b.likes as baseL, b.comments as baseC,
       h.prevRank,
-      s.publishedAt
+      s.publishedAt, s.eventTag, s.category
     FROM latest l
     LEFT JOIN base b ON l.videoId = b.videoId
     LEFT JOIN history h ON l.videoId = h.videoId
-    LEFT JOIN \`${DATASET_ID}.songs_master\` s ON l.videoId = s.videoId
+    JOIN \`${DATASET_ID}.songs_master\` s ON l.videoId = s.videoId
+    WHERE s.publishedAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 90 DAY)
   `;
   const [rows] = await bq.query(sql);
   console.log(`Fetched ${rows.length} records.`);
 
   // 3. Metadata from Artists/Songs (for artist name, title)
-  const resSongs = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'SONGS!A2:D' });
+  // 3. Metadata from Artists/Songs (for artist name, title)
+  const [resSongs, resSongsLong] = await Promise.all([
+    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'SONGS!A2:D' }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'SONGS_LONG!A2:D' })
+  ]);
+
   const songMeta = new Map();
-  (resSongs.data.values || []).forEach(r => {
-    if (r[0]) songMeta.set(r[0].trim(), { artist: r[1], title: r[2], publishedAt: r[3] });
-  });
+  const processRows = (rows) => {
+    (rows || []).forEach(r => {
+      if (r[0]) songMeta.set(r[0].trim(), { artist: r[1], title: r[2], publishedAt: r[3] });
+    });
+  };
+
+  processRows(resSongs.data.values);
+  processRows(resSongsLong.data.values);
 
   const resArtists = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Artists!A2:E' });
   const artistMeta = new Map();
@@ -177,6 +195,16 @@ async function runRankingNode() {
   });
 
   rankedList.sort((a, b) => b.heat - a.heat);
+  
+  // 4.5 Abnormal Ranking detection (NEW: Alerting on flat chart)
+  if (rankedList.length > 0 && rankedList[0].heat < 40) {
+    await sendTelegramNotification(
+      `🚨 <b>ランキング異常警報 (generateRanking)</b>\n` +
+      `本日のランク1位のスコアが <b>${Math.round(rankedList[0].heat * 100) / 100}</b> と非常に低いです。\n` +
+      `データの不整合（昨日のデータ欠落など）が発生している可能性があります。確認してください。`
+    );
+  }
+
   const top40 = rankedList.slice(0, 40);
 
   // 5. Build Output (27 columns)
@@ -187,13 +215,13 @@ async function runRankingNode() {
     x.artist,
     x.title,
     x.publishedAt || '',
-    '', // spark (Formula ignored in Node version for stability, or could replicate)
+    '', // spark
     '-', // aiScore
     '-', // aiReason
     '-', // aiInsight
     '-', // shortInsight
-    '-', // genre
-    '-', // visualConcept
+    x.eventTag || '-', // genre
+    x.category || '-', // visualConcept
     Math.round(x.heat * 100) / 100,
     Math.round((x.qualityScore || 1.0) * 100) + '%',
     Math.round(x.growthRate * 10000) / 100 + '%',

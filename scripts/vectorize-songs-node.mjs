@@ -6,7 +6,6 @@ import { dirname, join } from 'path';
 import fetch from 'node-fetch';
 import { sendTelegramNotification } from './telegram-node.mjs';
 import { updateProcessStatus, clearProcessStatus } from './process-tracker.mjs';
-import { updateProcessStatus, clearProcessStatus } from './process-tracker.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../.env.local') });
@@ -123,9 +122,12 @@ async function vectorizeSongs() {
   }
 
   console.log('--- Song Vectorization Completed ---');
-  updateProcessStatus('Daily Vectorization', idsToVectorize.length, idsToVectorize.length, 'completed');
+  await updateProcessStatus('Daily Vectorization', rows.length, rows.length, 'completed');
   await sendTelegramNotification(`🧠 <b>AIベクトル化完了</b>\n新規 ${vectorRows.length} 曲のインデックスを作成しました。`);
   setTimeout(clearProcessStatus, 30000); // Clear after 30 seconds
 }
 
-vectorizeSongs().catch(console.error);
+vectorizeSongs().catch(async (error) => {
+  console.error(error);
+  await sendTelegramNotification(`⚠️ <b>AIベクトル化エラー</b>\n<code>${error.message}</code>`);
+});

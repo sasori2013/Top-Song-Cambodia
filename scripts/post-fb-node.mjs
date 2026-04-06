@@ -123,19 +123,17 @@ async function runPostFB() {
   const r1MessageChange = r1.rankChange === 'NEW' ? 'NEW ENTRY' : (r1.rankChange < 0 ? '+' + Math.abs(r1.rankChange) : (r1.rankChange === 0 ? 'STAY' : '-' + r1.rankChange));
   const message = `HEAT (BETA) - Cambodia Daily Ranking\n${dateStr}\n\n#1 ${r1.artist} – ${r1.title}\n${Math.round(r1.heatScore)} HEAT POINT (${r1MessageChange})\n\nFull Top 20 ranking in the first comment`;
 
-  const feedParams = new URLSearchParams();
-  feedParams.append('message', message);
-  feedParams.append('access_token', FB_ACCESS_TOKEN);
-  
-  // Attach media (reversed like GAS logic)
-  const reversedIds = [...photoIds].reverse();
-  reversedIds.forEach((id, i) => {
-      feedParams.append(`attached_media[${i}]`, JSON.stringify({ media_fbid: id }));
-  });
+  // Use JSON body for robust array handling (attached_media)
+  const feedBody = {
+      message: message,
+      access_token: FB_ACCESS_TOKEN,
+      attached_media: photoIds.map(id => ({ media_fbid: id }))
+  };
 
   const feedRes = await fetch(`https://graph.facebook.com/v19.0/${PAGE_ID}/feed`, {
       method: 'POST',
-      body: feedParams
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(feedBody)
   });
   const feedJson = await feedRes.json();
   if (feedJson.error) throw new Error(`FB Feed Post Error: ${feedJson.error.message}`);

@@ -124,9 +124,24 @@ async function analyzeCommentQuality(videoId, comments) {
   `;
 
   try {
-    const result = await generativeModel.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const client = await googleAuth.getClient();
+    const tokenResponse = await client.getAccessToken();
+    const token = tokenResponse.token;
+    const url = `https://${LOCATION}-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/${LOCATION}/publishers/google/models/gemini-2.0-flash-001:generateContent`;
+
+    const body = {
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 500, temperature: 0.2, responseMimeType: 'application/json' }
+    };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
     return JSON.parse(text);
   } catch (e) {
     console.error(`AI Analysis failed for ${videoId}:`, e.message);
@@ -212,8 +227,8 @@ async function runSnapshotNode() {
 
   // 2.5 Perform AI Quality Audit on Top 30 (by views)
   await ensureTableSchema();
-  const sortedForAudit = [...snapshotsRows].sort((a, b) => b.views - a.views).slice(0, 30);
-  console.log(`--- Performing AI Comment Quality Audit on Top 30 videos ---`);
+  const sortedForAudit = [...snapshotsRows].sort((a, b) => b.views - a.views).slice(0, 100);
+  console.log(`--- Performing AI Comment Quality Audit on Top 100 videos ---`);
   
   for (const item of sortedForAudit) {
     console.log(`Analyzing comments for: ${item.videoId} (${songsMap.get(item.videoId)?.title || 'Unknown'})`);
@@ -249,6 +264,33 @@ async function runSnapshotNode() {
 
     await bq.dataset(DATASET_ID).table(TABLE_ID).insert(snapshotsRows);
     console.log('BigQuery insertion complete.');
+
+    // 4.5 Integrity Check (NEW: Alerting on data gaps)
+    try {
+      const [countRows] = await bq.query(`
+        SELECT CAST(date AS STRING) as d, COUNT(*) as total 
+        FROM \`${DATASET_ID}.${TABLE_ID}\` 
+        WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 3 DAY)
+        GROUP BY date ORDER BY date DESC
+      `);
+      
+      if (countRows.length >= 2) {
+        const latest = parseInt(countRows[0].total);
+        const previous = parseInt(countRows[1].total);
+        const ratio = latest / previous;
+        console.log(`Integrity Check: Today=${latest}, Yesterday=${previous} (Ratio: ${Math.round(ratio * 100)}%)`);
+        
+        if (ratio < 0.90) {
+          await sendTelegramNotification(
+            `🚨 <b>データ欠落アラート</b>\n` +
+            `本日の取得件数が昨日の<b>${Math.round(ratio * 100)}%</b> (${latest}/${previous}) に低下しています。\n\n` +
+            `YouTube APIのクォータ制限等により、一部の楽曲データが取得できていない可能性があります。`
+          );
+        }
+      }
+    } catch (checkError) {
+      console.error('Integrity Check failed:', checkError.message);
+    }
   }
 
   // 5. Handle missing videos (Highlight in Sheet and Notify)

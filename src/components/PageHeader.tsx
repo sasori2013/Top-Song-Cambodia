@@ -54,8 +54,9 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ stats }) => {
 
     // Fallback values if stats are not yet provided by API
     const displayStats = stats || {
-        totalArtists: 124,
-        totalProductions: 12
+        totalArtists: 139,
+        totalProductions: 12,
+        totalSongs: 3700
     };
 
     const [showTitle, setShowTitle] = React.useState(false);
@@ -153,6 +154,14 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ stats }) => {
                         </div>
                         <div className="text-2xl md:text-4xl font-normal text-white tabular-nums tracking-tighter">
                             {Math.floor(syncProgress * displayStats.totalProductions).toLocaleString()}
+                        </div>
+                    </div>
+                    <div className="flex flex-col items-center px-6 md:px-12 border-r border-white/10 last:border-r-0">
+                        <div className="text-[9px] md:text-[11px] font-black tracking-[0.4em] text-white/90 uppercase mb-2 drop-shadow-md">
+                            SONGS
+                        </div>
+                        <div className="text-2xl md:text-4xl font-normal text-white tabular-nums tracking-tighter">
+                            {Math.floor(syncProgress * displayStats.totalSongs).toLocaleString()}
                         </div>
                     </div>
                 </motion.div>
