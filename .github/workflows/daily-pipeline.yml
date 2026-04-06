@@ -2,7 +2,7 @@ name: Daily Songs Metrics Pipeline
 
 on:
   schedule:
-    - cron: '30 18 * * *' # 18:30 UTC = 03:30 AM KHR (Next Day)
+    - cron: '20 14 * * *' # 18:30 UTC = 03:30 AM KHR (Next Day)
   workflow_dispatch:
 
 jobs:
