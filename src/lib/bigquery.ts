@@ -131,12 +131,19 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
   const DATASET_ID = 'heat_ranking';
 
   try {
-    // 1. Get Latest Ranking Date
+    // 1. Get Latest Ranking Date AND the Date before it
     const [dateRows] = await bq.query(`
-      SELECT MAX(date) as d FROM \`${DATASET_ID}.rank_history\` WHERE type = 'DAILY'
+      SELECT DISTINCT date as d FROM \`${DATASET_ID}.rank_history\` 
+      WHERE type = 'DAILY' 
+      ORDER BY date DESC LIMIT 2
     `);
     if (dateRows.length === 0 || !dateRows[0].d) return null;
+    
     const latestDate = dateRows[0].d.value;
+    // Standardize: if we don't have a second date, we use latestDate (which will result in NEW ENTRY for all)
+    const baseDate = dateRows.length > 1 ? dateRows[1].d.value : latestDate;
+
+    console.log(`Site Fetch [DAILY]: Latest=${latestDate}, Base=${baseDate}`);
 
     // 2. Fetch Top 40 Ranking (deduplicated by rank)
     const rankingQuery = `
@@ -149,8 +156,8 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
       FROM \`${DATASET_ID}.rank_history\` r
       JOIN \`${DATASET_ID}.songs_master\` s ON r.videoId = s.videoId
       LEFT JOIN \`${DATASET_ID}.snapshots\` snap ON r.videoId = snap.videoId AND snap.date = r.date
-      LEFT JOIN \`${DATASET_ID}.snapshots\` prev_snap ON r.videoId = prev_snap.videoId AND prev_snap.date = DATE_SUB(r.date, INTERVAL 1 DAY)
-      LEFT JOIN \`${DATASET_ID}.rank_history\` prev_rank ON r.videoId = prev_rank.videoId AND prev_rank.date = DATE_SUB(r.date, INTERVAL 1 DAY) AND prev_rank.type = 'DAILY'
+      LEFT JOIN \`${DATASET_ID}.snapshots\` prev_snap ON r.videoId = prev_snap.videoId AND prev_snap.date = DATE '${baseDate}'
+      LEFT JOIN \`${DATASET_ID}.rank_history\` prev_rank ON r.videoId = prev_rank.videoId AND prev_rank.date = DATE '${baseDate}' AND prev_rank.type = 'DAILY'
       WHERE r.date = '${latestDate}' AND r.type = 'DAILY'
       QUALIFY ROW_NUMBER() OVER(PARTITION BY r.rank ORDER BY r.heatScore DESC) = 1
       ORDER BY r.rank ASC
