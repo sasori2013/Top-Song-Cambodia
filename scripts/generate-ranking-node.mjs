@@ -66,37 +66,50 @@ async function runRankingNode() {
 
   let latestDate, baseDate;
   
-  // 1. Get dates from BQ
-  const [dateRows] = await bq.query(`SELECT DISTINCT date FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\` ORDER BY date DESC LIMIT 5`);
-  const availableDates = dateRows.map(r => r.date.value);
+  // 1. Get dates from BQ and check for stability (at least 400 records)
+  const [dateRows] = await bq.query(`
+    SELECT date, COUNT(videoId) as count 
+    FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\` 
+    GROUP BY date ORDER BY date DESC LIMIT 7
+  `);
+  
+  // Filter for stable dates (count > 400)
+  const stableDates = dateRows
+    .filter(r => r.count > 400)
+    .map(r => r.date.value);
+  const allDates = dateRows.map(r => r.date.value);
+
+  if (stableDates.length === 0) {
+    throw new Error("No stable snapshot dates found (>400 records) in the last 7 days.");
+  }
 
   if (forcedDate) {
     latestDate = forcedDate;
   } else {
-    latestDate = availableDates[0];
+    latestDate = allDates[0]; // We use the absolute latest for ranking even if unstable (though usually latest is stable)
   }
 
   if (forcedBase) {
     baseDate = forcedBase;
   } else {
-    // Default to the first date before latestDate
-    const idx = availableDates.indexOf(latestDate);
-    if (idx !== -1 && idx + 1 < availableDates.length) {
-      baseDate = availableDates[idx + 1];
-    } else {
-      // Fallback
-      const [prevRows] = await bq.query(`SELECT DISTINCT date FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\` WHERE date < '${latestDate}' ORDER BY date DESC LIMIT 1`);
-      if (prevRows.length === 0) throw new Error(`No base data found before ${latestDate}`);
-      baseDate = prevRows[0].date.value;
+    // Find the newest stable date that is older than latestDate
+    baseDate = stableDates.find(d => d < latestDate);
+    
+    if (!baseDate) {
+      // Emergency fallback to the absolute next date if no stable dates found below
+      const idx = allDates.indexOf(latestDate);
+      baseDate = allDates[idx + 1] || allDates[1];
     }
   }
 
-    // Validation: Is latestDate actually "Today" or "Yesterday" in Cambodia?
-    const todayKHR = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Asia/Phnom_Penh' }).format(new Date());
-    if (latestDate !== todayKHR) {
-      console.warn(`⚠️ Warning: Latest snapshot date (${latestDate}) does not match Cambodia Today (${todayKHR}).`);
-      // We still proceed but we should highlight this.
-    }
+  console.log(`Analyzing: ${latestDate} (Latest) vs ${baseDate} (Base)`);
+
+  // Validation: Check stability of selected dates
+  const latestCount = dateRows.find(r => r.date.value === latestDate)?.count || 0;
+  const baseCount = dateRows.find(r => r.date.value === baseDate)?.count || 0;
+  
+  if (latestCount < 400) console.warn(`⚠️ Warning: Latest date ${latestDate} is unstable (${latestCount} records).`);
+  if (baseCount < 400) console.warn(`⚠️ Warning: Base date ${baseDate} is unstable (${baseCount} records).`);
 
   console.log(`Analyzing: ${latestDate} (Latest) vs ${baseDate} (Base)`);
 
