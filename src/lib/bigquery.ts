@@ -135,6 +135,7 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
     const [dateRows] = await bq.query(`
       SELECT DISTINCT date as d FROM \`${DATASET_ID}.rank_history\` 
       WHERE type = 'DAILY' 
+        AND date != '2026-04-05' -- Skip corrupted data date
       ORDER BY date DESC LIMIT 2
     `);
     if (dateRows.length === 0 || !dateRows[0].d) return null;
