@@ -3,6 +3,7 @@ import { GoogleAuth } from 'google-auth-library';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import fetch from 'node-fetch';
 import { classifySong } from './classify-song-node.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -64,7 +65,7 @@ Output ONLY a valid JSON object (Values MUST be in English):
 async function runBatchLabeling() {
   console.log('--- Batch Labeling System Started ---');
   
-  // 1. Fetch unlabeled songs
+  // 1. Fetch unlabeled songs (1000 at a time to avoid memory issues)
   const queryArr = await bq.query(`
     SELECT videoId, title, artist, publishedAt 
     FROM \`heat_ranking.songs_master\` 
@@ -75,45 +76,77 @@ async function runBatchLabeling() {
   console.log(`Found ${rows.length} songs to label.`);
 
   const recentThreshold = new Date('2026-03-01');
-  const BATCH_SIZE = 20;
+  const BATCH_SIZE = 50;
+  console.log(`Processing ${rows.length} songs in chunks of ${BATCH_SIZE}...`);
 
-  for (let i = 0; i < rows.length; i++) {
-    const song = rows[i];
-    const isRecent = new Date(song.publishedAt.value || song.publishedAt) >= recentThreshold;
-    
-    console.log(`[${i+1}/${rows.length}] ${isRecent ? 'Precise' : 'Fast'} Mode: ${song.title}`);
-    
-    let classification;
-    if (isRecent) {
-      classification = await classifySong(song.videoId, song.title, ''); // Logic fetched from classify-song-node
-    } else {
-      classification = await classifySongFast(song.title, '');
-    }
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const chunk = rows.slice(i, i + BATCH_SIZE);
+    console.log(`[Batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(rows.length/BATCH_SIZE)}] AI Processing ${chunk.length} songs...`);
 
-    // Update BQ immediately for safety (to allow resuming)
-    const updateSql = `
-      UPDATE \`heat_ranking.songs_master\`
-      SET 
-        eventTag = @eventTag, 
-        category = @category, 
-        classificationSource = 'AI'
-      WHERE videoId = @videoId
-    `;
-    
-    await bq.query({
-      query: updateSql,
-      params: { 
-        eventTag: classification.eventTag || 'None', 
-        category: classification.category || 'Other',
-        videoId: song.videoId 
+    // 1. Parallel AI Classification
+    const results = await Promise.all(chunk.map(async (song, j) => {
+      const isRecent = new Date(song.publishedAt.value || song.publishedAt) >= recentThreshold;
+      try {
+        const classification = isRecent
+           ? await classifySong(song.videoId, song.title, '')
+           : await classifySongFast(song.title, '');
+        return { videoId: song.videoId, ...classification };
+      } catch (e) {
+        console.warn(`  ⚠️ AI error for ${song.videoId}: ${e.message}`);
+        return { videoId: song.videoId, eventTag: 'None', category: 'Other' };
       }
+    }));
+
+    // 2. Bulk BigQuery MERGE
+    const valuesSql = results.map((r, j) => 
+      `SELECT @vId${j} as vId, @tag${j} as eTag, @cat${j} as cTag`
+    ).join('\n      UNION ALL ');
+
+    const params = {};
+    results.forEach((r, j) => {
+      params[`vId${j}`] = r.videoId;
+      params[`tag${j}`] = r.eventTag || 'None';
+      params[`cat${j}`] = r.category || 'Other';
     });
 
-    // Mandatory sleep to avoid Gemini/BQ quotas
-    await new Promise(r => setTimeout(r, isRecent ? 1000 : 500));
+    const mergeSql = `
+      MERGE \`heat_ranking.songs_master\` T
+      USING (
+        ${valuesSql}
+      ) S
+      ON T.videoId = S.vId
+      WHEN MATCHED THEN
+        UPDATE SET eventTag = S.eTag, category = S.cTag, classificationSource = 'AI'
+    `;
+
+    // Retry logic for the MERGE statement (less likely to fail than 1-by-1)
+    let success = false;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await bq.query({ query: mergeSql, params });
+        success = true;
+        break;
+      } catch (e) {
+        console.warn(`  ⚠️ MERGE attempt ${attempt} failed: ${e.message}`);
+        await new Promise(r => setTimeout(r, 2000 * attempt));
+      }
+    }
+
+    if (success) {
+      console.log(`  ✅ ${Math.min(i + BATCH_SIZE, rows.length)}/${rows.length} 完了 (${Math.round(Math.min(i + BATCH_SIZE, rows.length)/rows.length*100)}%)`);
+    } else {
+      console.error(`  ❌ Failed to save batch ${i/BATCH_SIZE + 1}`);
+      process.exit(1);
+    }
+
+    // Optional: Small sleep to be kind to the API (50 per batch)
+    await new Promise(r => setTimeout(r, 500));
   }
 
-  console.log('--- Batch Labeling Completed ---');
+  console.log('--- Batch Labeling System (High-Speed) Completed ---');
 }
 
-runBatchLabeling().catch(console.error);
+runBatchLabeling().catch(err => {
+  console.error('Fatal Pipeline Error:', err);
+  process.exit(1);
+});

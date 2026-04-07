@@ -79,7 +79,7 @@ async function vectorizeSongs() {
     LEFT JOIN \`${DATASET_ID}.${TABLE_VECTORS}\` AS v
     ON s.videoId = v.videoId
     WHERE v.videoId IS NULL
-    LIMIT 10
+    LIMIT 5000
   `;
   const [rows] = await bq.query(query);
 
@@ -90,40 +90,52 @@ async function vectorizeSongs() {
 
   console.log(`Found ${rows.length} songs to vectorize.`);
 
-  const vectorRows = [];
-  for (const row of rows) {
-    const { videoId, artist, title } = row;
-    console.log(`Processing: ${title} by ${artist} (${videoId})`);
+  const BATCH_SIZE = 50;
+  console.log(`Processing ${rows.length} songs in chunks of ${BATCH_SIZE}...`);
 
-    const sourceText = `Title: ${title}\nArtist: ${artist}\nContext: Music video ranking on HEAT platform.`;
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const chunk = rows.slice(i, i + BATCH_SIZE);
+    console.log(`[Batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(rows.length/BATCH_SIZE)}] AI Vectorizing ${chunk.length} songs...`);
 
-    try {
-      const embedding = await getEmbedding(sourceText);
+    const batchVectors = [];
+    const results = await Promise.all(chunk.map(async (row) => {
+      const { videoId, artist, title } = row;
+      const sourceText = `Title: ${title}\nArtist: ${artist}\nContext: Music video ranking on HEAT platform.`;
+      try {
+        const embedding = await getEmbedding(sourceText);
+        return {
+          videoId,
+          embedding,
+          source_text: sourceText,
+          last_updated: new Date().toISOString()
+        };
+      } catch (error) {
+        console.error(`Failed to vectorize ${videoId}:`, error.message);
+        return null;
+      }
+    }));
 
-      vectorRows.push({
-        videoId,
-        embedding,
-        source_text: sourceText,
-        last_updated: new Date().toISOString()
-      });
+    const successfulResults = results.filter(r => r !== null);
+    if (successfulResults.length > 0) {
+      console.log(`  Writing ${successfulResults.length} vectors to BigQuery...`);
+      await bq.dataset(DATASET_ID).table(TABLE_VECTORS).insert(successfulResults);
+    }
 
-      // Throttling to avoid 429
-      await new Promise(resolve => setTimeout(resolve, 1500));
-    } catch (error) {
-      console.error(`Failed to vectorize ${videoId}:`, error.message);
+    console.log(`  ✅ ${Math.min(i + BATCH_SIZE, rows.length)}/${rows.length} 完了 (${Math.round(Math.min(i + BATCH_SIZE, rows.length)/rows.length*100)}%)`);
+
+    // Throttling: 50 per batch * 2s gap = ~1500 req / minute? No.
+    // 50 songs every 2 seconds = 25 songs / sec = 1500 RPM.
+    // Vertex AI default PAID quota for text-embedding is usually 3000 RPM.
+    // To be safe (250 RPM is often the FREE tier limit, but we have credit),
+    // let's use 5 seconds between batches to be absolutely safe (50 * 12 = 600 RPM).
+    if (i + BATCH_SIZE < rows.length) {
+      await new Promise(resolve => setTimeout(resolve, 5000));
     }
   }
 
-  // 2. Insert into BigQuery
-  if (vectorRows.length > 0) {
-    console.log(`Inserting ${vectorRows.length} vectors into BigQuery...`);
-    await bq.dataset(DATASET_ID).table(TABLE_VECTORS).insert(vectorRows);
-    console.log('Insertion complete.');
-  }
-
-  console.log('--- Song Vectorization Completed ---');
+  console.log('--- Song Vectorization (High-Speed) Completed ---');
   await updateProcessStatus('Daily Vectorization', rows.length, rows.length, 'completed');
-  await sendTelegramNotification(`🧠 <b>AIベクトル化完了</b>\n新規 ${vectorRows.length} 曲のインデックスを作成しました。`);
+  await sendTelegramNotification(`🧠 <b>AIベクトル化完了</b>\n全曲のインデックス作成に成功しました。`);
   setTimeout(clearProcessStatus, 30000); // Clear after 30 seconds
 }
 

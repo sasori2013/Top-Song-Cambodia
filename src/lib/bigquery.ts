@@ -99,12 +99,18 @@ export async function searchSongsByVector(queryText: string, limit: number = 5):
       s.title, 
       s.artist,
       s.videoId,
+      s.eventTag,
+      s.category,
+      s.publishedAt,
+      snap.views,
       (SELECT SUM(a*b) / (SQRT(SUM(a*a)) * SQRT(SUM(b*b))) 
        FROM UNNEST(v.embedding) a WITH OFFSET pos
        JOIN UNNEST(@queryVector) b WITH OFFSET pos2 ON pos = pos2
       ) as cosine_similarity
     FROM \`${DATASET_ID}.${TABLE_VECTORS}\` v
     JOIN \`${DATASET_ID}.${TABLE_SONGS}\` s ON v.videoId = s.videoId
+    LEFT JOIN \`${DATASET_ID}.snapshots\` snap ON v.videoId = snap.videoId 
+      AND snap.date = (SELECT MAX(date) FROM \`${DATASET_ID}.snapshots\`)
     ORDER BY cosine_similarity DESC
     LIMIT @limit
   `;
