@@ -347,3 +347,40 @@ export async function getArtistMetadata(artistName: string): Promise<any | null>
     return null;
   }
 }
+
+/**
+ * NEW: Fetch Global All-Time Top Songs (Statistical Fact Layer)
+ */
+export async function getAllTimeTopSongs(limit: number = 10): Promise<any[]> {
+  const bq = getBigQueryClient();
+  if (!bq) return [];
+
+  const DATASET_ID = 'heat_ranking';
+  const query = `
+    SELECT 
+      s.title, 
+      s.artist, 
+      v.views, 
+      s.category,
+      s.publishedAt
+    FROM \`${DATASET_ID}.snapshots\` v
+    JOIN \`${DATASET_ID}.songs_master\` s ON v.videoId = s.videoId
+    WHERE v.date = (SELECT MAX(date) FROM \`${DATASET_ID}.snapshots\`)
+    ORDER BY v.views DESC
+    LIMIT @limit
+  `;
+
+  try {
+    const [rows] = await bq.query({
+      query,
+      params: { limit },
+    });
+    return rows.map(r => ({
+      ...r,
+      publishedAt: r.publishedAt?.value || r.publishedAt
+    }));
+  } catch (error) {
+    console.error("All-Time Stats Fetch Error:", error);
+    return [];
+  }
+}

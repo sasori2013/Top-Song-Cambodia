@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleAuth } from "google-auth-library";
-import { searchSongsByVector, getRankingDataFromBQ, getArtistMetadata } from "@/lib/bigquery";
+import { searchSongsByVector, getRankingDataFromBQ, getArtistMetadata, getAllTimeTopSongs } from "@/lib/bigquery";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,9 +13,10 @@ export async function POST(req: NextRequest) {
     const lastMessage = messages[messages.length - 1];
     
     // 1. RAG: Fetch relevant data from BigQuery
-    const [searchResults, rankingData] = await Promise.all([
+    const [searchResults, rankingData, topStats] = await Promise.all([
       searchSongsByVector(lastMessage.content, 5),
-      getRankingDataFromBQ()
+      getRankingDataFromBQ(),
+      getAllTimeTopSongs(10)
     ]);
 
     // 1.1 Fetch metadata for the top matched artist (if any)
@@ -65,16 +66,19 @@ export async function POST(req: NextRequest) {
 
 【回答のガイドライン】
 1. カンボジア音楽のパイオニア（VannDa, Preap Sovath, Rasmey Hang Meas等）から新進気鋭のインディーズまで、熱意を持って専門的に解説してください。
-2. 提供された「検索結果コンテキスト」には、各曲の「累計再生数（Views）」が含まれています。これに基づき、「今までで最も再生された曲」などの質問に数字を交えて回答してください。
-3. 2026年3月以前のデータについても「豊富に蓄積されている」と伝え、歴史的背景を解説してください。
+2. もしユーザーが「今までで最も再生された曲」や「歴代ランキング」について尋ねた場合は、提供された「■ 統計データレイヤー（歴代トップ10）」を直接参照して回答してください。
+3. 2026年3月以前のデータについても「豊富に蓄積されている」と伝え、具体的な歴史的数字（ views等）を引用して解説してください。
 4. ユーザーが使用した言語（例: 日本語）で親切に返答してください。
 
 【コンテキスト情報】
 ---
+■ 統計データレイヤー（全期間の歴代トップ10 - 累計再生数ベース）:
+${topStats.map((s, i) => `No.${i+1}: ${s.title} - ${s.artist} [累計 ${s.views.toLocaleString()} views] (カテゴリ: ${s.category})`).join('\n') || "データ取得中"}
+
 ■ 最新のHEAT Topランキング (勢いのある現在のTOP10):
 ${rankingData?.ranking.slice(0, 10).map(item => `No.${item.rank}: ${item.title} - ${item.artist} (HeatScore: ${item.heatScore})`).join('\n') || "データ取得中"}
 
-■ 関連する歴史的楽曲の検索結果 (ベクトル検索 / 1.5万曲から抽出):
+■ 関連楽曲の検索結果 (ベクトル検索):
 ${searchResults.map(item => `- ${item.title} by ${item.artist} | 累計再生数: ${item.views?.toLocaleString() || "不明"} | カテゴリ: ${item.category || "その他"} | タグ: ${item.eventTag || "なし"} (Match: ${Math.round(item.cosine_similarity * 100)}%)`).join('\n') || "関連する楽曲は見つかりませんでした。"}
 
 ${artistMetadata ? `■ アーティスト詳細情報 (@${artistMetadata.name}):
