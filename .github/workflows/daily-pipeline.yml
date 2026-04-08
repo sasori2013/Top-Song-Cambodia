@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: '20 14 * * *' # 18:30 UTC = 03:30 AM KHR (Next Day)
   workflow_dispatch:
+concurrency:
+  group: daily-pipeline
+  cancel-in-progress: false
 
 jobs:
   update-metrics:
