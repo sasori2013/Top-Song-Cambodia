@@ -15,12 +15,12 @@ const getEnv = (key) => (process.env[key] || '').trim().replace(/^['"]|['"]$/g, 
 const SHEET_ID = getEnv('NEXT_PUBLIC_SHEET_ID');
 const PROJECT_ID = getEnv('GCP_PROJECT_ID');
 const YOUTUBE_API_KEY = getEnv('YOUTUBE_API_KEY');
-const GEMINI_API_KEY = getEnv('GEMINI_API_KEY');
+const LOCATION = 'us-central1';
 const DATASET_ID = 'heat_ranking';
 const TABLE_ID = 'snapshots';
 
-if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON || !YOUTUBE_API_KEY || !GEMINI_API_KEY) {
-  console.error('Error: Credentials (GOOGLE_SERVICE_ACCOUNT_JSON, YOUTUBE_API_KEY, or GEMINI_API_KEY) are missing in .env.local');
+if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON || !YOUTUBE_API_KEY) {
+  console.error('Error: Credentials (GOOGLE_SERVICE_ACCOUNT_JSON or YOUTUBE_API_KEY) are missing in .env.local');
   process.exit(1);
 }
 
@@ -41,14 +41,11 @@ const sheets = google.sheets({ version: 'v4', auth });
 const bq = new BigQuery({ projectId: PROJECT_ID, credentials });
 const youtube = google.youtube({ version: 'v3', auth: YOUTUBE_API_KEY, timeout: 20000 });
 
-// Initialize Google AI
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const generativeModel = genAI.getGenerativeModel({
-  model: 'gemini-1.5-flash',
-  generationConfig: { responseMimeType: 'application/json' }
-});
-
 async function getTodayKey() {
+  const args = process.argv.slice(2);
+  const forcedDate = args.find(a => a.startsWith('--date='))?.split('=')[1];
+  if (forcedDate) return forcedDate;
+
   const d = new Date();
   const options = { timeZone: 'Asia/Phnom_Penh', year: 'numeric', month: '2-digit', day: '2-digit' };
   const formatter = new Intl.DateTimeFormat('fr-CA', options); // returns YYYY-MM-DD
@@ -124,7 +121,7 @@ async function analyzeCommentQuality(videoId, comments) {
   `;
 
   try {
-    const client = await googleAuth.getClient();
+    const client = await auth.getClient();
     const tokenResponse = await client.getAccessToken();
     const token = tokenResponse.token;
     const url = `https://${LOCATION}-aiplatform.googleapis.com/v1/projects/${PROJECT_ID}/locations/${LOCATION}/publishers/google/models/gemini-2.0-flash-001:generateContent`;

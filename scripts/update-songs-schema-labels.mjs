@@ -22,7 +22,10 @@ async function updateSongsSchema() {
     ALTER TABLE \`${datasetId}.${tableId}\`
     ADD COLUMN IF NOT EXISTS eventTag STRING,
     ADD COLUMN IF NOT EXISTS category STRING,
-    ADD COLUMN IF NOT EXISTS classificationSource STRING
+    ADD COLUMN IF NOT EXISTS classificationSource STRING,
+    ADD COLUMN IF NOT EXISTS description STRING,
+    ADD COLUMN IF NOT EXISTS topComments STRING,
+    ADD COLUMN IF NOT EXISTS analyzedReason STRING
   `;
 
   try {

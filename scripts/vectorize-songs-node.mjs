@@ -74,12 +74,12 @@ async function vectorizeSongs() {
 
   // 1. Identify songs that need vectorization
   const query = `
-    SELECT s.videoId, s.artist, s.title
+    SELECT s.videoId, s.artist, s.title, s.description, s.topComments, s.eventTag, s.category, s.analyzedReason
     FROM \`${DATASET_ID}.${TABLE_SONGS}\` AS s
     LEFT JOIN \`${DATASET_ID}.${TABLE_VECTORS}\` AS v
     ON s.videoId = v.videoId
-    WHERE v.videoId IS NULL
-    LIMIT 5000
+    WHERE v.videoId IS NULL AND s.description IS NOT NULL
+    LIMIT 20000
   `;
   const [rows] = await bq.query(query);
 
@@ -99,8 +99,10 @@ async function vectorizeSongs() {
 
     const batchVectors = [];
     const results = await Promise.all(chunk.map(async (row) => {
-      const { videoId, artist, title } = row;
-      const sourceText = `Title: ${title}\nArtist: ${artist}\nContext: Music video ranking on HEAT platform.`;
+      const { videoId, artist, title, description, topComments, eventTag, category, analyzedReason } = row;
+      const cleanDesc = (description || '').substring(0, 500).replace(/\n/g, ' ');
+      const cleanComments = (topComments || '').substring(0, 500).replace(/\n/g, ' ');
+      const sourceText = `Title: ${title}\nArtist: ${artist}\nCategory: ${category || 'Unknown'}\nEvent: ${eventTag || 'None'}\nDescription: ${cleanDesc}\nComments: ${cleanComments}\nAI Insight: ${analyzedReason || ''}`.trim();
       try {
         const embedding = await getEmbedding(sourceText);
         return {

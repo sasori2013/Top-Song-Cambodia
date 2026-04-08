@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fetch from 'node-fetch';
+import { google } from 'googleapis';
 import { classifySong } from './classify-song-node.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -19,6 +20,7 @@ const auth = new GoogleAuth({
   credentials,
   scopes: 'https://www.googleapis.com/auth/cloud-platform',
 });
+const youtube = google.youtube({ version: 'v3', auth: process.env.YOUTUBE_API_KEY });
 
 /**
  * Fast classification without fetching comments (Phase 2) using Vertex AI
@@ -69,7 +71,7 @@ async function runBatchLabeling() {
   const queryArr = await bq.query(`
     SELECT videoId, title, artist, publishedAt 
     FROM \`heat_ranking.songs_master\` 
-    WHERE eventTag IS NULL 
+    WHERE description IS NULL 
     ORDER BY publishedAt DESC
   `);
   const rows = queryArr[0];
@@ -83,23 +85,35 @@ async function runBatchLabeling() {
     const chunk = rows.slice(i, i + BATCH_SIZE);
     console.log(`[Batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(rows.length/BATCH_SIZE)}] AI Processing ${chunk.length} songs...`);
 
-    // 1. Parallel AI Classification
+    // 1. Parallel API Fetch + Classification
+    const videoIds = chunk.map(song => song.videoId);
+    let descriptionMap = {};
+    try {
+      const res = await youtube.videos.list({
+        part: ['snippet'],
+        id: videoIds
+      });
+      (res.data.items || []).forEach(vid => {
+        descriptionMap[vid.id] = vid.snippet?.description || '';
+      });
+    } catch (err) {
+      console.warn("  ⚠️ Failed to fetch video descriptions:", err.message);
+    }
+
     const results = await Promise.all(chunk.map(async (song, j) => {
-      const isRecent = new Date(song.publishedAt.value || song.publishedAt) >= recentThreshold;
+      const desc = descriptionMap[song.videoId] || '';
       try {
-        const classification = isRecent
-           ? await classifySong(song.videoId, song.title, '')
-           : await classifySongFast(song.title, '');
-        return { videoId: song.videoId, ...classification };
+        const classification = await classifySong(song.videoId, song.title, desc);
+        return { videoId: song.videoId, ...classification, desc };
       } catch (e) {
         console.warn(`  ⚠️ AI error for ${song.videoId}: ${e.message}`);
-        return { videoId: song.videoId, eventTag: 'None', category: 'Other' };
+        return { videoId: song.videoId, eventTag: 'None', category: 'Other', reason: '', topComments: '', desc: '' };
       }
     }));
 
     // 2. Bulk BigQuery MERGE
     const valuesSql = results.map((r, j) => 
-      `SELECT @vId${j} as vId, @tag${j} as eTag, @cat${j} as cTag`
+      `SELECT @vId${j} as vId, @tag${j} as eTag, @cat${j} as cTag, @desc${j} as description, @comments${j} as topComments, @reason${j} as analyzedReason`
     ).join('\n      UNION ALL ');
 
     const params = {};
@@ -107,6 +121,9 @@ async function runBatchLabeling() {
       params[`vId${j}`] = r.videoId;
       params[`tag${j}`] = r.eventTag || 'None';
       params[`cat${j}`] = r.category || 'Other';
+      params[`desc${j}`] = r.desc || '';
+      params[`comments${j}`] = r.topComments || '';
+      params[`reason${j}`] = r.reason || '';
     });
 
     const mergeSql = `
@@ -116,7 +133,7 @@ async function runBatchLabeling() {
       ) S
       ON T.videoId = S.vId
       WHEN MATCHED THEN
-        UPDATE SET eventTag = S.eTag, category = S.cTag, classificationSource = 'AI'
+        UPDATE SET eventTag = S.eTag, category = S.cTag, description = S.description, topComments = S.topComments, analyzedReason = S.analyzedReason, classificationSource = 'AI'
     `;
 
     // Retry logic for the MERGE statement (less likely to fail than 1-by-1)

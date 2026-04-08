@@ -94,11 +94,11 @@ Output only a valid JSON object (Values MUST be in English):
     
     const classification = JSON.parse(text);
     console.log(`  Result: ${classification.category} | ${classification.eventTag}`);
-    return classification;
+    return { ...classification, topComments: commentsText };
 
   } catch (error) {
     console.error(`  Classification error for ${videoId}:`, error.message);
-    return { eventTag: "None", category: "Other", reason: "Error: " + error.message };
+    return { eventTag: "None", category: "Other", reason: "Error: " + error.message, topComments: "Error fetching" };
   }
 }
 

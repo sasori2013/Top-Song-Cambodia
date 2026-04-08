@@ -224,6 +224,9 @@ async function runUpdateSongs() {
                   publishedAt: vid.snippet.publishedAt,
                   eventTag: classification.eventTag || 'None',
                   category: classification.category || 'Other',
+                  analyzedReason: classification.reason || '',
+                  description: vid.snippet.description || '',
+                  topComments: classification.topComments || '',
                   classificationSource: 'AI',
                   isRecent
                 });
@@ -350,6 +353,9 @@ async function runUpdateSongs() {
       publishedAt: s.publishedAt,
       eventTag: s.eventTag,
       category: s.category,
+      analyzedReason: s.analyzedReason,
+      description: s.description,
+      topComments: s.topComments,
       classificationSource: s.classificationSource
     }));
     await bq.dataset(DATASET_ID).table(TABLE_SONGS).insert(bqRows);
