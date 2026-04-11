@@ -3,15 +3,19 @@ import path from 'path';
 
 export async function getSheetData(spreadsheetId: string, range: string) {
   let auth;
-  if (process.env.GOOGLE_CREDS) {
+  if (process.env.GOOGLE_CREDS || process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
     try {
-      const creds = JSON.parse(process.env.GOOGLE_CREDS);
+      const rawJson = (process.env.GOOGLE_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_CREDS || '{}').trim().replace(/^['"]|['"]$/g, '');
+      const creds = JSON.parse(rawJson);
+      if (creds.private_key) {
+        creds.private_key = creds.private_key.replace(/\\n/g, '\n');
+      }
       auth = new google.auth.GoogleAuth({
         credentials: creds,
         scopes: ['https://www.googleapis.com/auth/spreadsheets'],
       });
     } catch (e) {
-      console.error("Failed to parse GOOGLE_CREDS env var:", e);
+      console.error("Failed to parse Google credentials env var:", e);
     }
   }
 
@@ -34,15 +38,19 @@ export async function getSheetData(spreadsheetId: string, range: string) {
 
 export async function getSpreadsheetMetadata(spreadsheetId: string) {
   let auth;
-  if (process.env.GOOGLE_CREDS) {
+  if (process.env.GOOGLE_CREDS || process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
     try {
-      const creds = JSON.parse(process.env.GOOGLE_CREDS);
+      const rawJson = (process.env.GOOGLE_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_CREDS || '{}').trim().replace(/^['"]|['"]$/g, '');
+      const creds = JSON.parse(rawJson);
+      if (creds.private_key) {
+        creds.private_key = creds.private_key.replace(/\\n/g, '\n');
+      }
       auth = new google.auth.GoogleAuth({
         credentials: creds,
         scopes: ['https://www.googleapis.com/auth/spreadsheets'],
       });
     } catch (e) {
-      console.error("Failed to parse GOOGLE_CREDS env var:", e);
+      console.error("Failed to parse Google credentials env var:", e);
     }
   }
 
@@ -64,15 +72,19 @@ export async function getSpreadsheetMetadata(spreadsheetId: string) {
 
 export async function appendSheetData(spreadsheetId: string, range: string, values: any[][]) {
   let auth;
-  if (process.env.GOOGLE_CREDS) {
+  if (process.env.GOOGLE_CREDS || process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
     try {
-      const creds = JSON.parse(process.env.GOOGLE_CREDS);
+      const rawJson = (process.env.GOOGLE_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_CREDS || '{}').trim().replace(/^['"]|['"]$/g, '');
+      const creds = JSON.parse(rawJson);
+      if (creds.private_key) {
+        creds.private_key = creds.private_key.replace(/\\n/g, '\n');
+      }
       auth = new google.auth.GoogleAuth({
         credentials: creds,
         scopes: ['https://www.googleapis.com/auth/spreadsheets'],
       });
     } catch (e) {
-      console.error("Failed to parse GOOGLE_CREDS env var:", e);
+      console.error("Failed to parse Google credentials env var:", e);
     }
   }
 
@@ -99,15 +111,19 @@ export async function appendSheetData(spreadsheetId: string, range: string, valu
 
 export async function ensureSheetExists(spreadsheetId: string, title: string) {
   let auth;
-  if (process.env.GOOGLE_CREDS) {
+  if (process.env.GOOGLE_CREDS || process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
     try {
-      const creds = JSON.parse(process.env.GOOGLE_CREDS);
+      const rawJson = (process.env.GOOGLE_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_CREDS || '{}').trim().replace(/^['"]|['"]$/g, '');
+      const creds = JSON.parse(rawJson);
+      if (creds.private_key) {
+        creds.private_key = creds.private_key.replace(/\\n/g, '\n');
+      }
       auth = new google.auth.GoogleAuth({
         credentials: creds,
         scopes: ['https://www.googleapis.com/auth/spreadsheets'],
       });
     } catch (e) {
-      console.error("Failed to parse GOOGLE_CREDS env var:", e);
+      console.error("Failed to parse Google credentials env var:", e);
     }
   }
 

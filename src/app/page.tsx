@@ -1,6 +1,7 @@
 import { Header } from '@/components/Header';
 import { PageHeader } from '@/components/PageHeader';
 import { RankingList } from '@/components/RankingList';
+import { ArtistRegistration } from '@/components/ArtistRegistration';
 import { Footer } from '@/components/Footer';
 import { getRankingData } from '@/lib/api';
 
@@ -15,6 +16,7 @@ export default async function Home() {
       <Header />
       <PageHeader stats={data?.stats} />
       
+      <ArtistRegistration />
       <RankingList items={ranking} stats={data?.stats} />
 
       <Footer />
