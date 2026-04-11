@@ -35,3 +35,4 @@ jobs:
           node scripts/generate-ranking-node.mjs
           node scripts/vectorize-songs-node.mjs
           node scripts/post-fb-node.mjs
+          node scripts/vectorize-songs-node.mjs
