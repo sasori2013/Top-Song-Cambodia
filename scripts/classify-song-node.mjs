@@ -21,25 +21,43 @@ const auth = new GoogleAuth({
   scopes: 'https://www.googleapis.com/auth/cloud-platform',
 });
 
-/**
- * Classifies a song based on metadata and comments using Vertex AI (Gemini).
- */
+function isSpamOrBot(text) {
+  const textWithoutEmojis = text.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '').trim();
+  if (textWithoutEmojis.length === 0) return true;
+  if (/https?:\/\//.test(text)) return true;
+  const lower = text.toLowerCase();
+  const spamKeywords = ["subscribe", "my channel", "check out my", "click my profile", "link in bio"];
+  if (spamKeywords.some(kw => lower.includes(kw))) return true;
+  return false;
+}
+
 export async function classifySong(videoId, title, description) {
   console.log(`Classifying video ${videoId}: ${title}`);
 
   try {
-    // 1. Fetch top comments (max 5)
+    // 1. Fetch top comments (Fetch 100, keep up to 50 valid ones)
     let commentsText = "No comments available.";
     try {
       const resComments = await youtube.commentThreads.list({
         part: ['snippet'],
         videoId: videoId,
-        maxResults: 5,
+        maxResults: 100,
         order: 'relevance'
       });
-      const comments = (resComments.data.items || []).map(it => it.snippet.topLevelComment.snippet.textDisplay);
-      if (comments.length > 0) {
-        commentsText = comments.join('\n---\n');
+      
+      const validComments = [];
+      const items = resComments.data.items || [];
+      for (const it of items) {
+        const cText = it.snippet.topLevelComment.snippet.textOriginal;
+        if (!isSpamOrBot(cText)) {
+          validComments.push(cText);
+          if (validComments.length >= 50) break;
+        }
+      }
+      
+      if (validComments.length > 0) {
+         // Join up to 50 comments
+        commentsText = validComments.join('\n---\n');
       }
     } catch (err) {
       console.warn(`  Warning: Could not fetch comments for ${videoId}: ${err.message}`);

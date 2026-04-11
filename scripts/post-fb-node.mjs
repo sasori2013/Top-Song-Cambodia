@@ -18,24 +18,23 @@ const FB_ACCESS_TOKEN = getEnv('FB_ACCESS_TOKEN');
 const PAGE_ID = '971418716059046';
 const OG_BASE_URL = 'https://heat-kh.vercel.app/api/og/ranking';
 
-if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON || !FB_ACCESS_TOKEN) {
-  console.error('Error: Credentials missing (GOOGLE_SERVICE_ACCOUNT_JSON or FB_ACCESS_TOKEN)');
-  process.exit(1);
-}
-
-const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-const jsonStr = (rawJson || '').trim().replace(/^['"]|['"]$/g, '');
-const credentials = JSON.parse(jsonStr);
-if (credentials.private_key) credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
-
-const auth = new google.auth.GoogleAuth({
-  credentials,
-  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-});
-const sheets = google.sheets({ version: 'v4', auth });
-const bq = new BigQuery({ projectId: PROJECT_ID, credentials });
-
 async function runPostFB() {
+  const G_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+  if (!G_JSON || !FB_ACCESS_TOKEN) {
+    throw new Error('Credentials missing (GOOGLE_SERVICE_ACCOUNT_JSON or FB_ACCESS_TOKEN)');
+  }
+
+  const credentials = JSON.parse(G_JSON.trim().replace(/^['"]|['"]$/g, ''));
+  if (credentials.private_key) credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+  const sheets = google.sheets({ version: 'v4', auth });
+  const bq = new BigQuery({ projectId: PROJECT_ID, credentials });
+
+
   // 1. Get Top Rankings from RANKING_DAILY sheet
   const resRank = await sheets.spreadsheets.values.get({ 
       spreadsheetId: SHEET_ID, 
@@ -96,7 +95,7 @@ async function runPostFB() {
   const imageBuffers = await Promise.all(ogUrls.map(async (url) => {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`OG Image Download failed: ${res.statusText}`);
-      return res.buffer();
+      return Buffer.from(await res.arrayBuffer());
   }));
 
   // 4. Upload to Facebook (Unpublished Photos)

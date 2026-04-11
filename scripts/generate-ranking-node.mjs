@@ -131,6 +131,10 @@ async function runRankingNode() {
         FROM \`${DATASET_ID}.${TABLE_HISTORY}\` 
         WHERE CAST(date AS STRING) = '${baseDate}' AND UPPER(type) = 'DAILY'
         QUALIFY ROW_NUMBER() OVER(PARTITION BY videoId ORDER BY rank ASC) = 1
+    ),
+    songs_master_dedup AS (
+        SELECT * FROM \`${DATASET_ID}.songs_master\`
+        QUALIFY ROW_NUMBER() OVER(PARTITION BY videoId ORDER BY publishedAt DESC) = 1
     )
     SELECT 
       l.videoId,
@@ -141,7 +145,7 @@ async function runRankingNode() {
     FROM latest l
     LEFT JOIN base b ON l.videoId = b.videoId
     LEFT JOIN history h ON l.videoId = h.videoId
-    JOIN \`${DATASET_ID}.songs_master\` s ON l.videoId = s.videoId
+    JOIN songs_master_dedup s ON l.videoId = s.videoId
     WHERE s.publishedAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 90 DAY)
   `;
   const [rows] = await bq.query(sql);

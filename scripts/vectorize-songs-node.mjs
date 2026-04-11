@@ -32,7 +32,7 @@ const auth = new GoogleAuth({
   scopes: 'https://www.googleapis.com/auth/cloud-platform',
 });
 
-async function getEmbedding(text) {
+async function getEmbedding(text, retryCount = 0) {
   const client = await auth.getClient();
   const tokenResponse = await client.getAccessToken();
   const token = tokenResponse.token;
@@ -61,9 +61,13 @@ async function getEmbedding(text) {
   if (data.predictions && data.predictions[0]) {
     return data.predictions[0].embeddings.values;
   } else if (data.error && data.error.code === 429) {
-    console.warn('Rate limit hit, waiting 5 seconds...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
-    return getEmbedding(text); // Simple retry
+    if (retryCount >= 3) {
+      throw new Error(`Vertex AI Rate Limit Exceeded after 3 retries.`);
+    }
+    const waitTime = Math.pow(2, retryCount) * 5000;
+    console.warn(`Rate limit hit, waiting ${waitTime/1000} seconds... (Retry ${retryCount + 1})`);
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+    return getEmbedding(text, retryCount + 1);
   } else {
     throw new Error(`Vertex AI Error: ${JSON.stringify(data)}`);
   }

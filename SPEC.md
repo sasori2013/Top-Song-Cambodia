@@ -87,9 +87,18 @@ To prevent "NEW ENTRY" bugs and ranking resets during data gaps (e.g., failed Yo
 **Decision:** Standardizing all cron jobs and logs to **Asia/Phnom_Penh (KHR)**.
 **Rationale:** Fixing the "Double Update" bug caused by misaligned UTC/JST/KHR schedules. The official "Day Change" occurs at **21:20 KHR**.
 
+## 6. API Quota Management & Background Processing Policy
+
+### YouTube Data API (50,000 Quota Limit)
+**STRICT RULE:** The daily critical pipeline (`daily-snapshot-node.mjs` and ranking generation) MUST NEVER be stopped or fail due to API limits. 
+
+- `daily-snapshot-node.mjs` uses the `videos.list(statistics)` endpoint which is highly quota-efficient.
+- Heavy operations like Top Comments fetching (`youtube.commentThreads.list` at 1 quota point per song) for AI context/vectorization must **ONLY** use the "leftover" quota of the day.
+- **Enforcement:** Background batch processors (e.g., `batch-label-songs.mjs`) must be heavily throttled or scheduled manually at times when daily updates have already successfully completed, ensuring they do not steal the critical quota needed for the core ranking system.
+
 ---
 
-## 6. Maintenance & Troubleshooting
+## 7. Maintenance & Troubleshooting
 
 ### Forced Regeneration
 If a specific day's ranking is incorrect, run the script manually:
@@ -99,4 +108,4 @@ If a specific day's ranking is incorrect, run the script manually:
 If a new song is added to the sheet, it will be picked up by the next `update-songs-node.mjs` run or can be manually triggered to sync metadata instantly.
 
 ---
-*Last Updated: 2026-04-07*
+*Last Updated: 2026-04-10*

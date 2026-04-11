@@ -71,8 +71,9 @@ async function runBatchLabeling() {
   const queryArr = await bq.query(`
     SELECT videoId, title, artist, publishedAt 
     FROM \`heat_ranking.songs_master\` 
-    WHERE description IS NULL 
+    WHERE topComments IS NULL OR topComments = '' OR topComments = 'No comments available.' OR topComments = 'Error fetching'
     ORDER BY publishedAt DESC
+    LIMIT 3000
   `);
   const rows = queryArr[0];
   console.log(`Found ${rows.length} songs to label.`);
@@ -100,16 +101,20 @@ async function runBatchLabeling() {
       console.warn("  ⚠️ Failed to fetch video descriptions:", err.message);
     }
 
-    const results = await Promise.all(chunk.map(async (song, j) => {
+    const results = [];
+    for (let j = 0; j < chunk.length; j++) {
+      const song = chunk[j];
       const desc = descriptionMap[song.videoId] || '';
       try {
         const classification = await classifySong(song.videoId, song.title, desc);
-        return { videoId: song.videoId, ...classification, desc };
+        results.push({ videoId: song.videoId, ...classification, desc });
       } catch (e) {
         console.warn(`  ⚠️ AI error for ${song.videoId}: ${e.message}`);
-        return { videoId: song.videoId, eventTag: 'None', category: 'Other', reason: '', topComments: '', desc: '' };
+        results.push({ videoId: song.videoId, eventTag: 'None', category: 'Other', reason: '', topComments: '', desc: '' });
       }
-    }));
+      // Throttle Gemini API calls to prevent 429 rate limit exceeded
+      await new Promise(r => setTimeout(r, 200));
+    }
 
     // 2. Bulk BigQuery MERGE
     const valuesSql = results.map((r, j) => 
@@ -133,7 +138,13 @@ async function runBatchLabeling() {
       ) S
       ON T.videoId = S.vId
       WHEN MATCHED THEN
-        UPDATE SET eventTag = S.eTag, category = S.cTag, description = S.description, topComments = S.topComments, analyzedReason = S.analyzedReason, classificationSource = 'AI'
+        UPDATE SET 
+          eventTag = IF(S.eTag = 'None' AND T.eventTag IS NOT NULL AND T.eventTag != 'None', T.eventTag, S.eTag),
+          category = IF(S.cTag = 'Other' AND T.category IS NOT NULL AND T.category != 'Other', T.category, S.cTag),
+          description = IF(S.description != '', S.description, T.description),
+          topComments = S.topComments,
+          analyzedReason = IF(S.analyzedReason != '', S.analyzedReason, T.analyzedReason),
+          classificationSource = 'AI'
     `;
 
     // Retry logic for the MERGE statement (less likely to fail than 1-by-1)
