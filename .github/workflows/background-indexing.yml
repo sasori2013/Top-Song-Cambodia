@@ -1,0 +1,27 @@
+name: Background Song Indexing
+# Runs heavy AI indexing (vectorization) separately from the daily reports
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # 03:00 UTC = 10:00 AM KHR (Daily)
+  workflow_dispatch:
+
+jobs:
+  indexing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm install
+
+      - name: Run Vectorization
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          node scripts/vectorize-songs-node.mjs

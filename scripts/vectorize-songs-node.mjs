@@ -77,13 +77,19 @@ async function vectorizeSongs() {
   console.log('--- Song Vectorization Started (Vertex AI) ---');
 
   // 1. Identify songs that need vectorization
+  // IMPORTANT: Only vectorize songs that have BOTH description AND topComments.
+  // This prevents double-work: background-metadata-fetch.mjs fills these fields first,
+  // then vectorization runs with complete data (no re-vectorization needed).
+  // New songs are always vectorized immediately since classifySong() already fetches comments.
   const query = `
     SELECT s.videoId, s.artist, s.title, s.description, s.topComments, s.eventTag, s.category, s.analyzedReason
     FROM \`${DATASET_ID}.${TABLE_SONGS}\` AS s
     LEFT JOIN \`${DATASET_ID}.${TABLE_VECTORS}\` AS v
     ON s.videoId = v.videoId
-    WHERE v.videoId IS NULL AND s.description IS NOT NULL
-    LIMIT 20000
+    WHERE v.videoId IS NULL
+      AND s.description IS NOT NULL AND s.description != ''
+      AND s.topComments IS NOT NULL AND s.topComments != ''
+    LIMIT 1000
   `;
   const [rows] = await bq.query(query);
 
@@ -94,7 +100,7 @@ async function vectorizeSongs() {
 
   console.log(`Found ${rows.length} songs to vectorize.`);
 
-  const BATCH_SIZE = 50;
+  const BATCH_SIZE = 10;
   console.log(`Processing ${rows.length} songs in chunks of ${BATCH_SIZE}...`);
 
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
