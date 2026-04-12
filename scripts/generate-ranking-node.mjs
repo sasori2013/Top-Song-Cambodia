@@ -146,16 +146,15 @@ async function runRankingNode() {
     LEFT JOIN base b ON l.videoId = b.videoId
     LEFT JOIN history h ON l.videoId = h.videoId
     JOIN songs_master_dedup s ON l.videoId = s.videoId
-    WHERE s.publishedAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 90 DAY)
+    WHERE s.publishedAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
   `;
   const [rows] = await bq.query(sql);
   console.log(`Fetched ${rows.length} records.`);
 
   // 3. Metadata from Artists/Songs (for artist name, title)
   // 3. Metadata from Artists/Songs (for artist name, title)
-  const [resSongs, resSongsLong] = await Promise.all([
-    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'SONGS!A2:D' }),
-    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'SONGS_LONG!A2:D' })
+  const [resSongs] = await Promise.all([
+    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'SONGS!A2:D' })
   ]);
 
   const songMeta = new Map();
@@ -166,7 +165,6 @@ async function runRankingNode() {
   };
 
   processRows(resSongs.data.values);
-  processRows(resSongsLong.data.values);
 
   const resArtists = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Artists!A2:E' });
   const artistMeta = new Map();

@@ -152,9 +152,8 @@ async function runSnapshotNode() {
   await updateProcessStatus('Snapshot: Fetching Video IDs', 0, 100);
   const todayKey = await getTodayKey();
 
-  // 1. Get video IDs from SONGS and SONGS_LONG
+  // 1. Get video IDs from SONGS
   const songRows = await fetchSheetData('SONGS!A2:C');
-  const songLongRows = await fetchSheetData('SONGS_LONG!A2:C');
 
   const videoIds = [];
   const songsMap = new Map(); // id -> { title, row, sheetName }
@@ -164,14 +163,6 @@ async function runSnapshotNode() {
     if (id) {
         videoIds.push(id);
         songsMap.set(id, { title: row[2], row: i + 2, sheetName: 'SONGS' });
-    }
-  });
-
-  songLongRows.forEach((row, i) => {
-    const id = (row[0] || '').trim();
-    if (id && !songsMap.has(id)) {
-        videoIds.push(id);
-        songsMap.set(id, { title: row[2], row: i + 2, sheetName: 'SONGS_LONG' });
     }
   });
 
