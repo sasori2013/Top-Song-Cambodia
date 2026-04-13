@@ -1,7 +1,6 @@
 import { Header } from '@/components/Header';
 import { PageHeader } from '@/components/PageHeader';
 import { RankingList } from '@/components/RankingList';
-import { RankingComingSoon } from '@/components/RankingComingSoon';
 import { ArtistRegistration } from '@/components/ArtistRegistration';
 import { Footer } from '@/components/Footer';
 import { getRankingData } from '@/lib/api';
@@ -22,10 +21,11 @@ export default async function Home() {
       <PageHeader stats={data?.stats} />
       
       <ArtistRegistration />
-      {SHOW_RANKING
-        ? <RankingList items={ranking} stats={data?.stats} />
-        : <RankingComingSoon />
-      }
+      <RankingList 
+        items={ranking} 
+        stats={data?.stats} 
+        showList={SHOW_RANKING}
+      />
 
       <Footer />
     </main>
