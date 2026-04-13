@@ -56,3 +56,24 @@ google-credentials.json
 
 # locks
 scripts/locks/
+
+# scratch / one-off debug scripts (rootlevel)
+scratch/
+check_*.mjs
+check_*.js
+find_*.mjs
+get_*.mjs
+list_*.mjs
+restore.mjs
+delete_*.mjs
+time_travel.mjs
+
+# log files
+*.txt
+!README.txt
+
+# one-off save/report scripts
+scripts/save_daily_*.mjs
+daily_report_*.txt
+batch_label_logs.txt
+vectorize_logs.txt
