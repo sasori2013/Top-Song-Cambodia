@@ -54,9 +54,9 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ stats }) => {
 
     // Fallback values if stats are not yet provided by API
     const displayStats = stats || {
-        totalArtists: 139,
+        totalArtists: 146,
         totalProductions: 12,
-        totalSongs: 3700
+        totalSongs: 15516
     };
 
     const [showTitle, setShowTitle] = React.useState(false);

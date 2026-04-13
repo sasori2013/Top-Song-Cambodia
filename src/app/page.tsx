@@ -12,7 +12,8 @@ export const dynamic = 'force-dynamic';
 const SHOW_RANKING = process.env.NEXT_PUBLIC_SHOW_RANKING !== 'false';
 
 export default async function Home() {
-  const data = SHOW_RANKING ? await getRankingData() : null;
+  // Always fetch to keep the stats in PageHeader updated
+  const data = await getRankingData();
   const ranking = data?.ranking || [];
 
   return (
