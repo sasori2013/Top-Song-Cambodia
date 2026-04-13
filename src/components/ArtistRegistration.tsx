@@ -45,7 +45,7 @@ export const ArtistRegistration: React.FC = () => {
     };
 
     return (
-        <div className="max-w-xl mx-auto mb-16 px-4">
+        <div className="w-full max-w-xl mt-12 mb-0 px-4">
             <div className="border border-white/10 bg-white/5 backdrop-blur-md rounded-xl p-6 transition-all hover:bg-white/[0.07]">
                 <h3 className="text-white/80 text-sm font-semibold tracking-wider uppercase mb-2">Request Artist Registration</h3>
                 <p className="text-white/40 text-[11px] mb-4">

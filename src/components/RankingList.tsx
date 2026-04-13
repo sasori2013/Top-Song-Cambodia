@@ -10,22 +10,26 @@ interface RankingListProps {
     stats?: RankingStats;
     hideMetrics?: boolean;
     showList?: boolean;
+    children?: React.ReactNode;
 }
 
 export const RankingList: React.FC<RankingListProps> = ({ 
     items, 
     stats, 
     hideMetrics, 
-    showList = true 
+    showList = true,
+    children
 }) => {
     return (
         <section className="container mx-auto max-w-6xl px-4 md:px-6 py-20 border-t border-white/5">
             <div className="flex flex-col items-center mb-16 md:mb-24">
                 {!hideMetrics && <HeatIndexMetrics growth={stats?.heatGrowth} trend={stats?.heatTrend} />}
                 
+                {children}
+
                 {showList && (
                     <>
-                        <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.8em] text-white uppercase pl-[0.8em] mt-8">
+                        <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.8em] text-white uppercase pl-[0.8em] mt-16">
                             {hideMetrics ? 'AI Search Results' : 'Daily Heat Ranking'}
                         </h2>
                         {!hideMetrics && (

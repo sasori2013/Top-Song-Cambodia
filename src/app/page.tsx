@@ -20,12 +20,13 @@ export default async function Home() {
       <Header />
       <PageHeader stats={data?.stats} />
       
-      <ArtistRegistration />
       <RankingList 
         items={ranking} 
         stats={data?.stats} 
         showList={SHOW_RANKING}
-      />
+      >
+        <ArtistRegistration />
+      </RankingList>
 
       <Footer />
     </main>
