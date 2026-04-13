@@ -219,8 +219,10 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
     // 4. Global Stats
     const [countRows] = await bq.query(`
       SELECT 
-        (SELECT COUNT(DISTINCT artist) FROM \`${DATASET_ID}.songs_master\`) as totalArtists,
-        (SELECT COUNT(*) FROM \`${DATASET_ID}.songs_master\`) as totalSongs
+        (SELECT COUNT(DISTINCT artist) FROM \`${DATASET_ID}.songs_master\`
+          WHERE publishedAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)) as totalArtists,
+        (SELECT COUNT(*) FROM \`${DATASET_ID}.songs_master\`
+          WHERE publishedAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)) as totalSongs
     `);
 
     // 5. Format Response
