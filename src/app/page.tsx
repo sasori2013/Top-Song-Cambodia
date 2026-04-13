@@ -28,7 +28,7 @@ export default async function Home() {
         <ArtistRegistration />
       </RankingList>
 
-      <Footer />
+      <Footer hideDisclaimer={!SHOW_RANKING} />
     </main>
   );
 }
