@@ -63,6 +63,8 @@ async function getEmbedding(text) {
 }
 
 async function bulkVectorize() {
+  console.warn('⚠️ Vectorization is currently PAUSED by user request.');
+  return;
   console.log('=== INITIAL BULK VECTORIZATION STARTED ===');
   
   const query = `

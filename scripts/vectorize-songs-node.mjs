@@ -74,6 +74,8 @@ async function getEmbedding(text, retryCount = 0) {
 }
 
 async function vectorizeSongs() {
+  console.warn('⚠️ Vectorization is currently PAUSED by user request.');
+  return;
   console.log('--- Song Vectorization Started (Vertex AI) ---');
 
   // 1. Identify songs that need vectorization
@@ -146,8 +148,8 @@ async function vectorizeSongs() {
   }
 
   console.log('--- Song Vectorization (High-Speed) Completed ---');
-  await updateProcessStatus('Daily Vectorization', rows.length, rows.length, 'completed');
-  await sendTelegramNotification(`🧠 <b>AIベクトル化完了</b>\n全曲のインデックス作成に成功しました。`);
+  // await updateProcessStatus('Daily Vectorization', rows.length, rows.length, 'completed');
+  // await sendTelegramNotification(`🧠 <b>AIベクトル化完了</b>\n全曲のインデックス作成に成功しました。`);
   setTimeout(clearProcessStatus, 30000); // Clear after 30 seconds
 }
 

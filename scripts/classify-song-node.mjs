@@ -31,8 +31,8 @@ function isSpamOrBot(text) {
   return false;
 }
 
-export async function classifySong(videoId, title, description) {
-  console.log(`Classifying video ${videoId}: ${title}`);
+export async function classifySong(videoId, title, description, isLabel = false) {
+  console.log(`Classifying video ${videoId}: ${title} ${isLabel ? '(Label Mode)' : ''}`);
 
   try {
     // 1. Fetch top comments (Fetch 100, keep up to 50 valid ones)
@@ -64,6 +64,10 @@ export async function classifySong(videoId, title, description) {
     }
 
     // 2. Prepare AI Prompt
+    const artistTask = isLabel 
+      ? `3. detectedArtist: This video is from a music production channel. Extract the REAL singer/artist name (e.g., from "ចម្រៀង [Artist]", "[Artist] - [Title]"). If unknown, return "".`
+      : `3. detectedArtist: Return "".`;
+
     const prompt = `
 Analyze the following Cambodian music video data and categorize it in clear English.
 
@@ -75,14 +79,16 @@ TOP COMMENTS:
 ${commentsText}
 
 INSTRUCTIONS:
-Determine the following fields in clear, standard English:
-1. eventTag: Identify if this is for a specific event like "Khmer New Year 2026", "Cambodian Idol S4", "The Voice Cambodia", or "None".
-2. category: Categorize as "Original MV", "Audition Performance", "Live Concert", "Dance Motion", or "Other".
+Determine the following fields:
+1. eventTag: Identify if this is for a specific event like "Khmer New Year 2026", "Cambodian Idol S4", "The Voice Cambodia", or "None". (English)
+2. category: Categorize as "Original MV", "Audition Performance", "Live Concert", "Dance Motion", or "Other". (English)
+${artistTask}
 
-Output only a valid JSON object (Values MUST be in English):
+Output only a valid JSON object:
 {
   "eventTag": "...", 
   "category": "...",
+  "detectedArtist": "...",
   "reason": "Brief explanation in English"
 }
 `;

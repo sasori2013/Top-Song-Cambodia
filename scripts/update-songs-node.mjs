@@ -10,6 +10,10 @@ import { classifySong } from './classify-song-node.mjs';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../.env.local') });
 
+const TEST_MODE = process.env.TEST_MODE === 'true';
+const TEST_LIMIT_ARTISTS = parseInt(process.env.TEST_LIMIT || '0');
+const ARTISTS_SHEET_ID = 0; // Found via API
+
 const getEnv = (key) => (process.env[key] || '').trim().replace(/^['"]|['"]$/g, '');
 
 const SHEET_ID = getEnv('NEXT_PUBLIC_SHEET_ID');
@@ -50,18 +54,30 @@ async function runUpdateSongs() {
   await sendTelegramNotification('🎵 <b>新曲探索 (updateSongs)</b> を開始します...');
   await updateProcessStatus('Discovery: Fetching Artists', 0, 100);
 
-  // 1. Get Artists from Sheet
-  const resArtists = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Artists!A2:H' });
+  // 1. Get Artists from Sheet (A: Name, ..., F: Prod, G: LastSync, ..., M: Type)
+  const resArtists = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Artists!A2:M' });
   const artistRows = resArtists.data.values || [];
+  const knownArtistNames = new Set(artistRows.map(r => String(r[0]).trim()).filter(Boolean));
+  const processedChannelIds = new Set();
+  const newlyRegisteredArtists = [];
+
   const artists = artistRows.map((r, i) => ({
     name: r[0],
     channelId: r[2],
+    subscribers: r[3],
+    facebook: r[4],
     lastSync: r[6], // Column G
+    type: r[12] || 'Artist', // Column M (0-indexed 12)
     rowIndex: i + 2 // 1-based index including header
   })).filter(a => a.name && a.channelId);
   
-  console.log(`Processing ${artists.length} artists...`);
-  await updateProcessStatus('Discovery: Checking Artists', 0, artists.length);
+  const targetArtist = process.env.TARGET_ARTIST;
+  const artistsToProcess = targetArtist 
+    ? artists.filter(a => a.name === targetArtist)
+    : (TEST_MODE && TEST_LIMIT_ARTISTS > 0 ? artists.slice(0, TEST_LIMIT_ARTISTS) : artists);
+
+  console.log(`Processing ${artistsToProcess.length} artists. (Known: ${knownArtistNames.size})`);
+  await updateProcessStatus('Discovery: Checking Artists', 0, artistsToProcess.length);
 
   // 2. Get existing video IDs from SONGS and SONGS_LONG
   const resSongs = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'SONGS!A2:A' });
@@ -80,7 +96,7 @@ async function runUpdateSongs() {
   const lastSyncUpdates = []; // { row, value }
 
   // 3. Process each artist (Chunking for quota/concurrency)
-  for (const artist of artists) {
+  for (const artist of artistsToProcess) {
     try {
       if (currentQuotaUsage >= MAX_DAILY_QUOTA) {
         console.warn(`🛑 Quota Limit Reached (${currentQuotaUsage}). Stopping discovery to save for daily updates.`);
@@ -161,6 +177,17 @@ async function runUpdateSongs() {
         channelItems.push(...kwItems);
       }
 
+      // --- Deduplication & Skip Logic ---
+      if (processedChannelIds.has(artist.channelId)) {
+        console.log(`  ⏭️ Channel ${artist.channelId} already processed in this run. Skipping discovery.`);
+        successCount++;
+        // Still update lastSync for this row
+        const khrDate = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Asia/Phnom_Penh' }).format(new Date());
+        lastSyncUpdates.push({ range: `Artists!G${artist.rowIndex}`, values: [[khrDate]] });
+        continue;
+      }
+      processedChannelIds.add(artist.channelId);
+
       // Deduplicate by ID
       const uniqueItemsMap = new Map();
       channelItems.forEach(item => {
@@ -214,8 +241,9 @@ async function runUpdateSongs() {
                 splitDate.setDate(splitDate.getDate() - 60);
                 const isRecent = publishedAt >= splitDate;
 
-                // 4.1 AI Classification (Labels: eventTag, category)
-                const classification = await classifySong(vid.id, vid.snippet.title, vid.snippet.description);
+                // 4.1 AI Classification (Labels: eventTag, category, detectedArtist)
+                const isLabel = artist.type === 'Label';
+                const classification = await classifySong(vid.id, vid.snippet.title, vid.snippet.description, isLabel);
 
                 newSongsData.push({
                   videoId: vid.id,
@@ -224,6 +252,7 @@ async function runUpdateSongs() {
                   publishedAt: vid.snippet.publishedAt,
                   eventTag: classification.eventTag || 'None',
                   category: classification.category || 'Other',
+                  detectedArtist: classification.detectedArtist || '',
                   analyzedReason: classification.reason || '',
                   description: vid.snippet.description || '',
                   topComments: classification.topComments || '',
@@ -231,6 +260,74 @@ async function runUpdateSongs() {
                   isRecent
                 });
                 console.log(`  NEW (${isRecent ? 'Recent' : 'Old'}): ${vid.snippet.title}`);
+
+                // --- Auto-Register New Artist if detected ---
+                if (isLabel && classification.detectedArtist) {
+                  const dName = String(classification.detectedArtist).trim();
+                  if (dName && dName !== 'Various Artists' && !knownArtistNames.has(dName)) {
+                    console.log(`✨ New artist detected: ${dName}. Registering...`);
+                    const newRowIndex = artistRows.length + 2 + newlyRegisteredArtists.length; 
+                    // This is approximate but we'll use append which is safer. 
+                    // To color, we need the actual row index.
+                    
+                    try {
+                      const appendRes = await sheets.spreadsheets.values.append({
+                        spreadsheetId: SHEET_ID,
+                        range: 'Artists!A:M',
+                        valueInputOption: 'USER_ENTERED',
+                        requestBody: {
+                          values: [[
+                            dName, 
+                            `https://www.youtube.com/channel/${artist.channelId}`, 
+                            artist.channelId, 
+                            artist.subscribers || '', 
+                            artist.facebook || '', 
+                            '', // prod flag empty
+                            '', // last sync empty
+                            'FALSE', // deep search
+                            '', '', '', '', // bio, genres, links, info
+                            'Artist' // Type M
+                          ]]
+                        }
+                      });
+
+                      const updatedRange = appendRes.data.updates.updatedRange;
+                      const rowMatch = updatedRange.match(/(\d+)/);
+                      const actualRowIndex = rowMatch ? parseInt(rowMatch[0]) : null;
+
+                      if (actualRowIndex) {
+                        // Apply background color to the new row
+                        await sheets.spreadsheets.batchUpdate({
+                          spreadsheetId: SHEET_ID,
+                          requestBody: {
+                            requests: [{
+                              repeatCell: {
+                                range: {
+                                  sheetId: ARTISTS_SHEET_ID,
+                                  startRowIndex: actualRowIndex - 1,
+                                  endRowIndex: actualRowIndex,
+                                  startColumnIndex: 0,
+                                  endColumnIndex: 13
+                                },
+                                cell: {
+                                  userEnteredFormat: {
+                                    backgroundColor: { red: 0.85, green: 0.95, blue: 0.85 } // Light green
+                                  }
+                                },
+                                fields: 'userEnteredFormat.backgroundColor'
+                              }
+                            }]
+                          }
+                        });
+                      }
+
+                      knownArtistNames.add(dName);
+                      newlyRegisteredArtists.push(dName);
+                    } catch (regErr) {
+                      console.error(`  Failed to register ${dName}:`, regErr.message);
+                    }
+                  }
+                }
             }
           }
       }
@@ -264,16 +361,16 @@ async function runUpdateSongs() {
   // 6. Update Sheets and BQ
   if (newSongsData.length > 0) {
     const recentSongs = newSongsData.filter(s => s.isRecent).map(s => [
-      s.videoId, s.artist, s.title, s.publishedAt, s.eventTag, s.category
+      s.videoId, s.artist, s.title, s.publishedAt, s.eventTag, s.category, s.detectedArtist
     ]);
     const oldSongs = newSongsData.filter(s => !s.isRecent).map(s => [
-      s.videoId, s.artist, s.title, s.publishedAt, s.eventTag, s.category
+      s.videoId, s.artist, s.title, s.publishedAt, s.eventTag, s.category, s.detectedArtist
     ]);
 
     if (recentSongs.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: SHEET_ID,
-        range: 'SONGS!A:F',
+        range: 'SONGS!A:G',
         valueInputOption: 'USER_ENTERED',
         requestBody: { values: recentSongs },
       });
@@ -310,7 +407,7 @@ async function runUpdateSongs() {
     if (oldSongs.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: SHEET_ID,
-        range: 'SONGS_LONG!A:F',
+        range: 'SONGS_LONG!A:G',
         valueInputOption: 'USER_ENTERED',
         requestBody: { values: oldSongs },
       });
@@ -353,6 +450,7 @@ async function runUpdateSongs() {
       publishedAt: s.publishedAt,
       eventTag: s.eventTag,
       category: s.category,
+      detectedArtist: s.detectedArtist,
       analyzedReason: s.analyzedReason,
       description: s.description,
       topComments: s.topComments,
@@ -371,8 +469,9 @@ async function runUpdateSongs() {
 
   await sendTelegramNotification(
     `✅ <b>新曲探索完了</b>\n` +
-    `対象: ${artists.length}名中 ${successCount}名成功\n` +
+    `対象: ${artistsToProcess.length}名中 ${successCount}名成功\n` +
     `追加された曲: ${newSongsData.length}件` +
+    (newlyRegisteredArtists.length > 0 ? `\n✨ <b>新規登録: ${newlyRegisteredArtists.length}名</b>\n${newlyRegisteredArtists.join(', ')}` : '') +
     failureMsg
   );
 }

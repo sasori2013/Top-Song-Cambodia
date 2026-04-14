@@ -80,6 +80,8 @@ async function getEmbedding(text, retryCount = 0) {
 }
 
 async function vectorizeAll() {
+  console.warn('⚠️ Vectorization is currently PAUSED by user request.');
+  return;
   console.log('--- Mass Song Vectorization (Safe Mode) Started ---');
   await sendTelegramNotification('🧠 <b>大規模ベクトル化 (Safe Mode)</b> を開始します...');
 

@@ -26,10 +26,10 @@ const bq = new BigQuery({ projectId: PROJECT_ID, credentials });
 async function syncArtistsMaster() {
   console.log('--- Synchronizing Artists Master (Sheets -> BigQuery) ---');
 
-  // 1. Fetch all data from Artists sheet (Rows A to L)
+  // 1. Fetch all data from Artists sheet (Rows A to M)
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: 'Artists!A2:L',
+    range: 'Artists!A2:M',
   });
   const rows = res.data.values || [];
   console.log(`Fetched ${rows.length} artists from Sheets.`);
@@ -38,7 +38,7 @@ async function syncArtistsMaster() {
   const bqRows = rows.map(r => {
     return {
       name: r[0] || null,
-      type: r[1] || 'Artist', // Default to Artist if blank
+      type: r[12] || 'Artist', // Column M (index 12)
       channelId: r[2] || null,
       subscribers: r[3] ? parseInt(String(r[3]).replace(/,/g, '')) || 0 : 0,
       facebook: r[4] || null,
