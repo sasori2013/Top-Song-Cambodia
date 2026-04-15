@@ -4,6 +4,8 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import fs from 'fs';
+import os from 'os';
 import { sendTelegramNotification } from './telegram-node.mjs';
 import { updateProcessStatus } from './process-tracker.mjs';
 
@@ -250,7 +252,15 @@ async function runSnapshotNode() {
     console.log(`Deleting existing snapshots for ${todayKey}...`);
     await bq.query(`DELETE FROM \`${DATASET_ID}.${TABLE_ID}\` WHERE date = '${todayKey}'`);
 
-    await bq.dataset(DATASET_ID).table(TABLE_ID).insert(snapshotsRows);
+    const tempFilePath = join(os.tmpdir(), `snapshots_${todayKey}_${Date.now()}.json`);
+    const ndjson = snapshotsRows.map(r => JSON.stringify(r)).join('\n');
+    fs.writeFileSync(tempFilePath, ndjson);
+
+    await bq.dataset(DATASET_ID).table(TABLE_ID).load(tempFilePath, {
+      sourceFormat: 'NEWLINE_DELIMITED_JSON',
+      writeDisposition: 'WRITE_APPEND',
+    });
+    fs.unlinkSync(tempFilePath);
     console.log('BigQuery insertion complete.');
 
     // 4.5 Integrity Check (NEW: Alerting on data gaps)

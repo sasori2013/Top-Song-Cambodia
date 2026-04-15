@@ -3,6 +3,8 @@ import { BigQuery } from '@google-cloud/bigquery';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import fs from 'fs';
+import os from 'os';
 import { sendTelegramNotification } from './telegram-node.mjs';
 import { updateProcessStatus } from './process-tracker.mjs';
 
@@ -284,7 +286,15 @@ async function runRankingNode() {
     console.log(`Deleting existing ranking records for ${latestDate} (DAILY)...`);
     await bq.query(`DELETE FROM \`${DATASET_ID}.${TABLE_HISTORY}\` WHERE date = '${latestDate}' AND type = 'DAILY'`);
 
-    await bq.dataset(DATASET_ID).table(TABLE_HISTORY).insert(historyRows);
+    const tempFilePath = join(os.tmpdir(), `history_${latestDate}_${Date.now()}.json`);
+    const ndjson = historyRows.map(r => JSON.stringify(r)).join('\n');
+    fs.writeFileSync(tempFilePath, ndjson);
+
+    await bq.dataset(DATASET_ID).table(TABLE_HISTORY).load(tempFilePath, {
+      sourceFormat: 'NEWLINE_DELIMITED_JSON',
+      writeDisposition: 'WRITE_APPEND',
+    });
+    fs.unlinkSync(tempFilePath);
     console.log('Recorded rank history in BigQuery.');
 
     // 8. Record Rank History in Spreadsheet (RANK_HISTORY)
