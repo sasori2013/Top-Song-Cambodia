@@ -87,6 +87,10 @@ To prevent "NEW ENTRY" bugs and ranking resets during data gaps (e.g., failed Yo
 **Decision:** Standardizing all cron jobs and logs to **Asia/Phnom_Penh (KHR)**.
 **Rationale:** Fixing the "Double Update" bug caused by misaligned UTC/JST/KHR schedules. The official "Day Change" occurs at **21:20 KHR**.
 
+### 5.4. Batch Load over Streaming
+**Decision:** Using `table.load()` with NDJSON for daily snapshots and ranking history instead of `table.insert()`.
+**Rationale:** To prevent **Streaming Buffer** conflicts. BigQuery blocks `DELETE` and `UPDATE` operations on rows currently in the streaming buffer (which can last up to 90 minutes). Since our daily pipeline needs to clear and overwrite data for the same day during re-runs or corrections, Batch Loading ensures data is immediately available for DML operations.
+
 ## 6. API Quota Management & Background Processing Policy
 
 ### YouTube Data API (50,000 Quota Limit)
@@ -108,4 +112,4 @@ If a specific day's ranking is incorrect, run the script manually:
 If a new song is added to the sheet, it will be picked up by the next `update-songs-node.mjs` run or can be manually triggered to sync metadata instantly.
 
 ---
-*Last Updated: 2026-04-10*
+*Last Updated: 2026-04-15*
