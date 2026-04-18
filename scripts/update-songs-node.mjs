@@ -24,13 +24,16 @@ const YOUTUBE_API_KEY = getEnv('YOUTUBE_API_KEY');
 const DATASET_ID = 'heat_ranking';
 const TABLE_SONGS = 'songs_master';
 
-const MAX_DAILY_QUOTA = 35000; // Leave 15,000 for daily snapshots/ranking
+const MAX_DAILY_QUOTA = 35000;
+const MAX_DURATION_SEC = 900; // 15 minutes limit to exclude streams/albums
 let currentQuotaUsage = 0;
 
 const NG_WORDS = [
   'teaser', 'trailer', 'preview', 'behind', 'making',
   'version', 'ver.', 'live', 'performance',
-  'dance practice', 'karaoke', 'remix'
+  'dance practice', 'karaoke', 'remix', 'reaction',
+  'stream', 'gaming', 'vlog', 'variety', 'interview',
+  'full show', 'podcast', 'behind the scenes'
 ];
 
 if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON || !YOUTUBE_API_KEY) {
@@ -60,6 +63,67 @@ async function runUpdateSongs() {
   const resArtists = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Artists!A2:M' });
   const artistRows = resArtists.data.values || [];
   const knownArtistNames = new Set(artistRows.map(r => String(r[0]).trim()).filter(Boolean));
+
+  // 1.5 Get Artist Aliases
+  let aliasMap = new Map();
+  try {
+    const resAliases = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Artist_Aliases!A2:B' });
+    (resAliases.data.values || []).forEach(r => {
+      const official = (r[0] || '').trim();
+      const alias = (r[1] || '').trim();
+      if (official && alias) {
+        aliasMap.set(alias.toLowerCase().replace(/\s+/g, ''), official);
+      }
+    });
+  } catch (e) {
+    console.warn('Could not fetch Artist_Aliases sheet. Make sure it is created.', e.message);
+  }
+
+  // 1.6 Get Label_Roster
+  let rosterMap = new Map();
+  try {
+    const resRoster = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Label_Roster!A2:C' });
+    (resRoster.data.values || []).forEach(r => {
+      const prodName = (r[0] || '').trim();
+      const targetArtist = (r[1] || '').trim();
+      const keywordsRaw = (r[2] || '').trim();
+      if (prodName && targetArtist && keywordsRaw) {
+        if (!rosterMap.has(prodName)) rosterMap.set(prodName, []);
+        const keywords = keywordsRaw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+        rosterMap.get(prodName).push({ targetArtist, keywords });
+      }
+    });
+  } catch (e) {
+    console.warn('Could not fetch Label_Roster sheet.', e.message);
+  }
+
+  const normalizeArtistName = (name) => {
+    if (!name) return '';
+    let cleanName = name.trim();
+    
+    // Automatically remove suffixes like "-official", "official channel", "-music"
+    cleanName = cleanName.replace(/-?\s*official(?:\s+channel)?$/i, '');
+    cleanName = cleanName.replace(/-?\s*music$/i, '').trim();
+
+    const normalizeKey = cleanName.toLowerCase().replace(/\s+/g, '');
+    
+    // Check aliases first
+    if (aliasMap.has(normalizeKey)) {
+        return aliasMap.get(normalizeKey);
+    }
+    
+    // Check official names (fuzzy matching on lowercase + no space)
+    for (const official of knownArtistNames) {
+        const officialKey = official.toLowerCase().replace(/\s+/g, '');
+        if (officialKey === normalizeKey) {
+            return official; // Return the exact official casing
+        }
+    }
+    
+    // Fallback: return the cleaned name
+    return cleanName;
+  };
+
   const processedChannelIds = new Set();
   const newlyRegisteredArtists = [];
 
@@ -111,72 +175,42 @@ async function runUpdateSongs() {
       }
 
       const isNewArtist = !artist.lastSync;
-      console.log(`Checking ${artist.name} (${isNewArtist ? 'Full History Mode' : 'Search Mode'})...`);
       let channelItems = [];
-
-      if (isNewArtist) {
-        // Get Uploads Playlist ID
-        const resChannel = await youtube.channels.list({
-          part: ['contentDetails'],
-          id: [artist.channelId]
-        });
-        currentQuotaUsage += 1; // channels.list
-        const uploadsPlaylistId = resChannel.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
-        
-        if (uploadsPlaylistId) {
-          let nextPageToken = null;
-          do {
-            const resItems = await youtube.playlistItems.list({
-              part: ['contentDetails', 'snippet'],
-              playlistId: uploadsPlaylistId,
-              maxResults: 50,
-              pageToken: nextPageToken
-            });
-            currentQuotaUsage += 1; // playlistItems.list
-            const items = (resItems.data.items || []).map(it => ({
-              id: it.contentDetails.videoId,
-              title: it.snippet.title,
-              publishedAt: it.snippet.publishedAt
-            }));
-            channelItems.push(...items);
-            nextPageToken = resItems.data.nextPageToken;
-          } while (nextPageToken);
-        }
-      } else {
-        // 1. Official Channel Search (Comprehensive)
-        const resSearch = await youtube.search.list({
-          part: ['snippet'],
-          channelId: artist.channelId,
-          maxResults: 50,
-          order: 'date',
-          type: ['video']
-        });
-        currentQuotaUsage += 100; // search.list (Heavy!)
-        
-        const items = (resSearch.data.items || []).map(it => ({
-            id: it.id.videoId,
+      
+      // --- Unified Strict Discovery: Scan Official Uploads Playlist ONLY ---
+      const resChannel = await youtube.channels.list({
+        part: ['contentDetails'],
+        id: [artist.channelId]
+      });
+      currentQuotaUsage += 1;
+      const uploadsPlaylistId = resChannel.data.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+      
+      if (uploadsPlaylistId) {
+        let nextPageToken = null;
+        let pageCount = 0;
+        do {
+          const resItems = await youtube.playlistItems.list({
+            part: ['contentDetails', 'snippet'],
+            playlistId: uploadsPlaylistId,
+            maxResults: 50,
+            pageToken: nextPageToken
+          });
+          currentQuotaUsage += 1;
+          const items = (resItems.data.items || []).map(it => ({
+            id: it.contentDetails.videoId,
             title: it.snippet.title,
             publishedAt: it.snippet.publishedAt
-        }));
-        channelItems.push(...items);
-
-        // 2. Keyword Search (To catch MVs on Label channels etc.) - Uses 100 units
-        console.log(`  Keyword searching for ${artist.name}...`);
-        const resKeyword = await youtube.search.list({
-          part: ['snippet'],
-          q: `${artist.name} MV`,
-          maxResults: 25,
-          order: 'relevance', // Relevance is better for keyword search
-          type: ['video']
-        });
-        currentQuotaUsage += 100; // search.list
-        
-        const kwItems = (resKeyword.data.items || []).map(it => ({
-            id: it.id.videoId,
-            title: it.snippet.title,
-            publishedAt: it.snippet.publishedAt
-        }));
-        channelItems.push(...kwItems);
+          }));
+          
+          channelItems.push(...items);
+          nextPageToken = resItems.data.nextPageToken;
+          pageCount++;
+          
+          // Optimization: If NOT a new artist, 1-2 pages are usually enough for daily sync
+          if (!isNewArtist && pageCount >= 2) break;
+          // Security: Prevent infinite loops if metadata is messy
+          if (pageCount >= 50) break; 
+        } while (nextPageToken);
       }
 
       // --- Deduplication & Skip Logic ---
@@ -229,6 +263,10 @@ async function runUpdateSongs() {
                     console.log(`  Skipped (Short): ${vid.snippet.title} (${totalSec}s)`);
                     continue;
                 }
+                if (totalSec > MAX_DURATION_SEC) {
+                    console.log(`  Skipped (Too Long): ${vid.snippet.title} (${totalSec}s)`);
+                    continue;
+                }
 
                 // Extra check for Keyword search: Title must contain artist name or be from their channel
                 const isFromChannel = vid.snippet.channelId === artist.channelId;
@@ -244,8 +282,21 @@ async function runUpdateSongs() {
                 const isRecent = publishedAt >= splitDate;
 
                 // 4.1 AI Classification (Labels: eventTag, category, detectedArtist)
-                const isLabel = artist.type === 'Label';
+                const isLabel = artist.type === 'Label' || artist.type === 'Production' || artist.type === 'P'; // Treat P as Label here just in case
                 const classification = await classifySong(vid.id, vid.snippet.title, vid.snippet.description, isLabel);
+
+                // --- Overwrite Detected Artist securely with Label_Roster mapping ---
+                if (rosterMap.has(artist.name)) {
+                  const titleLower = vid.snippet.title.toLowerCase();
+                  for (const candidate of rosterMap.get(artist.name)) {
+                     const isMatch = candidate.keywords.some(kw => titleLower.includes(kw));
+                     if (isMatch) {
+                       classification.detectedArtist = candidate.targetArtist;
+                       // We don't overwrite artist.name to keep the Production name safe
+                       break;
+                     }
+                  }
+                }
 
                 newSongsData.push({
                   videoId: vid.id,
@@ -255,81 +306,30 @@ async function runUpdateSongs() {
                   eventTag: classification.eventTag || 'None',
                   category: classification.category || 'Other',
                   detectedArtist: classification.detectedArtist || '',
+                  featuring: '', // Added field
                   analyzedReason: classification.reason || '',
                   description: vid.snippet.description || '',
                   topComments: classification.topComments || '',
                   classificationSource: 'AI',
                   isRecent
                 });
-                console.log(`  NEW (${isRecent ? 'Recent' : 'Old'}): ${vid.snippet.title}`);
-
-                // --- Auto-Register New Artist if detected ---
-                if (isLabel && classification.detectedArtist) {
-                  const dName = String(classification.detectedArtist).trim();
-                  if (dName && dName !== 'Various Artists' && !knownArtistNames.has(dName)) {
-                    console.log(`✨ New artist detected: ${dName}. Registering...`);
-                    const newRowIndex = artistRows.length + 2 + newlyRegisteredArtists.length; 
-                    // This is approximate but we'll use append which is safer. 
-                    // To color, we need the actual row index.
+                existingIds.add(vid.id); // Prevent same video being added for multiple artists (collaborations)
+                
+                // --- Detect and split main artist/featuring from classification ---
+                if (classification.detectedArtist) {
+                  const rawName = String(classification.detectedArtist).trim();
+                  if (rawName && rawName !== 'Various Artists') {
+                    const delimiters = /\s*(?:x|&|,|ft\.?|feat\.?|\||\/|_| - | – | — )\s*/i;
+                    const parts = rawName.split(delimiters).map(p => p.trim()).filter(Boolean);
+                    const normalizedNames = parts.map(p => normalizeArtistName(p));
                     
-                    try {
-                      const appendRes = await sheets.spreadsheets.values.append({
-                        spreadsheetId: SHEET_ID,
-                        range: 'Artists!A:M',
-                        valueInputOption: 'USER_ENTERED',
-                        requestBody: {
-                          values: [[
-                            dName, 
-                            `https://www.youtube.com/channel/${artist.channelId}`, 
-                            artist.channelId, 
-                            artist.subscribers || '', 
-                            artist.facebook || '', 
-                            '', // prod flag empty
-                            '', // last sync empty
-                            'FALSE', // deep search
-                            '', '', '', '', // bio, genres, links, info
-                            'Artist' // Type M
-                          ]]
-                        }
-                      });
-
-                      const updatedRange = appendRes.data.updates.updatedRange;
-                      const rowMatch = updatedRange.match(/(\d+)/);
-                      const actualRowIndex = rowMatch ? parseInt(rowMatch[0]) : null;
-
-                      if (actualRowIndex) {
-                        // Apply background color to the new row
-                        await sheets.spreadsheets.batchUpdate({
-                          spreadsheetId: SHEET_ID,
-                          requestBody: {
-                            requests: [{
-                              repeatCell: {
-                                range: {
-                                  sheetId: ARTISTS_SHEET_ID,
-                                  startRowIndex: actualRowIndex - 1,
-                                  endRowIndex: actualRowIndex,
-                                  startColumnIndex: 0,
-                                  endColumnIndex: 13
-                                },
-                                cell: {
-                                  userEnteredFormat: {
-                                    backgroundColor: { red: 0.85, green: 0.95, blue: 0.85 } // Light green
-                                  }
-                                },
-                                fields: 'userEnteredFormat.backgroundColor'
-                              }
-                            }]
-                          }
-                        });
-                      }
-
-                      knownArtistNames.add(dName);
-                      newlyRegisteredArtists.push(dName);
-                    } catch (regErr) {
-                      console.error(`  Failed to register ${dName}:`, regErr.message);
-                    }
+                    const currentEntry = newSongsData[newSongsData.length - 1];
+                    currentEntry.detectedArtist = normalizedNames[0]; 
+                    currentEntry.featuring = normalizedNames.slice(1).join(', ');
                   }
                 }
+                
+                console.log(`  NEW (${isRecent ? 'Recent' : 'Old'}): ${vid.snippet.title}`);
             }
           }
       }
@@ -363,16 +363,16 @@ async function runUpdateSongs() {
   // 6. Update Sheets and BQ
   if (newSongsData.length > 0) {
     const recentSongs = newSongsData.filter(s => s.isRecent).map(s => [
-      s.videoId, s.artist, s.title, s.publishedAt, s.eventTag, s.category, s.detectedArtist
+      s.videoId, s.artist, s.title, s.publishedAt, s.eventTag, s.category, s.detectedArtist, s.featuring, `https://www.youtube.com/watch?v=${s.videoId}`
     ]);
     const oldSongs = newSongsData.filter(s => !s.isRecent).map(s => [
-      s.videoId, s.artist, s.title, s.publishedAt, s.eventTag, s.category, s.detectedArtist
+      s.videoId, s.artist, s.title, s.publishedAt, s.eventTag, s.category, s.detectedArtist, s.featuring, `https://www.youtube.com/watch?v=${s.videoId}`
     ]);
 
     if (recentSongs.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: SHEET_ID,
-        range: 'SONGS!A:G',
+        range: 'SONGS!A:I',
         valueInputOption: 'USER_ENTERED',
         requestBody: { values: recentSongs },
       });
@@ -409,7 +409,7 @@ async function runUpdateSongs() {
     if (oldSongs.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: SHEET_ID,
-        range: 'SONGS_LONG!A:G',
+        range: 'SONGS_LONG!A:I',
         valueInputOption: 'USER_ENTERED',
         requestBody: { values: oldSongs },
       });
@@ -453,6 +453,7 @@ async function runUpdateSongs() {
       eventTag: s.eventTag,
       category: s.category,
       detectedArtist: s.detectedArtist,
+      featuring: s.featuring, // Added field
       analyzedReason: s.analyzedReason,
       description: s.description,
       topComments: s.topComments,
@@ -461,13 +462,49 @@ async function runUpdateSongs() {
     const tempFilePath = join(os.tmpdir(), `songs_master_${Date.now()}.json`);
     const ndjson = bqRows.map(r => JSON.stringify(r)).join('\n');
     fs.writeFileSync(tempFilePath, ndjson);
-
-    await bq.dataset(DATASET_ID).table(TABLE_SONGS).load(tempFilePath, {
+    const tempTableId = `songs_master_temp_${Date.now()}`;
+    await bq.dataset(DATASET_ID).table(tempTableId).load(tempFilePath, {
       sourceFormat: 'NEWLINE_DELIMITED_JSON',
-      writeDisposition: 'WRITE_APPEND',
+      schema: { fields: [
+        {name: 'videoId', type: 'STRING'},
+        {name: 'artist', type: 'STRING'},
+        {name: 'title', type: 'STRING'},
+        {name: 'publishedAt', type: 'TIMESTAMP'},
+        {name: 'eventTag', type: 'STRING'},
+        {name: 'category', type: 'STRING'},
+        {name: 'detectedArtist', type: 'STRING'},
+        {name: 'featuring', type: 'STRING'},
+        {name: 'analyzedReason', type: 'STRING'},
+        {name: 'description', type: 'STRING'},
+        {name: 'topComments', type: 'STRING'},
+        {name: 'classificationSource', type: 'STRING'}
+      ]}
     });
+
+    await bq.query(`
+      MERGE \`${PROJECT_ID}.${DATASET_ID}.${TABLE_SONGS}\` T
+      USING \`${PROJECT_ID}.${DATASET_ID}.${tempTableId}\` S
+      ON T.videoId = S.videoId
+      WHEN NOT MATCHED THEN
+        INSERT ROW
+      WHEN MATCHED THEN
+        UPDATE SET 
+          T.artist = S.artist, 
+          T.title = S.title, 
+          T.publishedAt = S.publishedAt, 
+          T.eventTag = S.eventTag, 
+          T.category = S.category, 
+          T.detectedArtist = S.detectedArtist, 
+          T.featuring = S.featuring,
+          T.analyzedReason = S.analyzedReason,
+          T.description = S.description,
+          T.topComments = S.topComments,
+          T.classificationSource = S.classificationSource
+    `);
+    
+    await bq.dataset(DATASET_ID).table(tempTableId).delete();
     fs.unlinkSync(tempFilePath);
-    console.log(`Synced ${bqRows.length} songs to BigQuery (songs_master).`);
+    console.log(`Merged ${bqRows.length} songs to BigQuery (songs_master).`);
   }
 
   console.log('--- Song Discovery (Node.js) Completed ---');

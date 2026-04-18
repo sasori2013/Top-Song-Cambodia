@@ -175,7 +175,7 @@ async function runMetadataFetch() {
     if (rowsToUpdate.length === 0) continue;
 
     const valuesSql = rowsToUpdate.map((_, j) =>
-      `SELECT @vId${i+j} as vId, @desc${i+j} as desc, @comments${i+j} as comments`
+      `SELECT @vId${i+j} as vId, @desc${i+j} as description, @comments${i+j} as comments`
     ).join('\n      UNION ALL ');
 
     const params = {};
@@ -191,7 +191,7 @@ async function runMetadataFetch() {
       ON T.videoId = S.vId
       WHEN MATCHED THEN
         UPDATE SET 
-          description = IF(S.desc != '' AND S.desc IS NOT NULL, S.desc, T.description),
+          description = IF(S.description != '' AND S.description IS NOT NULL, S.description, T.description),
           topComments = IF(S.comments != '' AND S.comments IS NOT NULL, S.comments, T.topComments)
     `;
 

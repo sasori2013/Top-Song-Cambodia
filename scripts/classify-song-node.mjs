@@ -65,7 +65,7 @@ export async function classifySong(videoId, title, description, isLabel = false)
 
     // 2. Prepare AI Prompt
     const artistTask = isLabel 
-      ? `3. detectedArtist: This video is from a music production channel. Extract the REAL singer/artist name (e.g., from "ចម្រៀង [Artist]", "[Artist] - [Title]"). If unknown, return "".`
+      ? `3. detectedArtist: This video is from a music production channel. Extract the REAL singer/artist name(s). If there are multiple main singers or featuring artists (e.g., "A x B", "A ft. B"), extract them as a comma-separated string (e.g., "A, B"). DO NOT include producers, beatmakers, or sponsors (e.g., ignore names after "Prod. by", "Mix & Master"). If unknown, return "".`
       : `3. detectedArtist: Return "".`;
 
     const prompt = `

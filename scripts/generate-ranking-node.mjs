@@ -154,15 +154,21 @@ async function runRankingNode() {
   console.log(`Fetched ${rows.length} records.`);
 
   // 3. Metadata from Artists/Songs (for artist name, title)
-  // 3. Metadata from Artists/Songs (for artist name, title)
   const [resSongs] = await Promise.all([
-    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'SONGS!A2:D' })
+    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'SONGS!A2:H' }) // Up to 'featuring'
   ]);
 
   const songMeta = new Map();
   const processRows = (rows) => {
     (rows || []).forEach(r => {
-      if (r[0]) songMeta.set(r[0].trim(), { artist: r[1], title: r[2], publishedAt: r[3] });
+      if (r[0]) {
+        // r[1]: artist, r[2]: title, r[3]: publishedAt, r[6]: detectedArtist
+        let finalArtist = r[1];
+        if (r[6] && r[6].trim() !== '') {
+          finalArtist = r[6].trim();
+        }
+        songMeta.set(r[0].trim(), { artist: finalArtist, original: r[1], title: r[2], publishedAt: r[3] });
+      }
     });
   };
 
