@@ -497,7 +497,8 @@ async function runUpdateSongs() {
       USING \`${PROJECT_ID}.${DATASET_ID}.${tempTableId}\` S
       ON T.videoId = S.videoId
       WHEN NOT MATCHED THEN
-        INSERT ROW
+        INSERT (videoId, artist, title, cleanTitle, publishedAt, eventTag, category, detectedArtist, featuring, analyzedReason, description, topComments, classificationSource)
+        VALUES (S.videoId, S.artist, S.title, S.cleanTitle, S.publishedAt, S.eventTag, S.category, S.detectedArtist, S.featuring, S.analyzedReason, S.description, S.topComments, S.classificationSource)
       WHEN MATCHED THEN
         UPDATE SET 
           T.artist = IF(T.classificationSource = 'ARTIST_FIXED', T.artist, S.artist), 
