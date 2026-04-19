@@ -155,19 +155,25 @@ async function runRankingNode() {
 
   // 3. Metadata from Artists/Songs (for artist name, title)
   const [resSongs] = await Promise.all([
-    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'SONGS!A2:H' }) // Up to 'featuring'
+    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'SONGS!A2:I' }) // Up to 'featuring'
   ]);
 
   const songMeta = new Map();
   const processRows = (rows) => {
     (rows || []).forEach(r => {
       if (r[0]) {
-        // r[1]: artist, r[2]: title, r[3]: publishedAt, r[6]: detectedArtist
-        let finalArtist = r[1];
-        if (r[6] && r[6].trim() !== '') {
-          finalArtist = r[6].trim();
+        // New column layout (cleanTitle added as D):
+        // r[0]: videoId, r[1]: artist, r[2]: title, r[3]: cleanTitle, r[4]: publishedAt, r[5]: eventTag, r[6]: category, r[7]: detectedArtist, r[8]: featuring
+        // DetectedArtist only supplements if artist is empty/Unknown — never overrides a valid name
+        const baseArtist = (r[1] || '').trim();
+        const detected = (r[7] || '').trim();
+        let finalArtist = baseArtist;
+        if (detected !== '' && (baseArtist === '' || baseArtist === 'Unknown')) {
+          finalArtist = detected;
         }
-        songMeta.set(r[0].trim(), { artist: finalArtist, original: r[1], title: r[2], publishedAt: r[3] });
+        // Use cleanTitle if available, fall back to raw title
+        const displayTitle = (r[3] || '').trim() || (r[2] || '').trim();
+        songMeta.set(r[0].trim(), { artist: finalArtist, original: r[1], title: displayTitle, publishedAt: r[4] });
       }
     });
   };

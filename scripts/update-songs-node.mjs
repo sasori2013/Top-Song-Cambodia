@@ -253,8 +253,13 @@ async function runUpdateSongs() {
                     // console.log(`  Skipped (Old): ${vid.snippet.title}`);
                     continue;
                 }
-                if (NG_WORDS.some(ng => title.includes(ng))) {
-                    console.log(`  Skipped (NG Word): ${vid.snippet.title}`);
+
+                const SAFE_WORDS = ['music video', 'official mv', 'original mv', 'lyric video', 'lyrics video'];
+                const matchedNG = NG_WORDS.find(ng => title.includes(ng));
+                const isSafe = SAFE_WORDS.some(sw => title.includes(sw));
+
+                if (matchedNG && !isSafe) {
+                    console.log(`  Skipped (NG Word: "${matchedNG}"): ${vid.snippet.title}`);
                     continue;
                 }
                 
@@ -284,6 +289,9 @@ async function runUpdateSongs() {
                 // 4.1 AI Classification (Labels: eventTag, category, detectedArtist)
                 const isLabel = artist.type === 'Label' || artist.type === 'Production' || artist.type === 'P'; // Treat P as Label here just in case
                 const classification = await classifySong(vid.id, vid.snippet.title, vid.snippet.description, isLabel);
+                
+                // We completely ignore AI artist detection due to excessive noise.
+                classification.detectedArtist = '';
 
                 // --- Overwrite Detected Artist securely with Label_Roster mapping ---
                 if (rosterMap.has(artist.name)) {
@@ -302,6 +310,7 @@ async function runUpdateSongs() {
                   videoId: vid.id,
                   artist: artist.name,
                   title: vid.snippet.title,
+                  cleanTitle: '', // Will be filled by background job
                   publishedAt: vid.snippet.publishedAt,
                   eventTag: classification.eventTag || 'None',
                   category: classification.category || 'Other',
@@ -363,16 +372,16 @@ async function runUpdateSongs() {
   // 6. Update Sheets and BQ
   if (newSongsData.length > 0) {
     const recentSongs = newSongsData.filter(s => s.isRecent).map(s => [
-      s.videoId, s.artist, s.title, s.publishedAt, s.eventTag, s.category, s.detectedArtist, s.featuring, `https://www.youtube.com/watch?v=${s.videoId}`
+      s.videoId, s.artist, s.title, s.cleanTitle, s.publishedAt, s.eventTag, s.category, s.detectedArtist, s.featuring, `https://www.youtube.com/watch?v=${s.videoId}`
     ]);
     const oldSongs = newSongsData.filter(s => !s.isRecent).map(s => [
-      s.videoId, s.artist, s.title, s.publishedAt, s.eventTag, s.category, s.detectedArtist, s.featuring, `https://www.youtube.com/watch?v=${s.videoId}`
+      s.videoId, s.artist, s.title, s.cleanTitle, s.publishedAt, s.eventTag, s.category, s.detectedArtist, s.featuring, `https://www.youtube.com/watch?v=${s.videoId}`
     ]);
 
     if (recentSongs.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: SHEET_ID,
-        range: 'SONGS!A:I',
+        range: 'SONGS!A:J',
         valueInputOption: 'USER_ENTERED',
         requestBody: { values: recentSongs },
       });
@@ -390,11 +399,11 @@ async function runUpdateSongs() {
                   sheetId: SONGS_SHEET_ID,
                   startRowIndex: 1, // Skip header
                   startColumnIndex: 0,
-                  endColumnIndex: 4
+                  endColumnIndex: 10
                 },
                 sortSpecs: [
                   {
-                    dimensionIndex: 3, // Column D (0-based)
+                    dimensionIndex: 4, // Column E (0-based)
                     sortOrder: 'DESCENDING'
                   }
                 ]
@@ -426,11 +435,11 @@ async function runUpdateSongs() {
                   sheetId: 453469018,
                   startRowIndex: 1,
                   startColumnIndex: 0,
-                  endColumnIndex: 4
+                  endColumnIndex: 10
                 },
                 sortSpecs: [
                   {
-                    dimensionIndex: 3,
+                    dimensionIndex: 4,
                     sortOrder: 'DESCENDING'
                   }
                 ]
@@ -449,6 +458,7 @@ async function runUpdateSongs() {
       videoId: s.videoId,
       artist: s.artist,
       title: s.title,
+      cleanTitle: s.cleanTitle,
       publishedAt: s.publishedAt,
       eventTag: s.eventTag,
       category: s.category,
@@ -469,6 +479,7 @@ async function runUpdateSongs() {
         {name: 'videoId', type: 'STRING'},
         {name: 'artist', type: 'STRING'},
         {name: 'title', type: 'STRING'},
+        {name: 'cleanTitle', type: 'STRING'},
         {name: 'publishedAt', type: 'TIMESTAMP'},
         {name: 'eventTag', type: 'STRING'},
         {name: 'category', type: 'STRING'},
@@ -489,12 +500,13 @@ async function runUpdateSongs() {
         INSERT ROW
       WHEN MATCHED THEN
         UPDATE SET 
-          T.artist = S.artist, 
+          T.artist = IF(T.classificationSource = 'ARTIST_FIXED', T.artist, S.artist), 
           T.title = S.title, 
+          T.cleanTitle = S.cleanTitle,
           T.publishedAt = S.publishedAt, 
           T.eventTag = S.eventTag, 
           T.category = S.category, 
-          T.detectedArtist = S.detectedArtist, 
+          T.detectedArtist = IF(T.classificationSource = 'ARTIST_FIXED', '', S.detectedArtist), 
           T.featuring = S.featuring,
           T.analyzedReason = S.analyzedReason,
           T.description = S.description,

@@ -48,6 +48,7 @@ async function sync() {
       String(r.videoId || ''),
       String(r.artist || ''),
       String(r.title || ''),
+      String(r.cleanTitle || ''),
       String(pubDate || ''),
       String(r.eventTag || ''),
       String(r.category || ''),
@@ -57,7 +58,7 @@ async function sync() {
     ];
   });
 
-  const header = ['videoId', 'artist', 'title', 'publishedAt', 'Event Tag', 'Category', 'DetectedArtist', 'Featuring', 'Link'];
+  const header = ['videoId', 'artist', 'title', 'Clean Title', 'publishedAt', 'Event Tag', 'Category', 'DetectedArtist', 'Featuring', 'Link'];
   
   const songsTopData = [header, ...sheetData.slice(0, 5000)];
   const songsLongData = [header, ...sheetData];
@@ -92,7 +93,7 @@ async function sync() {
   }
 
   console.log('  Updating SONGS sheet (up to 5000 rows)...');
-  await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: 'SONGS!A:I' });
+  await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: 'SONGS!A:J' });
   
   // Batch update for SONGS too
   const SONGS_CHUNK = 1000;
@@ -107,7 +108,7 @@ async function sync() {
   }
 
   console.log(`  Updating SONGS_LONG sheet (${sheetData.length} rows)...`);
-  await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: 'SONGS_LONG!A:I' });
+  await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: 'SONGS_LONG!A:J' });
   
   const LONG_CHUNK = 1000;
   for (let i = 0; i < songsLongData.length; i += LONG_CHUNK) {
