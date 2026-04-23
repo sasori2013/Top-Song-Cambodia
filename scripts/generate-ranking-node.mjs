@@ -138,12 +138,13 @@ async function runRankingNode() {
         SELECT * FROM \`${DATASET_ID}.songs_master\`
         QUALIFY ROW_NUMBER() OVER(PARTITION BY videoId ORDER BY publishedAt DESC) = 1
     )
-    SELECT 
+    SELECT
       l.videoId,
       l.views as totalV, l.likes as totalL, l.comments as totalC,
       b.views as baseV, b.likes as baseL, b.comments as baseC,
       h.prevRank,
-      s.publishedAt, s.eventTag, s.category
+      s.publishedAt, s.eventTag, s.category,
+      s.artist, s.title, s.cleanTitle, s.detectedArtist
     FROM latest l
     LEFT JOIN base b ON l.videoId = b.videoId
     LEFT JOIN history h ON l.videoId = h.videoId
@@ -153,40 +154,14 @@ async function runRankingNode() {
   const [rows] = await bq.query(sql);
   console.log(`Fetched ${rows.length} records.`);
 
-  // 3. Metadata from Artists/Songs (for artist name, title)
-  const [resSongs] = await Promise.all([
-    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'SONGS!A2:I' }) // Up to 'featuring'
-  ]);
-
-  const songMeta = new Map();
-  const processRows = (rows) => {
-    (rows || []).forEach(r => {
-      if (r[0]) {
-        // New column layout (cleanTitle added as D):
-        // r[0]: videoId, r[1]: artist, r[2]: title, r[3]: cleanTitle, r[4]: publishedAt, r[5]: eventTag, r[6]: category, r[7]: detectedArtist, r[8]: featuring
-        // DetectedArtist only supplements if artist is empty/Unknown — never overrides a valid name
-        const baseArtist = (r[1] || '').trim();
-        const detected = (r[7] || '').trim();
-        let finalArtist = baseArtist;
-        if (detected !== '' && (baseArtist === '' || baseArtist === 'Unknown')) {
-          finalArtist = detected;
-        }
-        // Use cleanTitle if available, fall back to raw title
-        const displayTitle = (r[3] || '').trim() || (r[2] || '').trim();
-        songMeta.set(r[0].trim(), { artist: finalArtist, original: r[1], title: displayTitle, publishedAt: r[4] });
-      }
-    });
-  };
-
-  processRows(resSongs.data.values);
-
+  // 3. Song metadata (artist, title, cleanTitle) is now read from BQ songs_master (included in main query above).
+  //    Artists sheet is read only for Facebook URLs, which are managed by humans in the sheet.
   const resArtists = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Artists!A2:E' });
   const artistMeta = new Map();
   (resArtists.data.values || []).forEach(r => {
     if (r[0]) artistMeta.set(r[0].trim(), { subs: parseInt(r[3]) || 0, fb: r[4] });
   });
 
-  console.log(`Fetched ${rows.length} records.`);
   await updateProcessStatus('Ranking: Calculating Scores', 20, 100);
   const rankedList = rows.map(row => {
     const totalV = parseInt(row.totalV);
@@ -212,7 +187,15 @@ async function runRankingNode() {
     const qFactor = row.qualityScore || 1.0;
     
     const heat = calculateHeatScore(dv, dl, dc, totalV, growthRate, engagement, qFactor);
-    const meta = songMeta.get(row.videoId) || { artist: 'Unknown', title: 'Unknown', publishedAt: '' };
+    const baseArtist = (row.artist || '').trim();
+    const detected = (row.detectedArtist || '').trim();
+    const finalArtist = (detected && (baseArtist === '' || baseArtist === 'Unknown')) ? detected : baseArtist;
+    const displayTitle = (row.cleanTitle || '').trim() || (row.title || '').trim();
+    const meta = {
+      artist: finalArtist || 'Unknown',
+      title: displayTitle || 'Unknown',
+      publishedAt: row.publishedAt?.value || row.publishedAt || ''
+    };
     const aMeta = artistMeta.get(meta.artist) || { subs: 0, fb: '' };
 
     return {
