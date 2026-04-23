@@ -156,7 +156,7 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
     const rankingQuery = `
       SELECT 
         r.rank, r.heatScore, r.videoId,
-        s.artist, s.title, s.publishedAt,
+        s.artist, COALESCE(NULLIF(s.cleanTitle, ''), s.title) as title, s.publishedAt,
         snap.views as totalV,
         prev_snap.views as prevV,
         prev_rank.rank as prevRank
