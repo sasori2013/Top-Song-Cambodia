@@ -18,6 +18,53 @@ const sheets = google.sheets({ version: 'v4', auth });
 const DATASET_ID = 'heat_ranking';
 const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID;
 
+async function syncLabelRoster() {
+  console.log('--- Syncing Label_Roster Sheet to BigQuery ---');
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: 'Label_Roster!A2:C'
+  });
+
+  const rows = (res.data.values || [])
+    .map(r => ({
+      prodName:     (r[0] || '').trim(),
+      targetArtist: (r[1] || '').trim(),
+      keywords:     (r[2] || '').trim(),
+    }))
+    .filter(r => r.prodName && r.targetArtist);
+
+  if (rows.length === 0) {
+    console.log('No data in Label_Roster sheet.');
+    return;
+  }
+
+  // Full replace: delete all then insert
+  await bq.query(`DELETE FROM \`${DATASET_ID}.label_roster\` WHERE TRUE`);
+
+  const BATCH = 200;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const chunk = rows.slice(i, i + BATCH);
+    const valueSql = chunk.map((_, j) =>
+      `SELECT @p${i+j} AS prodName, @t${i+j} AS targetArtist, @k${i+j} AS keywords`
+    ).join(' UNION ALL ');
+    const params = {};
+    chunk.forEach((r, j) => {
+      params[`p${i+j}`] = r.prodName;
+      params[`t${i+j}`] = r.targetArtist;
+      params[`k${i+j}`] = r.keywords;
+    });
+    await bq.query({
+      query: `INSERT INTO \`${DATASET_ID}.label_roster\` (prodName, targetArtist, keywords) ${valueSql}`,
+      params
+    });
+    console.log(`  Inserted ${Math.min(i + BATCH, rows.length)} / ${rows.length}`);
+  }
+
+  const [cnt] = await bq.query(`SELECT COUNT(DISTINCT targetArtist) as cnt FROM \`${DATASET_ID}.label_roster\``);
+  console.log(`Label_Roster synced. Unique targetArtist: ${cnt[0].cnt}`);
+}
+
 async function sync() {
   console.log('--- Syncing SONGS Sheet to BigQuery ---');
   
@@ -88,4 +135,9 @@ async function sync() {
   console.log('--- Sync Completed Successfully ---');
 }
 
-sync().catch(console.error);
+async function main() {
+  await sync();
+  await syncLabelRoster();
+}
+
+main().catch(console.error);

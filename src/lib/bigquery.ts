@@ -219,18 +219,11 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
     // 4. Global Stats
     const [countRows] = await bq.query(`
       SELECT 
-        (SELECT COUNT(*) FROM (
-          SELECT name FROM \`${DATASET_ID}.artists_master\` WHERE type = 'Artist'
+        (SELECT COUNT(DISTINCT targetArtist) FROM (
+          SELECT name AS targetArtist FROM \`${DATASET_ID}.artists_master\` WHERE type = 'Artist'
           UNION DISTINCT
-          SELECT detectedArtist FROM \`${DATASET_ID}.songs_master\`
-          WHERE detectedArtist IS NOT NULL
-            AND detectedArtist != ''
-            AND detectedArtist != 'Various Artists'
-            AND detectedArtist != artist
-            AND NOT REGEXP_CONTAINS(detectedArtist, r',')
-            AND LENGTH(detectedArtist) BETWEEN 2 AND 40
-            AND NOT REGEXP_CONTAINS(detectedArtist, r'(?i)Lip Sync|I Can See|Voice Cambodia|Short Film|Side Khrew|New Year|ចូលឆ្នាំ|ភ្ជុំបិណ្ឌ|ឆ្នាំថ្មី')
-            AND detectedArtist NOT IN (SELECT name FROM \`${DATASET_ID}.artists_master\` WHERE type = 'Label')
+          SELECT targetArtist FROM \`${DATASET_ID}.label_roster\`
+          WHERE targetArtist IS NOT NULL AND targetArtist != ''
         )) as totalArtists,
         (SELECT COUNT(*) FROM \`${DATASET_ID}.songs_master\`) as totalSongs
     `);
