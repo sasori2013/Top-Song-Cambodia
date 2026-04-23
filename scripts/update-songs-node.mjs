@@ -8,6 +8,8 @@ import os from 'os';
 import { sendTelegramNotification } from './telegram-node.mjs';
 import { updateProcessStatus } from './process-tracker.mjs';
 import { classifySong } from './classify-song-node.mjs';
+import { loadNgKeywords } from './cleanup-ng-songs.mjs';
+import { SOURCE } from './constants.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../.env.local') });
@@ -24,17 +26,12 @@ const YOUTUBE_API_KEY = getEnv('YOUTUBE_API_KEY');
 const DATASET_ID = 'heat_ranking';
 const TABLE_SONGS = 'songs_master';
 
-const MAX_DAILY_QUOTA = 35000;
-const MAX_DURATION_SEC = 900; // 15 minutes limit to exclude streams/albums
+const MAX_DAILY_QUOTA = 50000;
+const MAX_DURATION_SEC = 600; // 10 minutes limit to exclude streams/albums
 let currentQuotaUsage = 0;
 
-const NG_WORDS = [
-  'teaser', 'trailer', 'preview', 'behind', 'making',
-  'version', 'ver.', 'live', 'performance',
-  'dance practice', 'karaoke', 'remix', 'reaction',
-  'stream', 'gaming', 'vlog', 'variety', 'interview',
-  'full show', 'podcast', 'behind the scenes'
-];
+// NG_WORDS are loaded from NG_Keywords sheet at runtime (see loadNgKeywords below)
+let NG_WORDS = [];
 
 if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON || !YOUTUBE_API_KEY) {
   console.error('Error: Credentials missing');
@@ -58,6 +55,14 @@ async function runUpdateSongs() {
   console.log('--- Song Discovery (Node.js) Started ---');
   await sendTelegramNotification('🎵 <b>新曲探索 (updateSongs)</b> を開始します...');
   await updateProcessStatus('Discovery: Fetching Artists', 0, 100);
+
+  // 0. Load NG keywords from sheet
+  try {
+    NG_WORDS = await loadNgKeywords(sheets, SHEET_ID);
+    console.log(`NG_Keywords loaded: ${NG_WORDS.length} keywords`);
+  } catch (e) {
+    console.warn('Could not load NG_Keywords sheet, using empty list:', e.message);
+  }
 
   // 1. Get Artists from Sheet (A: Name, ..., F: Prod, G: LastSync, ..., M: Type)
   const resArtists = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Artists!A2:M' });
@@ -236,11 +241,15 @@ async function runUpdateSongs() {
       if (videoIdsToCheck.length > 0) {
           // Process in chunks of 50 for videos.list
           for (let j = 0; j < videoIdsToCheck.length; j += 50) {
+            if (currentQuotaUsage >= MAX_DAILY_QUOTA) {
+              console.warn(`🛑 Quota Limit Reached mid-batch (${currentQuotaUsage}). Stopping video scan.`);
+              break;
+            }
             const chunk = videoIdsToCheck.slice(j, j + 50);
-            const resVideo = await youtube.videos.list({
-              part: ['contentDetails', 'snippet'],
-              id: chunk
-            });
+            const resVideo = await withRetry(
+              () => youtube.videos.list({ part: ['contentDetails', 'snippet'], id: chunk }),
+              `videos.list chunk ${j / 50 + 1}`
+            );
             currentQuotaUsage += 1; // videos.list
             
             for (const vid of (resVideo.data.items || [])) {
@@ -300,15 +309,20 @@ async function runUpdateSongs() {
                      const isMatch = candidate.keywords.some(kw => titleLower.includes(kw));
                      if (isMatch) {
                        classification.detectedArtist = candidate.targetArtist;
-                       // We don't overwrite artist.name to keep the Production name safe
                        break;
                      }
                   }
                 }
 
+                // For production channels, use the detected artist as the artist name.
+                // Fall back to the channel name only if detection failed.
+                const songArtist = (isLabel && classification.detectedArtist)
+                  ? classification.detectedArtist
+                  : artist.name;
+
                 newSongsData.push({
                   videoId: vid.id,
-                  artist: artist.name,
+                  artist: songArtist,
                   title: vid.snippet.title,
                   cleanTitle: '', // Will be filled by background job
                   publishedAt: vid.snippet.publishedAt,
@@ -319,7 +333,7 @@ async function runUpdateSongs() {
                   analyzedReason: classification.reason || '',
                   description: vid.snippet.description || '',
                   topComments: classification.topComments || '',
-                  classificationSource: 'AI',
+                  classificationSource: SOURCE.AI,
                   isRecent
                 });
                 existingIds.add(vid.id); // Prevent same video being added for multiple artists (collaborations)
@@ -328,7 +342,7 @@ async function runUpdateSongs() {
                 if (classification.detectedArtist) {
                   const rawName = String(classification.detectedArtist).trim();
                   if (rawName && rawName !== 'Various Artists') {
-                    const delimiters = /\s*(?:x|&|,|ft\.?|feat\.?|\||\/|_| - | – | — )\s*/i;
+                    const delimiters = /\s*(?:\bx\b|&|,|ft\.?|feat\.?|\||\/|_| - | – | — )\s*/i;
                     const parts = rawName.split(delimiters).map(p => p.trim()).filter(Boolean);
                     const normalizedNames = parts.map(p => normalizeArtistName(p));
                     
@@ -378,6 +392,12 @@ async function runUpdateSongs() {
       s.videoId, s.artist, s.title, s.cleanTitle, s.publishedAt, s.eventTag, s.category, s.detectedArtist, s.featuring, `https://www.youtube.com/watch?v=${s.videoId}`
     ]);
 
+    // Resolve sheet GIDs dynamically by name
+    const spreadsheetMeta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
+    const sheetGids = Object.fromEntries(
+      spreadsheetMeta.data.sheets.map(s => [s.properties.title, s.properties.sheetId])
+    );
+
     if (recentSongs.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: SHEET_ID,
@@ -387,8 +407,9 @@ async function runUpdateSongs() {
       });
       console.log(`Appended ${recentSongs.length} recent songs to SONGS sheet.`);
 
-      // 7. Sort SONGS Sheet by publishedAt (Column D) Descending
-      const SONGS_SHEET_ID = 2074157543;
+      // 7. Sort SONGS Sheet by publishedAt (Column E) Descending
+      const songsGid = sheetGids['SONGS'];
+      if (songsGid == null) throw new Error('Sheet "SONGS" not found in spreadsheet');
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId: SHEET_ID,
         requestBody: {
@@ -396,7 +417,7 @@ async function runUpdateSongs() {
             {
               sortRange: {
                 range: {
-                  sheetId: SONGS_SHEET_ID,
+                  sheetId: songsGid,
                   startRowIndex: 1, // Skip header
                   startColumnIndex: 0,
                   endColumnIndex: 10
@@ -423,8 +444,10 @@ async function runUpdateSongs() {
         requestBody: { values: oldSongs },
       });
       console.log(`Appended ${oldSongs.length} old songs to SONGS_LONG sheet.`);
-      
-      // Sort SONGS_LONG (SheetId: 453469018)
+
+      // Sort SONGS_LONG by publishedAt (Column E) Descending
+      const songsLongGid = sheetGids['SONGS_LONG'];
+      if (songsLongGid == null) throw new Error('Sheet "SONGS_LONG" not found in spreadsheet');
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId: SHEET_ID,
         requestBody: {
@@ -432,7 +455,7 @@ async function runUpdateSongs() {
             {
               sortRange: {
                 range: {
-                  sheetId: 453469018,
+                  sheetId: songsLongGid,
                   startRowIndex: 1,
                   startColumnIndex: 0,
                   endColumnIndex: 10
@@ -501,18 +524,18 @@ async function runUpdateSongs() {
         VALUES (S.videoId, S.artist, S.title, S.cleanTitle, S.publishedAt, S.eventTag, S.category, S.detectedArtist, S.featuring, S.analyzedReason, S.description, S.topComments, S.classificationSource)
       WHEN MATCHED THEN
         UPDATE SET 
-          T.artist = IF(T.classificationSource = 'ARTIST_FIXED', T.artist, S.artist), 
-          T.title = S.title, 
+          T.artist = IF(T.classificationSource = '${SOURCE.ARTIST_FIXED}', T.artist, S.artist),
+          T.title = S.title,
           T.cleanTitle = S.cleanTitle,
-          T.publishedAt = S.publishedAt, 
-          T.eventTag = S.eventTag, 
-          T.category = S.category, 
-          T.detectedArtist = IF(T.classificationSource = 'ARTIST_FIXED', '', S.detectedArtist), 
+          T.publishedAt = S.publishedAt,
+          T.eventTag = S.eventTag,
+          T.category = S.category,
+          T.detectedArtist = IF(T.classificationSource = '${SOURCE.ARTIST_FIXED}', '', S.detectedArtist),
           T.featuring = S.featuring,
           T.analyzedReason = S.analyzedReason,
           T.description = S.description,
           T.topComments = S.topComments,
-          T.classificationSource = S.classificationSource
+          T.classificationSource = IF(T.classificationSource = '${SOURCE.ARTIST_FIXED}', '${SOURCE.ARTIST_FIXED}', S.classificationSource)
     `);
     
     await bq.dataset(DATASET_ID).table(tempTableId).delete();
@@ -534,6 +557,19 @@ async function runUpdateSongs() {
     (newlyRegisteredArtists.length > 0 ? `\n✨ <b>新規登録: ${newlyRegisteredArtists.length}名</b>\n${newlyRegisteredArtists.join(', ')}` : '') +
     failureMsg
   );
+}
+
+async function withRetry(fn, label = '', maxAttempts = 3) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (attempt === maxAttempts) throw e;
+      const delay = 1000 * Math.pow(2, attempt - 1);
+      console.warn(`  [retry ${attempt}/${maxAttempts}] ${label}: ${e.message} → ${delay}ms後リトライ`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
 }
 
 function parseDuration(duration) {

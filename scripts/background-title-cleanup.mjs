@@ -8,7 +8,7 @@ dotenv.config({ path: path.join(__dirname, '../.env.local') });
 
 const PROJECT_ID = process.env.GCP_PROJECT_ID;
 const DATASET_ID = 'heat_ranking';
-const BATCH_SIZE = 500;
+const BATCH_SIZE = 4000;
 
 const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}';
 const credentials = JSON.parse(rawJson.trim().replace(/^['"]/g, '').replace(/['"]$/g, ''));
@@ -21,33 +21,49 @@ function cleanSongTitle(rawTitle, artistName) {
   let title = rawTitle;
 
   // 1. Remove metadata blocks in brackets/parentheses
-  const metadataRegex = /\s*[([][^()[\]]*(?:Official|Music Video|MV|Audio|Lyric|Visualizer|Visual|Cover|Live|Performance|Teaser|Trailer|Prod\.|Prod by|Directed by)[^()[\]]*[)\]]/gi;
-  title = title.replace(metadataRegex, '');
+  const bracketsRegex = /\s*[([][^()[\]]*(?:Official|Music Video|MV|Audio|Lyric|Visualizer|Visual|Cover|Live|Performance|Teaser|Trailer|Prod\.|Prod by|Directed by|Full Album|Playlist|Special)[^()[\]]*[)\]]/gi;
+  title = title.replace(bracketsRegex, '');
 
-  // 2. Remove known production labels appended at the end
-  const labelsRegex = /\s*(?:\||-)\s*(?:Town Production|RHM|Galaxy Navatra|Sunday Production|Galaxy[\s\-]+Navatra|KlapYaHandz|Baramey|Pleng)\b/gi;
+  // 2. Remove loose metadata blocks (often at the end after | or -)
+  const tagList = 'Official|Music Video|MV|Audio|Lyric|Visualizer|Visual|Cover|Live|Performance|Teaser|Trailer|Full Album|Playlist|Special|Video|Lyrics|Audio Lyric|Classic|Album|MP3';
+  const looseTagsRegex = new RegExp('\\s*(?:\\||-|_|~|:)\\s*[^\\||\\-_~:]*(?:' + tagList + ')[^\\||\\-_~:]*$', 'gi');
+  title = title.replace(looseTagsRegex, '');
+
+  // 3. Remove known production labels explicitly
+  const labels = 'Town Production|RHM|Galaxy Navatra|Sunday Production|Galaxy[\\s\\-]+Navatra|KlapYaHandz|Baramey|Pleng|Ream Production|Rasmey Hang Meas|Diamond Music';
+  const labelsRegex = new RegExp('\\s*(?:\\||-|_|~|:)\\s*(?:' + labels + ')\\b', 'gi');
   title = title.replace(labelsRegex, '');
 
-  // 3. Remove emoji/music notes
-  title = title.replace(/[🎵🎶🎼🎧🎤]/g, '');
+  // 4. Remove Emojis and misc symbols
+  title = title.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}🎵🎶🎼🎧🎤✨🔥🌟]/gu, '');
 
-  // 4. Remove redundant artist name at the beginning  e.g. "VannDa - Time To Rise" -> "Time To Rise"
+  // 5. Remove redundant artist name at the beginning or end
   if (artistName && artistName.length > 2) {
     const escapedArtist = artistName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const artistPrefixRegex = new RegExp('^\\s*(?:' + escapedArtist + ')\\s*(?:-|\\|)\\s+', 'i');
-    title = title.replace(artistPrefixRegex, '');
+    // Start prefix: "Artist - Song"
+    const prefixRegex = new RegExp('^\\s*(?:' + escapedArtist + ')\\s*(?:-|\\||:|_|~)\\s+', 'i');
+    title = title.replace(prefixRegex, '');
+    // End suffix: "Song - Artist"
+    const suffixRegex = new RegExp('\\s+(?:-|\\||:|_|~)\\s*(?:' + escapedArtist + ')\\s*$', 'i');
+    title = title.replace(suffixRegex, '');
   }
+  
+  // 6. Remove hashtags
+  title = title.replace(/#\w+/g, '');
 
-  // 5. Cleanup extra spaces or lingering dashes
+  // 7. FINAL SCRUB of delimiters
   title = title.trim();
-  title = title.replace(/^[-|~_]+\s*/, '');
-  title = title.replace(/\s+[-|~_]+\s*$/, '');
+  // Recursive trim of common delimiters and whitespace
+  for (let k = 0; k < 3; k++) {
+    title = title.replace(/^[-|~_&:.\s]+/, '');
+    title = title.replace(/[-|~_&:.\s]+$/, '');
+    title = title.trim();
+  }
+  
+  // Collapse double spaces
   title = title.replace(/\s{2,}/g, ' ');
 
-  if (title.length === 0) {
-    return rawTitle.replace(metadataRegex, '').trim();
-  }
-
+  if (title.length === 0) return rawTitle;
   return title;
 }
 

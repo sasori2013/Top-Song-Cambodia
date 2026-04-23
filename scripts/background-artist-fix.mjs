@@ -20,7 +20,7 @@ const LABEL_KEYWORDS = [
   'rasmey', 'town', 'sunday', 'galaxy', 'ream', 'cg movement',
 ];
 
-const DAILY_LIMIT = 200;
+const DAILY_LIMIT = 300;
 
 if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON) {
   console.error('Error: GOOGLE_SERVICE_ACCOUNT_JSON missing');
@@ -65,8 +65,33 @@ async function callGemini(prompt) {
   return text.replace(/```json|```/g, '').trim();
 }
 
+async function getRoster() {
+  const jsonStr = process.env.GOOGLE_SERVICE_ACCOUNT_JSON.trim().replace(/^['\"]|['\"]$/g, '');
+  const credentials = JSON.parse(jsonStr);
+  if (credentials.private_key) credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+  const auth = new GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
+  const sheets = google.sheets({ version: 'v4', auth });
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: process.env.NEXT_PUBLIC_SHEET_ID,
+    range: 'Label_Roster!A:C'
+  });
+  const rows = res.data.values || [];
+  const map = new Map();
+  // Skip header
+  rows.slice(1).forEach(r => {
+    const [labelName, targetArtist, keywordsStr] = r;
+    if (!labelName || !targetArtist) return;
+    if (!map.has(labelName)) map.set(labelName, []);
+    const keywords = (keywordsStr || '').split(',').map(k => k.trim().toLowerCase()).filter(k => k);
+    map.get(labelName).push({ targetArtist, keywords });
+  });
+  return map;
+}
+
 async function runArtistFix() {
-  console.log('--- Background Artist Fix Started ---');
+  console.log('--- Background Artist Fix Started (Roster-Aware) ---');
+  const rosterMap = await getRoster();
+  console.log(`Loaded ${rosterMap.size} production labels from roster.`);
 
   // 1. Find songs where artist is likely a label name
   const [songs] = await bq.query(`
@@ -82,9 +107,9 @@ async function runArtistFix() {
       OR LOWER(artist) LIKE '%sunday%'
       OR LOWER(artist) LIKE '%galaxy%'
       OR LOWER(artist) LIKE '%ream%'
+      OR LOWER(detectedArtist) IN ('rhm', 'town', 'sunday', 'galaxy', 'ream', 'cg')
     )
     AND classificationSource != 'ARTIST_FIXED'
-    AND (description IS NOT NULL AND description != '')
     ORDER BY publishedAt DESC
     LIMIT ${DAILY_LIMIT}
   `);
@@ -94,73 +119,75 @@ async function runArtistFix() {
     return;
   }
 
-  console.log(`Found ${songs.length} songs with potential label artist names.`);
-  await sendTelegramNotification(`🎤 <b>アーティスト名修正 開始</b>\n対象: ${songs.length}件`);
+  console.log(`Analyzing ${songs.length} candidates...`);
+  await sendTelegramNotification(`🎤 <b>アーティスト名修正 (Roster優先) 開始</b>\n対象: ${songs.length}件`);
 
   const fixes = [];
   for (const song of songs) {
     const { videoId, title, artist, description } = song;
-    const cleanDesc = (description || '').substring(0, 600);
+    let fixedName = null;
 
-    const prompt = `
-You are analyzing a Cambodian music video.
-The current "artist" field is "${artist}" which appears to be a music label or production company, NOT the actual singer.
-
-Video Title: "${title}"
-Description (first 600 chars): "${cleanDesc}"
-
-Task: Extract the REAL singer/artist name from the title and description.
-- If the actual singer name is clearly mentioned, return it.
-- If the video is a compilation or playlist with multiple artists, return "Various Artists".
-- If you cannot determine the real artist, return the original label name unchanged: "${artist}".
-
-Rules:
-- Return ONLY the artist name as a plain string, NO JSON, NO explanation.
-- Common patterns: "ចម្រៀង [Artist Name]", "[Artist Name] - [Title]", "by [Artist Name]"
-- Keep the name as it appears (Khmer script or Latin OK).
-`;
-
-    try {
-      const result = await callGemini(prompt);
-      const fixedName = result.trim().replace(/^["\s]+|["\s]+$/g, '');
-
-      if (fixedName && fixedName !== artist && fixedName.length > 1 && fixedName.length < 100) {
-        fixes.push({ videoId, originalArtist: artist, fixedArtist: fixedName });
-        console.log(`  ✅ "${artist}" → "${fixedName}" (${title.substring(0, 40)}...)`);
-      } else {
-        console.log(`  ⏭️  Skipped (no better name found): ${title.substring(0, 40)}...`);
+    // A. Check Roster First (Manual Rule Wins)
+    if (rosterMap.has(artist)) {
+      const titleLower = title.toLowerCase();
+      for (const rule of rosterMap.get(artist)) {
+        if (rule.keywords.some(kw => titleLower.includes(kw))) {
+          fixedName = rule.targetArtist;
+          console.log(`  📍 Roster Match: "${title.substring(0, 30)}..." -> ${fixedName}`);
+          break;
+        }
       }
-    } catch (err) {
-      console.warn(`  ⚠️ AI error for ${videoId}: ${err.message}`);
     }
 
-    // Rate limit Gemini: 200 calls/min is default, 300ms is safe
-    await new Promise(r => setTimeout(r, 300));
+    // B. If no roster match, call Gemini (AI fallback)
+    if (!fixedName && (description || '').length > 10) {
+      const cleanDesc = (description || '').substring(0, 600);
+      const prompt = `
+You are analyzing a Cambodian music video.
+Production: "${artist}"
+Title: "${title}"
+Description: "${cleanDesc}"
+
+Extract the REAL singer name.
+Rules:
+- If singer is found, return ONLY the name.
+- If it is a compilation, return "Various Artists".
+- If you return the Label name/acronym (e.g. "${artist}", "RHM", "Town"), return exactly "SKIP".
+- NO explanation.
+`;
+
+      try {
+        const result = await callGemini(prompt);
+        const aiName = result.trim().replace(/^["\s]+|["\s]+$/g, '');
+        if (aiName && aiName !== 'SKIP' && aiName.length > 1 && aiName.length < 100) {
+          fixedName = aiName;
+          console.log(`  🤖 AI Guess: "${title.substring(0, 30)}..." -> ${fixedName}`);
+        }
+      } catch (err) {
+        console.warn(`  ⚠️ AI error for ${videoId}: ${err.message}`);
+      }
+      await new Promise(r => setTimeout(r, 300)); // Rate limit
+    }
+
+    if (fixedName && fixedName !== artist) {
+      fixes.push({ videoId, fixedArtist: fixedName });
+    }
   }
 
   if (fixes.length === 0) {
-    console.log('No artist names to update today.');
-    await sendTelegramNotification(`ℹ️ <b>アーティスト名修正</b>: 本日は更新なし`);
+    console.log('No fixes found.');
     return;
   }
 
-  // 2. Update BigQuery: fix artist names and mark as ARTIST_FIXED
-  console.log(`Updating ${fixes.length} artist names in BigQuery...`);
-
+  // 2. Update BigQuery: both artist and detectedArtist
   const BATCH = 100;
-  let fixedCount = 0;
-
   for (let i = 0; i < fixes.length; i += BATCH) {
     const chunk = fixes.slice(i, i + BATCH);
-
-    const valuesSql = chunk.map((_, j) =>
-      `SELECT @vId${i+j} as vId, @artist${i+j} as newArtist`
-    ).join('\n      UNION ALL ');
-
+    const valuesSql = chunk.map((_, j) => `SELECT @vId${j} as vId, @artist${j} as newArtist`).join('\n      UNION ALL ');
     const params = {};
     chunk.forEach((r, j) => {
-      params[`vId${i+j}`] = r.videoId;
-      params[`artist${i+j}`] = r.fixedArtist;
+      params[`vId${j}`] = r.videoId;
+      params[`artist${j}`] = r.fixedArtist;
     });
 
     const mergeSql = `
@@ -168,18 +195,11 @@ Rules:
       USING (${valuesSql}) S
       ON T.videoId = S.vId
       WHEN MATCHED THEN
-        UPDATE SET artist = S.newArtist, classificationSource = 'ARTIST_FIXED'
+        UPDATE SET 
+          artist = IF(T.artist LIKE '%Production%' OR T.artist LIKE '%Rasmey%' OR T.artist LIKE '%Town%', S.newArtist, T.artist),
+          detectedArtist = S.newArtist,
+          classificationSource = 'ARTIST_FIXED'
     `;
-
-    try {
-      await bq.query({ query: mergeSql, params });
-      fixedCount += chunk.length;
-    } catch (e) {
-      console.error(`  ❌ Update failed: ${e.message}`);
-    }
-  }
-
-  // 3. Delete stale vectors for fixed songs (so they re-vectorize with correct artist name)
   const fixedVideoIds = fixes.map(f => f.videoId);
   if (fixedVideoIds.length > 0) {
     try {

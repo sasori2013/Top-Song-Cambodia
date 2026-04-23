@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import { BigQuery } from '@google-cloud/bigquery';
+import { SOURCE } from './constants.mjs';
 import dotenv from 'dotenv';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
@@ -38,12 +39,16 @@ async function backfill() {
   console.log(`Loaded mapping rules for ${rosterMap.size} productions.`);
 
   // 2. Fetch target songs from BigQuery
-  const prodNamesSQL = Array.from(rosterMap.keys()).map(p => `'${p.replace(/'/g, "\\'")}'`).join(',');
-  const [songs] = await bq.query(`
-    SELECT videoId, artist, title, detectedArtist 
-    FROM \`heat_ranking.songs_master\` 
-    WHERE artist IN (${prodNamesSQL})
-  `);
+  const [songs] = await bq.query({
+    query: `
+      SELECT videoId, artist, title, detectedArtist
+      FROM \`heat_ranking.songs_master\`
+      WHERE artist IN UNNEST(@prodNames)
+        AND classificationSource != '${SOURCE.ARTIST_FIXED}'
+    `,
+    params: { prodNames: Array.from(rosterMap.keys()) },
+    types: { prodNames: ['STRING'] },
+  });
 
   console.log(`Evaluating ${songs.length} songs belonging to these productions...`);
 
@@ -76,31 +81,33 @@ async function backfill() {
     return;
   }
 
-  // 4. Update BigQuery in batches using CASE statements for efficiency
-  // E.g. UPDATE table SET detectedArtist = CASE videoId WHEN 'a' THEN 'X' WHEN 'b' THEN 'Y' ELSE detectedArtist END WHERE videoId IN ('a','b')
+  // 4. Update BigQuery in batches using parameterized UNNEST (safe against special characters)
   const BATCH_SIZE = 100;
   for (let i = 0; i < updates.length; i += BATCH_SIZE) {
     const batch = updates.slice(i, i + BATCH_SIZE);
-    
-    let sqlCases = '';
-    const idList = [];
-    batch.forEach(u => {
-      idList.push(`'${u.videoId}'`);
-      sqlCases += `WHEN '${u.videoId}' THEN '${u.newArtist.replace(/'/g, "\\'")}' \n`;
-    });
-
-    const updateQuery = `
-      UPDATE \`heat_ranking.songs_master\`
-      SET detectedArtist = CASE videoId
-        ${sqlCases}
-        ELSE detectedArtist
-      END
-      WHERE videoId IN (${idList.join(',')})
-    `;
-
     try {
-      await bq.query(updateQuery);
-      process.stdout.write(`.` ); // progress indicator
+      await bq.query({
+        query: `
+          UPDATE \`heat_ranking.songs_master\` t
+          SET t.detectedArtist = s.newArtist
+          FROM UNNEST(@updates) AS s
+          WHERE t.videoId = s.videoId
+        `,
+        params: { updates: batch.map(u => ({ videoId: u.videoId, newArtist: u.newArtist })) },
+        types: {
+          updates: {
+            type: 'ARRAY',
+            arrayType: {
+              type: 'STRUCT',
+              structTypes: [
+                { name: 'videoId',   type: { type: 'STRING' } },
+                { name: 'newArtist', type: { type: 'STRING' } },
+              ],
+            },
+          },
+        },
+      });
+      process.stdout.write('.');
     } catch (e) {
       console.error(`\nError updating batch ${i}:`, e.message);
     }

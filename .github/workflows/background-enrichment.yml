@@ -30,21 +30,38 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: node scripts/background-metadata-fetch.mjs
 
-      - name: Step 2 - Fix Label Artist Names with AI
-        # This step only runs after Phase 1 is complete (all metadata filled)
-        # In the meantime, it skips any songs without description (already guarded by SQL)
-        env:
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node scripts/background-artist-fix.mjs
+      # Step 2 (Fix Label Artist Names with AI) is disabled.
+      # Artist name corrections are now managed manually via Label_Roster + fix-production-artist-names.mjs
 
-      - name: Step 3 - Clean Up Song Titles (cleanTitle column)
+      - name: Step 3 - Clean Up Song Titles (SONGS)
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          NEXT_PUBLIC_SHEET_ID: ${{ secrets.NEXT_PUBLIC_SHEET_ID }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: node scripts/background-title-cleanup.mjs
+        run: node scripts/cleanup-titles-gemini.mjs --write --all --sheet=SONGS
+
+      - name: Step 4 - Clean Up Song Titles (SONGS_LONG, 300/day)
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          NEXT_PUBLIC_SHEET_ID: ${{ secrets.NEXT_PUBLIC_SHEET_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node scripts/cleanup-titles-gemini.mjs --write --limit=300 --sheet=SONGS_LONG
+
+      - name: Step 5 - Delete NG Keyword Songs (SONGS + SONGS_LONG)
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          NEXT_PUBLIC_SHEET_ID: ${{ secrets.NEXT_PUBLIC_SHEET_ID }}
+        run: |
+          node scripts/cleanup-ng-songs.mjs --delete --sheet=SONGS
+          node scripts/cleanup-ng-songs.mjs --delete --sheet=SONGS_LONG
+
+      - name: Step 6 - Sync BigQuery back to Sheets
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          NEXT_PUBLIC_SHEET_ID: ${{ secrets.NEXT_PUBLIC_SHEET_ID }}
+        run: node scripts/sync-bq-to-sheets.mjs

@@ -43,6 +43,19 @@ const sheets = google.sheets({ version: 'v4', auth });
 const bq = new BigQuery({ projectId: PROJECT_ID, credentials });
 const youtube = google.youtube({ version: 'v3', auth: YOUTUBE_API_KEY, timeout: 20000 });
 
+async function withRetry(fn, label = '', maxAttempts = 3) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (attempt === maxAttempts) throw e;
+      const delay = 1000 * Math.pow(2, attempt - 1);
+      console.warn(`  [retry ${attempt}/${maxAttempts}] ${label}: ${e.message} → ${delay}ms後リトライ`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+}
+
 async function getTodayKey() {
   const args = process.argv.slice(2);
   const forcedDate = args.find(a => a.startsWith('--date='))?.split('=')[1];
@@ -183,10 +196,10 @@ async function runSnapshotNode() {
     await updateProcessStatus('Snapshot: YouTube Stats', i, videoIds.length);
     
     try {
-      const res = await youtube.videos.list({
-        part: ['statistics', 'snippet'],
-        id: chunk,
-      });
+      const res = await withRetry(
+        () => youtube.videos.list({ part: ['statistics', 'snippet'], id: chunk }),
+        `videos.list chunk ${i / 50 + 1}`
+      );
 
       const items = res.data.items || [];
       const foundIds = new Set(items.map(it => it.id));
@@ -211,7 +224,7 @@ async function runSnapshotNode() {
         });
       });
     } catch (e) {
-      console.error(`  YouTube API Chunk error: ${e.message}`);
+      console.error(`  YouTube API Chunk error (全${3}回失敗): ${e.message}`);
     }
   }
 
@@ -220,18 +233,25 @@ async function runSnapshotNode() {
   const sortedForAudit = [...snapshotsRows].sort((a, b) => b.views - a.views).slice(0, 100);
   console.log(`--- Performing AI Comment Quality Audit on Top 100 videos ---`);
   
-  for (const item of sortedForAudit) {
-    console.log(`Analyzing comments for: ${item.videoId} (${songsMap.get(item.videoId)?.title || 'Unknown'})`);
-    await updateProcessStatus('Snapshot: AI Audit', sortedForAudit.indexOf(item), sortedForAudit.length);
-    const commentsList = await fetchComments(item.videoId);
-    const audit = await analyzeCommentQuality(item.videoId, commentsList);
+  console.log(`--- Performing AI Comment Quality Audit on Top 100 videos (Parallelized) ---`);
+  
+  const auditConcurrency = 5;
+  for (let i = 0; i < sortedForAudit.length; i += auditConcurrency) {
+    const auditBatch = sortedForAudit.slice(i, i + auditConcurrency);
+    console.log(`Auditing batch ${Math.floor(i/auditConcurrency) + 1}/${Math.ceil(sortedForAudit.length/auditConcurrency)}...`);
     
-    // Update the original row in snapshotsRows
-    const originalRow = snapshotsRows.find(r => r.videoId === item.videoId);
-    if (originalRow) {
-      originalRow.qualityScore = audit.score;
-      originalRow.qualitySummary = audit.summary;
-    }
+    await Promise.all(auditBatch.map(async (item) => {
+      console.log(`  Analyzing: ${item.videoId} (${songsMap.get(item.videoId)?.title || 'Unknown'})`);
+      const commentsList = await fetchComments(item.videoId);
+      const audit = await analyzeCommentQuality(item.videoId, commentsList);
+      
+      const originalRow = snapshotsRows.find(r => r.videoId === item.videoId);
+      if (originalRow) {
+        originalRow.qualityScore = audit.score;
+        originalRow.qualitySummary = audit.summary;
+      }
+    }));
+    await updateProcessStatus('Snapshot: AI Audit', i + auditBatch.length, sortedForAudit.length);
   }
 
   // 3. Write to Google Sheets (APPEND to SNAPSHOT)
@@ -274,14 +294,17 @@ async function runSnapshotNode() {
       
       if (countRows.length >= 2) {
         const latest = parseInt(countRows[0].total);
-        const previous = parseInt(countRows[1].total);
-        const ratio = latest / previous;
-        console.log(`Integrity Check: Today=${latest}, Yesterday=${previous} (Ratio: ${Math.round(ratio * 100)}%)`);
-        
-        if (ratio < 0.90) {
+        // Use 2-day average if available, otherwise single previous day
+        const baseline = countRows.length >= 3
+          ? (parseInt(countRows[1].total) + parseInt(countRows[2].total)) / 2
+          : parseInt(countRows[1].total);
+        const ratio = latest / baseline;
+        console.log(`Integrity Check: Today=${latest}, Baseline=${Math.round(baseline)} (Ratio: ${Math.round(ratio * 100)}%)`);
+
+        if (ratio < 0.75) {
           await sendTelegramNotification(
             `🚨 <b>データ欠落アラート</b>\n` +
-            `本日の取得件数が昨日の<b>${Math.round(ratio * 100)}%</b> (${latest}/${previous}) に低下しています。\n\n` +
+            `本日の取得件数が直近2日平均の<b>${Math.round(ratio * 100)}%</b> (${latest}/${Math.round(baseline)}) に低下しています。\n\n` +
             `YouTube APIのクォータ制限等により、一部の楽曲データが取得できていない可能性があります。`
           );
         }

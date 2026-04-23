@@ -31,6 +31,7 @@ jobs:
           NEXT_PUBLIC_SHEET_ID: ${{ secrets.NEXT_PUBLIC_SHEET_ID }}
         run: |
           node scripts/update-songs-node.mjs
+          node scripts/auto-register-roster.mjs
           node scripts/daily-snapshot-node.mjs
           node scripts/generate-ranking-node.mjs
           node scripts/post-fb-node.mjs

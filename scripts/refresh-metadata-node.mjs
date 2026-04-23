@@ -6,6 +6,7 @@ import { dirname, join } from 'path';
 import { classifySong } from './classify-song-node.mjs';
 import { sendTelegramNotification } from './telegram-node.mjs';
 import { updateProcessStatus } from './process-tracker.mjs';
+import { SOURCE } from './constants.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../.env.local') });
@@ -126,7 +127,7 @@ async function runMetadataRefresh() {
           description = S.description,
           topComments = S.topComments,
           analyzedReason = S.analyzedReason,
-          classificationSource = 'AI_REFRESH'
+          classificationSource = IF(T.classificationSource = '${SOURCE.ARTIST_FIXED}', '${SOURCE.ARTIST_FIXED}', '${SOURCE.AI_REFRESH}')
     `;
 
     try {

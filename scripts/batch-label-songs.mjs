@@ -6,6 +6,7 @@ import { dirname, join } from 'path';
 import fetch from 'node-fetch';
 import { google } from 'googleapis';
 import { classifySong } from './classify-song-node.mjs';
+import { SOURCE } from './constants.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../.env.local') });
@@ -144,7 +145,7 @@ async function runBatchLabeling() {
           description = IF(S.description != '', S.description, T.description),
           topComments = S.topComments,
           analyzedReason = IF(S.analyzedReason != '', S.analyzedReason, T.analyzedReason),
-          classificationSource = 'AI'
+          classificationSource = IF(T.classificationSource = '${SOURCE.ARTIST_FIXED}', '${SOURCE.ARTIST_FIXED}', '${SOURCE.AI}')
     `;
 
     // Retry logic for the MERGE statement (less likely to fail than 1-by-1)

@@ -60,8 +60,24 @@ async function sync() {
 
   const header = ['videoId', 'artist', 'title', 'Clean Title', 'publishedAt', 'Event Tag', 'Category', 'DetectedArtist', 'Featuring', 'Link'];
   
-  const songsTopData = [header, ...sheetData.slice(0, 5000)];
+  // Define ranking window: 60 days
+  const now = new Date();
+  const sixtyDaysAgo = new Date(now.getTime() - (60 * 24 * 60 * 60 * 1000));
+  console.log(`  Ranking window cutoff: ${sixtyDaysAgo.toISOString().split('T')[0]}`);
+
+  // Filter for SONGS sheet (recent 60 days)
+  const topRows = rows.filter(r => {
+    let pubDate = r.publishedAt;
+    if (pubDate && typeof pubDate === 'object' && pubDate.value) pubDate = pubDate.value;
+    const d = new Date(pubDate);
+    return d >= sixtyDaysAgo;
+  });
+
+  const songsTopData = [header, ...sheetData.slice(0, topRows.length)];
   const songsLongData = [header, ...sheetData];
+
+  console.log(`  SONGS sheet will have ${topRows.length} recent songs.`);
+  console.log(`  SONGS_LONG sheet will have ${sheetData.length} total songs.`);
 
   // 3. Ensure Grid Limits are enough
   console.log('  Ensuring sheet grid limits...');
