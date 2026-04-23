@@ -10,7 +10,6 @@ dotenv.config({ path: join(__dirname, '../.env.local') });
 
 const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID;
 const PROJECT_ID = process.env.GCP_PROJECT_ID;
-const ROSTER_SHEET_ID = 529344445;
 
 const rawJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}';
 const credentials = JSON.parse(rawJson.trim().replace(/^['\"]|['\"]$/g, ''));
@@ -23,14 +22,18 @@ const sheets = google.sheets({ version: 'v4', auth });
 async function autoRegisterRoster() {
   console.log('--- Starting Auto Artist Registration to Label_Roster ---');
 
-  // 1. Get Productions from Artists sheet
-  const resArtists = await sheets.spreadsheets.values.get({ 
-    spreadsheetId: SHEET_ID, 
-    range: 'Artists!A2:F' 
+  // 1. Get Productions from Artists sheet (A=name, M=type at index 12)
+  const resArtists = await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: 'Artists!A2:M'
   });
   const productions = (resArtists.data.values || [])
-    .filter(r => r[5] === 'P' || r[5] === 'Production' || r[12] === 'P') // Column F is Type (index 5)
-    .map(r => r[0].trim());
+    .filter(r => {
+      const type = (r[12] || '').trim();
+      return type === 'Label' || type === 'P' || type === 'Production';
+    })
+    .map(r => (r[0] || '').trim())
+    .filter(Boolean);
 
   if (productions.length === 0) {
     console.log('No production channels found in Artists sheet.');

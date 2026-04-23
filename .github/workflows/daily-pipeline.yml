@@ -33,7 +33,11 @@ jobs:
           node scripts/sync-artists-master.mjs
           node scripts/sync-sheets-to-bq.mjs
           node scripts/update-songs-node.mjs
+          node scripts/cleanup-ng-songs.mjs --delete --sheet=SONGS
+          node scripts/cleanup-ng-songs.mjs --delete --sheet=SONGS_LONG
+          node scripts/backfill-detected-artists.mjs
           node scripts/auto-register-roster.mjs
+          node scripts/sync-sheets-to-bq.mjs
           node scripts/daily-snapshot-node.mjs
           node scripts/generate-ranking-node.mjs
           node scripts/post-fb-node.mjs

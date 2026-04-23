@@ -33,6 +33,12 @@ jobs:
       # Step 2 (Fix Label Artist Names with AI) is disabled.
       # Artist name corrections are now managed manually via Label_Roster + fix-production-artist-names.mjs
 
+      - name: Step 2b - Rule-Based Title Cleanup (fast, no API cost)
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: node scripts/background-title-cleanup.mjs
+
       - name: Step 3 - Clean Up Song Titles (SONGS)
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
