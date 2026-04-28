@@ -228,13 +228,20 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
         (SELECT COUNT(*) FROM \`${DATASET_ID}.songs_master\`) as totalSongs
     `);
 
-    // 4b. Daily Actions: yesterday's snapshot fetch count
+    // 4b. Daily Actions: yesterday's total views / likes / comments
     const [actionRows] = await bq.query(`
-      SELECT COUNT(*) as cnt
+      SELECT
+        COALESCE(SUM(views), 0)    as total_views,
+        COALESCE(SUM(likes), 0)    as total_likes,
+        COALESCE(SUM(comments), 0) as total_comments
       FROM \`${DATASET_ID}.snapshots\`
       WHERE date = DATE_SUB(CURRENT_DATE('Asia/Bangkok'), INTERVAL 1 DAY)
     `);
-    const dailyActions = Number(actionRows[0]?.cnt || 0);
+    const dailyActions = {
+      views:    Number(actionRows[0]?.total_views    || 0),
+      likes:    Number(actionRows[0]?.total_likes    || 0),
+      comments: Number(actionRows[0]?.total_comments || 0),
+    };
 
     // 5. Format Response
     const trendValues = trendRows.map(r => r.weekly_volume);

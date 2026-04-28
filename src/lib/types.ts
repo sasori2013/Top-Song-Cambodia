@@ -27,7 +27,7 @@ export interface RankingStats {
     totalSongs: number;
     heatGrowth?: number;
     heatTrend?: number[];
-    dailyActions?: number;
+    dailyActions?: { views: number; likes: number; comments: number };
 }
 
 export interface RankingResponse {
