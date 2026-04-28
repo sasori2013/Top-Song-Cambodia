@@ -26,10 +26,12 @@ const bq = new BigQuery({ projectId: PROJECT_ID, credentials });
 async function syncArtistsMaster() {
   console.log('--- Synchronizing Artists Master (Sheets -> BigQuery) ---');
 
-  // 1. Fetch all data from Artists sheet (Rows A to M)
+  // 1. Fetch all data from Artists sheet (Rows A to O)
+  // A:name B:youtubeUrl C:channelId D:subscribers E:facebook F:role G:lastSync
+  // H:deepSearch I:bio J:genres K:links L:artistInfo M:type N:detectedArtists O:titleFilter
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: 'Artists!A2:M',
+    range: 'Artists!A2:O',
   });
   const rows = res.data.values || [];
   console.log(`Fetched ${rows.length} artists from Sheets.`);
@@ -38,18 +40,17 @@ async function syncArtistsMaster() {
   const bqRows = rows.map(r => {
     return {
       name: r[0] || null,
-      type: r[12] || 'Artist', // Column M (index 12)
+      type: r[12] || 'Artist',
       channelId: r[2] || null,
       subscribers: r[3] ? parseInt(String(r[3]).replace(/,/g, '')) || 0 : 0,
       facebook: r[4] || null,
       productionName: r[5] || null,
       lastSync: r[6] || null,
-      // H is Deep Search (boolean-like), we skip it for metadata if not needed, 
-      // but let's map the metadata starting from I (index 8)
       bio: r[8] || null,
       genres: r[9] || null,
       links: r[10] || null,
       artistInfo: r[11] || null,
+      titleFilter: r[14] || null,
       lastUpdated: new Date().toISOString()
     };
   }).filter(a => a.name); // Filter out empty rows

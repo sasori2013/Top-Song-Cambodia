@@ -26,7 +26,9 @@ const CFG = {
 
   // Artists列（あなたのシートに合わせる）
   // A:Artist Name / B:YouTube URL / C:Channel ID / D:Subscribers / E:Facebook / F:Role (P for Production)
-  ART_COLS: { name: 0, youtubeUrl: 1, channelId: 2, subscribers: 3, facebook: 4, role: 5, lastSync: 6, deepSearch: 7 },
+  // G:Last Sync / H:Deep Search / I:Bio / J:Genres / K:Links / L:ArtistInfo / M:Type / N:Detected Artists / O:Title Filter
+  // O列 Title Filter: パイプ区切りキーワード。例: OFFICIAL MUSIC VIDEO|OFFICIAL AUDIO
+  ART_COLS: { name: 0, youtubeUrl: 1, channelId: 2, subscribers: 3, facebook: 4, role: 5, lastSync: 6, deepSearch: 7, bio: 8, genres: 9, links: 10, artistInfo: 11, type: 12, detectedArtists: 13, titleFilter: 14 },
 
   LOOKBACK_DAYS_SONGS: 60,   // 新曲収集の対象期間
   LOOKBACK_DAYS_RANK: 7,     // ランキング差分期間
@@ -81,8 +83,9 @@ function updateSongs() {
     const name = String(artists[i][CFG.ART_COLS.name] || '').trim();
     const channelId = String(artists[i][CFG.ART_COLS.channelId] || '').trim();
     const isDeepSearch = String(artists[i][CFG.ART_COLS.deepSearch] || '').toUpperCase() === 'TRUE';
+    const titleFilter = String(artists[i][CFG.ART_COLS.titleFilter] || '').trim();
     if (name && channelId) {
-      targets.push({ name, channelId, rowIndex: i, isDeepSearch });
+      targets.push({ name, channelId, rowIndex: i, isDeepSearch, titleFilter });
     }
   }
 
@@ -158,7 +161,7 @@ function updateSongs() {
     // 重複を弾いて「詳細取得待ち」に送る
     playlistVideoIds.forEach(vid => {
       if (!existing.has(vid)) {
-        allVideoIdsToFetch.set(vid, { name: t.name, channelId: t.channelId });
+        allVideoIdsToFetch.set(vid, { name: t.name, channelId: t.channelId, titleFilter: t.titleFilter });
       }
     });
   }
@@ -187,7 +190,7 @@ function updateSongs() {
       // 重複を弾いて「詳細取得待ち」に送る
       searchVideoIds.forEach(vid => {
         if (!existing.has(vid)) {
-          allVideoIdsToFetch.set(vid, { name: t.name, channelId: t.channelId });
+          allVideoIdsToFetch.set(vid, { name: t.name, channelId: t.channelId, titleFilter: t.titleFilter });
         }
       });
     } catch(e) {
@@ -258,7 +261,12 @@ function updateSongs() {
   } else if (artists[0] && !artists[0][CFG.ART_COLS.deepSearch]) {
     artists[0][CFG.ART_COLS.deepSearch] = "Deep Search";
   }
-  
+  if (artists[0] && artists[0].length <= CFG.ART_COLS.titleFilter) {
+    artists[0][CFG.ART_COLS.titleFilter] = "Title Filter";
+  } else if (artists[0] && !artists[0][CFG.ART_COLS.titleFilter]) {
+    artists[0][CFG.ART_COLS.titleFilter] = "Title Filter";
+  }
+
   // 最大列数を確認して必要なら拡張
   const maxCols = Math.max(...artists.map(row => row.length));
   shA.getRange(1, 1, artists.length, maxCols).setValues(artists.map(row => {
@@ -1402,7 +1410,6 @@ function validateAndCreateSongRow_(v, artistInfo) {
   const title = String(v.snippet.title || '').trim();
   const publishedAt = v.snippet.publishedAt || '';
   const categoryId = String(v.snippet.categoryId || '');
-  const viewCount = Number(v.statistics.viewCount || 0);
   const durSec = iso8601DurationToSeconds_(v.contentDetails.duration || 'PT0S');
   const now = new Date();
 
@@ -1415,10 +1422,18 @@ function validateAndCreateSongRow_(v, artistInfo) {
   const ageDays = (now - pub) / (1000 * 60 * 60 * 24);
   if (ageDays > CFG.LOOKBACK_DAYS_SONGS) return null;
 
+  // チャンネル固有のタイトルフィルタ（I列: Title Filter）
+  // パイプ区切りキーワードのいずれかがタイトルに含まれなければ除外
+  if (artistInfo.titleFilter) {
+    const keywords = artistInfo.titleFilter.split('|').map(k => k.trim().toUpperCase()).filter(k => k);
+    const titleUpper = title.toUpperCase();
+    if (keywords.length > 0 && !keywords.some(k => titleUpper.includes(k))) return null;
+  }
+
   // リンク付きタイトル
   const videoUrl = "https://www.youtube.com/watch?v=" + v.id;
   const linkedTitle = '=HYPERLINK("' + videoUrl + '", "' + title.replace(/"/g, '""') + '")';
-  
+
   return [v.id, artistInfo.name, linkedTitle, publishedAt];
 }
 

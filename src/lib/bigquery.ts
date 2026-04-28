@@ -218,7 +218,7 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
 
     // 4. Global Stats
     const [countRows] = await bq.query(`
-      SELECT 
+      SELECT
         (SELECT COUNT(DISTINCT targetArtist) FROM (
           SELECT name AS targetArtist FROM \`${DATASET_ID}.artists_master\` WHERE type = 'Artist'
           UNION DISTINCT
@@ -227,6 +227,14 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
         )) as totalArtists,
         (SELECT COUNT(*) FROM \`${DATASET_ID}.songs_master\`) as totalSongs
     `);
+
+    // 4b. Daily Actions: yesterday's snapshot fetch count
+    const [actionRows] = await bq.query(`
+      SELECT COUNT(*) as cnt
+      FROM \`${DATASET_ID}.snapshots\`
+      WHERE date = DATE_SUB(CURRENT_DATE('Asia/Bangkok'), INTERVAL 1 DAY)
+    `);
+    const dailyActions = Number(actionRows[0]?.cnt || 0);
 
     // 5. Format Response
     const trendValues = trendRows.map(r => r.weekly_volume);
@@ -290,7 +298,8 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
         totalProductions: 12,
         totalSongs: countRows[0].totalSongs,
         heatGrowth: Math.round(heatGrowth * 10) / 10,
-        heatTrend: trendValues
+        heatTrend: trendValues,
+        dailyActions
       },
       ranking: ranking
     } as RankingResponse;

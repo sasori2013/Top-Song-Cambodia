@@ -4,6 +4,7 @@ import React from 'react';
 import { RankingItem, RankingStats } from '@/lib/types';
 import { RankingCard } from './RankingCard';
 import { HeatIndexMetrics } from './HeatIndexMetrics';
+import { DailyActions } from './DailyActions';
 
 interface RankingListProps {
     items: RankingItem[];
@@ -22,6 +23,7 @@ export const RankingList: React.FC<RankingListProps> = ({
         <section className="container mx-auto max-w-6xl px-4 md:px-6 py-20 border-t border-white/5">
             <div className="flex flex-col items-center mb-16 md:mb-24">
                 {!hideMetrics && <HeatIndexMetrics growth={stats?.heatGrowth} trend={stats?.heatTrend} />}
+                {!hideMetrics && <DailyActions count={stats?.dailyActions} />}
 
                 {children}
 

@@ -27,6 +27,7 @@ export interface RankingStats {
     totalSongs: number;
     heatGrowth?: number;
     heatTrend?: number[];
+    dailyActions?: number;
 }
 
 export interface RankingResponse {

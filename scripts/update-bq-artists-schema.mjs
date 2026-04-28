@@ -28,6 +28,7 @@ async function updateSchema() {
     ADD COLUMN IF NOT EXISTS genres STRING,
     ADD COLUMN IF NOT EXISTS links STRING,
     ADD COLUMN IF NOT EXISTS artistInfo STRING,
+    ADD COLUMN IF NOT EXISTS titleFilter STRING,
     ADD COLUMN IF NOT EXISTS lastSync STRING,
     ADD COLUMN IF NOT EXISTS lastUpdated TIMESTAMP
   `;
