@@ -239,24 +239,16 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
         (SELECT COUNT(*) FROM \`${DATASET_ID}.songs_master\`) as totalSongs
     `);
 
-    // 4b. Daily Actions: yesterday's incremental views / likes / comments (not cumulative)
+    // 4b. Daily Actions: incremental views/likes/comments between the two most recent complete snapshots
     const [actionRows] = await bq.query(`
-      WITH daily AS (
-        SELECT
-          videoId, date,
-          views,    LAG(views)    OVER(PARTITION BY videoId ORDER BY date) AS prev_views,
-          likes,    LAG(likes)    OVER(PARTITION BY videoId ORDER BY date) AS prev_likes,
-          comments, LAG(comments) OVER(PARTITION BY videoId ORDER BY date) AS prev_comments
-        FROM \`${DATASET_ID}.snapshots\`
-        WHERE date >= DATE_SUB(CURRENT_DATE('Asia/Bangkok'), INTERVAL 2 DAY)
-      )
       SELECT
-        COALESCE(SUM(CASE WHEN views    > prev_views    THEN views    - prev_views    ELSE 0 END), 0) AS inc_views,
-        COALESCE(SUM(CASE WHEN likes    > prev_likes    THEN likes    - prev_likes    ELSE 0 END), 0) AS inc_likes,
-        COALESCE(SUM(CASE WHEN comments > prev_comments THEN comments - prev_comments ELSE 0 END), 0) AS inc_comments
-      FROM daily
-      WHERE date = DATE_SUB(CURRENT_DATE('Asia/Bangkok'), INTERVAL 1 DAY)
-        AND prev_views IS NOT NULL
+        COALESCE(SUM(CASE WHEN s1.views    > s2.views    THEN s1.views    - s2.views    ELSE 0 END), 0) AS inc_views,
+        COALESCE(SUM(CASE WHEN s1.likes    > s2.likes    THEN s1.likes    - s2.likes    ELSE 0 END), 0) AS inc_likes,
+        COALESCE(SUM(CASE WHEN s1.comments > s2.comments THEN s1.comments - s2.comments ELSE 0 END), 0) AS inc_comments
+      FROM \`${DATASET_ID}.snapshots\` s1
+      JOIN \`${DATASET_ID}.snapshots\` s2 ON s1.videoId = s2.videoId
+      WHERE CAST(s1.date AS STRING) = '${latestDate}'
+        AND CAST(s2.date AS STRING) = '${prevSnapDate}'
     `);
     const dailyActions = {
       views:    Number(actionRows[0]?.inc_views    || 0),

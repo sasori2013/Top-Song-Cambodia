@@ -74,7 +74,7 @@ export const DailyActions: React.FC<DailyActionsProps> = ({ count }) => {
                     <div className="flex gap-2 items-center">
                         <div className="w-1 h-1 bg-[#AEEFFF] rounded-full animate-pulse opacity-40" />
                         <span className="text-[8px] text-white/20 font-bold uppercase tracking-widest">
-                            YESTERDAY&apos;S PIPELINE DATA
+                            LATEST PIPELINE DATA
                         </span>
                     </div>
                 </div>
