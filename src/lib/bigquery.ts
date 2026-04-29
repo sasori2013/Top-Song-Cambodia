@@ -228,19 +228,29 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
         (SELECT COUNT(*) FROM \`${DATASET_ID}.songs_master\`) as totalSongs
     `);
 
-    // 4b. Daily Actions: yesterday's total views / likes / comments
+    // 4b. Daily Actions: yesterday's incremental views / likes / comments (not cumulative)
     const [actionRows] = await bq.query(`
+      WITH daily AS (
+        SELECT
+          videoId, date,
+          views,    LAG(views)    OVER(PARTITION BY videoId ORDER BY date) AS prev_views,
+          likes,    LAG(likes)    OVER(PARTITION BY videoId ORDER BY date) AS prev_likes,
+          comments, LAG(comments) OVER(PARTITION BY videoId ORDER BY date) AS prev_comments
+        FROM \`${DATASET_ID}.snapshots\`
+        WHERE date >= DATE_SUB(CURRENT_DATE('Asia/Bangkok'), INTERVAL 2 DAY)
+      )
       SELECT
-        COALESCE(SUM(views), 0)    as total_views,
-        COALESCE(SUM(likes), 0)    as total_likes,
-        COALESCE(SUM(comments), 0) as total_comments
-      FROM \`${DATASET_ID}.snapshots\`
+        COALESCE(SUM(CASE WHEN views    > prev_views    THEN views    - prev_views    ELSE 0 END), 0) AS inc_views,
+        COALESCE(SUM(CASE WHEN likes    > prev_likes    THEN likes    - prev_likes    ELSE 0 END), 0) AS inc_likes,
+        COALESCE(SUM(CASE WHEN comments > prev_comments THEN comments - prev_comments ELSE 0 END), 0) AS inc_comments
+      FROM daily
       WHERE date = DATE_SUB(CURRENT_DATE('Asia/Bangkok'), INTERVAL 1 DAY)
+        AND prev_views IS NOT NULL
     `);
     const dailyActions = {
-      views:    Number(actionRows[0]?.total_views    || 0),
-      likes:    Number(actionRows[0]?.total_likes    || 0),
-      comments: Number(actionRows[0]?.total_comments || 0),
+      views:    Number(actionRows[0]?.inc_views    || 0),
+      likes:    Number(actionRows[0]?.inc_likes    || 0),
+      comments: Number(actionRows[0]?.inc_comments || 0),
     };
 
     // 5. Format Response
