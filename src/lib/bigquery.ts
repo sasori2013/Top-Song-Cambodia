@@ -139,31 +139,42 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
   try {
     // 1. Get Latest Ranking Date AND the Date before it
     const [dateRows] = await bq.query(`
-      SELECT DISTINCT date as d FROM \`${DATASET_ID}.rank_history\` 
-      WHERE type = 'DAILY' 
+      SELECT DISTINCT date as d FROM \`${DATASET_ID}.rank_history\`
+      WHERE type = 'DAILY'
         AND date != '2026-04-05' -- Skip corrupted data date
       ORDER BY date DESC LIMIT 2
     `);
     if (dateRows.length === 0 || !dateRows[0].d) return null;
-    
+
     const latestDate = dateRows[0].d.value;
-    // Standardize: if we don't have a second date, we use latestDate (which will result in NEW ENTRY for all)
     const baseDate = dateRows.length > 1 ? dateRows[1].d.value : latestDate;
 
-    console.log(`Site Fetch [DAILY]: Latest=${latestDate}, Base=${baseDate}`);
+    // 1b. Get the most recent complete snapshot date before latestDate (>=400 songs = full run)
+    const [prevSnapRows] = await bq.query(`
+      SELECT CAST(date AS STRING) as d
+      FROM \`${DATASET_ID}.snapshots\`
+      WHERE date < DATE '${latestDate}'
+      GROUP BY date
+      HAVING COUNT(*) >= 400
+      ORDER BY date DESC
+      LIMIT 1
+    `);
+    const prevSnapDate = prevSnapRows[0]?.d || baseDate;
+
+    console.log(`Site Fetch [DAILY]: Latest=${latestDate}, Base=${baseDate}, PrevSnap=${prevSnapDate}`);
 
     // 2. Fetch Top 40 Ranking (deduplicated by rank)
     const rankingQuery = `
-      SELECT 
+      SELECT
         r.rank, r.heatScore, r.videoId,
         s.artist, COALESCE(NULLIF(s.cleanTitle, ''), s.title) as title, s.publishedAt,
-        snap.views as totalV,
+        snap.views as totalV, snap.likes as likes, snap.comments as comments,
         prev_snap.views as prevV,
         prev_rank.rank as prevRank
       FROM \`${DATASET_ID}.rank_history\` r
       JOIN \`${DATASET_ID}.songs_master\` s ON r.videoId = s.videoId
       LEFT JOIN \`${DATASET_ID}.snapshots\` snap ON r.videoId = snap.videoId AND snap.date = r.date
-      LEFT JOIN \`${DATASET_ID}.snapshots\` prev_snap ON r.videoId = prev_snap.videoId AND prev_snap.date = DATE '${baseDate}'
+      LEFT JOIN \`${DATASET_ID}.snapshots\` prev_snap ON r.videoId = prev_snap.videoId AND prev_snap.date = DATE '${prevSnapDate}'
       LEFT JOIN \`${DATASET_ID}.rank_history\` prev_rank ON r.videoId = prev_rank.videoId AND prev_rank.date = DATE '${baseDate}' AND prev_rank.type = 'DAILY'
       WHERE r.date = '${latestDate}' AND r.type = 'DAILY'
       QUALIFY ROW_NUMBER() OVER(PARTITION BY r.rank ORDER BY r.heatScore DESC) = 1
@@ -288,7 +299,10 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
       const dv = Math.max(0, (r.totalV || 0) - (r.prevV || 0));
       const growth = r.prevV ? (dv / r.prevV) * 100 : 0;
       const rankChange = r.prevRank ? r.prevRank - r.rank : 'NEW';
-      
+      const engagement = (r.totalV || 0) > 0
+        ? ((Number(r.likes || 0) + Number(r.comments || 0)) / r.totalV) * 100
+        : 0;
+
       return {
         rank: r.rank,
         artist: r.artist,
@@ -296,6 +310,7 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
         views: r.totalV || 0,
         dailyViews: dv,
         growth: Math.round(growth * 100) / 100,
+        engagement: Math.round(engagement * 100) / 100,
         heatScore: r.heatScore,
         rankChange: rankChange,
         videoId: r.videoId,
