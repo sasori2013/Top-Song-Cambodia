@@ -1,6 +1,5 @@
 import { google } from 'googleapis';
 import { BigQuery } from '@google-cloud/bigquery';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -254,16 +253,10 @@ async function runSnapshotNode() {
     await updateProcessStatus('Snapshot: AI Audit', i + auditBatch.length, sortedForAudit.length);
   }
 
-  // 3. Write to Google Sheets (APPEND to SNAPSHOT)
+  // 3. Write to BigQuery (INSERT)
   if (snapshotsRows.length > 0) {
-    const sheetValues = snapshotsRows.map(s => [s.date, s.videoId, s.views, s.likes, s.comments]);
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SHEET_ID,
-      range: 'SNAPSHOT!A:E',
-      valueInputOption: 'USER_ENTERED',
-      requestBody: { values: sheetValues },
-    });
-    console.log(`Updated SNAPSHOT sheet with ${snapshotsRows.length} rows.`);
+    // Note: SNAPSHOT Google Sheet is managed by GAS pipeline only.
+    // Node.js pipeline writes exclusively to BigQuery to avoid duplicate entries.
 
     // 4. Write to BigQuery (INSERT)
     console.log('Inserting into BigQuery...');

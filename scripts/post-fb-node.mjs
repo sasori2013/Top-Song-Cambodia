@@ -1,5 +1,4 @@
 import { google } from 'googleapis';
-import { BigQuery } from '@google-cloud/bigquery';
 import fetch from 'node-fetch'; // need node-fetch v2/v3
 import FormData from 'form-data';
 import dotenv from 'dotenv';
@@ -13,7 +12,6 @@ dotenv.config({ path: join(__dirname, '../.env.local') });
 const getEnv = (key) => (process.env[key] || '').trim().replace(/^['"]|['"]$/g, '');
 
 const SHEET_ID = getEnv('NEXT_PUBLIC_SHEET_ID');
-const PROJECT_ID = getEnv('GCP_PROJECT_ID');
 const FB_ACCESS_TOKEN = getEnv('FB_ACCESS_TOKEN');
 const PAGE_ID = '971418716059046';
 const OG_BASE_URL = 'https://heat-kh.vercel.app/api/og/ranking';
@@ -32,12 +30,33 @@ async function runPostFB() {
     scopes: ['https://www.googleapis.com/auth/spreadsheets'],
   });
   const sheets = google.sheets({ version: 'v4', auth });
-  const bq = new BigQuery({ projectId: PROJECT_ID, credentials });
 
+
+  // 0. Idempotency check — skip if GAS already posted today
+  const GAS_API_URL = getEnv('NEXT_PUBLIC_GAS_API_URL');
+  const todayKHR = (() => {
+    const d = new Date();
+    const fmt = new Intl.DateTimeFormat('fr-CA', { timeZone: 'Asia/Phnom_Penh', year: 'numeric', month: '2-digit', day: '2-digit' });
+    return fmt.format(d); // YYYY-MM-DD
+  })();
+  if (GAS_API_URL) {
+    try {
+      const debugRes = await fetch(`${GAS_API_URL}?action=debug_fb`, { signal: AbortSignal.timeout(10000) });
+      const debugData = await debugRes.json();
+      if (debugData.LAST_POST_DATE && debugData.LAST_POST_DATE === todayKHR) {
+        console.log(`GAS already posted today (${todayKHR}). Skipping Node.js post.`);
+        await sendTelegramNotification(`ℹ️ <b>FB投稿スキップ</b>\nGASが本日(${todayKHR})すでに投稿済みのため、Node.jsからの投稿をスキップします。`);
+        await updateProcessStatus('Post: Skipped (already posted by GAS)', 100, 100, 'completed');
+        return;
+      }
+    } catch (e) {
+      console.warn('GAS idempotency check failed (continuing):', e.message);
+    }
+  }
 
   // 1. Get Top Rankings from RANKING_DAILY sheet
-  const resRank = await sheets.spreadsheets.values.get({ 
-      spreadsheetId: SHEET_ID, 
+  const resRank = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
       range: 'RANKING_DAILY!A2:Z11' // Get Top 10
   });
   const rows = resRank.data.values || [];

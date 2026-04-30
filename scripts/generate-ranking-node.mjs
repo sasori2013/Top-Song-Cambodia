@@ -88,7 +88,22 @@ async function runRankingNode() {
   if (forcedDate) {
     latestDate = forcedDate;
   } else {
-    latestDate = allDates[0]; // We use the absolute latest for ranking even if unstable (though usually latest is stable)
+    // Use latest date only if it's stable. If today's snapshot is incomplete (quota hit etc.),
+    // fall back to the most recent stable date to avoid a broken ranking.
+    const absoluteLatest = allDates[0];
+    const absoluteLatestCount = dateRows.find(r => r.date.value === absoluteLatest)?.count || 0;
+    if (absoluteLatestCount >= 400) {
+      latestDate = absoluteLatest;
+    } else {
+      latestDate = stableDates[0]; // fallback to latest stable date
+      const pct = Math.round(absoluteLatestCount / (dateRows[1]?.count || 1) * 100);
+      console.warn(`⚠️ Latest date ${absoluteLatest} is unstable (${absoluteLatestCount} records, ~${pct}% of baseline). Falling back to ${latestDate}.`);
+      await sendTelegramNotification(
+        `⚠️ <b>ランキング生成: データ不足フォールバック</b>\n` +
+        `${absoluteLatest} のスナップショットが不完全 (${absoluteLatestCount}件, 約${pct}%) のため、\n` +
+        `代わりに <b>${latestDate}</b> のデータでランキングを生成します。`
+      );
+    }
   }
 
   if (forcedBase) {
@@ -96,7 +111,7 @@ async function runRankingNode() {
   } else {
     // Find the newest stable date that is older than latestDate
     baseDate = stableDates.find(d => d < latestDate);
-    
+
     if (!baseDate) {
       // Emergency fallback to the absolute next date if no stable dates found below
       const idx = allDates.indexOf(latestDate);
@@ -109,7 +124,7 @@ async function runRankingNode() {
   // Validation: Check stability of selected dates
   const latestCount = dateRows.find(r => r.date.value === latestDate)?.count || 0;
   const baseCount = dateRows.find(r => r.date.value === baseDate)?.count || 0;
-  
+
   if (latestCount < 400) console.warn(`⚠️ Warning: Latest date ${latestDate} is unstable (${latestCount} records).`);
   if (baseCount < 400) console.warn(`⚠️ Warning: Base date ${baseDate} is unstable (${baseCount} records).`);
 

@@ -1281,7 +1281,8 @@ function pruneSongs60d_(shSongs, keepDays) {
 
   for (let i = 1; i < values.length; i++) {
     const videoId = values[i][CFG.SONGS_COLS.videoId];
-    const publishedAt = values[i][CFG.SONGS_COLS.publishedAt];
+    // GAS writes publishedAt to column D (index 3); Node.js writes it to column E (index 4)
+    const publishedAt = values[i][CFG.SONGS_COLS.publishedAt] || values[i][4];
     const d = new Date(publishedAt || '');
     if (!d || isNaN(d.getTime())) continue;
 

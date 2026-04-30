@@ -1,6 +1,7 @@
 import { Exo, Inter } from "next/font/google";
 import "./globals.css";
 import ChatWidget from "../components/ChatWidget";
+import VortexWrapper from "../components/VortexWrapper";
 
 const exo = Exo({
   variable: "--font-exo",
@@ -30,6 +31,7 @@ export default function RootLayout({
       <body
         className={`${exo.variable} ${inter.variable} antialiased`}
       >
+        <VortexWrapper />
         {children}
         <ChatWidget />
       </body>
