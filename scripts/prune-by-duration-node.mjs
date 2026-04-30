@@ -3,11 +3,15 @@
  * 既存SONGSシート + BigQuery songs_master から、尺が範囲外の動画を一括削除する。
  *
  * 対象: duration < 80s (短尺) または duration > 600s (長尺非楽曲)
+ * 安全設計:
+ *   - YouTube API が返さなかった動画（API障害・クォータ超過）は削除しない
+ *   - 取得率が70%未満の場合は安全のため中断する
+ *   - シート書き直しは全列（A:J）対象でズレを防ぐ
  * 副作用なし: snapshots / rank_history は触らない（ranking JOIN が自然に除外する）
  *
  * 使い方:
- *   node scripts/prune-by-duration-node.mjs          # 実際に削除
- *   node scripts/prune-by-duration-node.mjs --dry-run # 確認のみ（削除しない）
+ *   node scripts/prune-by-duration-node.mjs --dry-run  # 確認のみ（変更なし）
+ *   node scripts/prune-by-duration-node.mjs            # 実際に削除
  */
 
 import { google } from 'googleapis';
@@ -57,9 +61,10 @@ function parseDuration(iso) {
 async function pruneSheet(sheetName) {
   console.log(`\n--- Processing sheet: ${sheetName} ---`);
 
+  // 全列を読む（シートが何列あっても対応、FORMULAで式も保持）
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${sheetName}!A2:D`,
+    range: `${sheetName}!A2:Z`,
     valueRenderOption: 'FORMULA',
   });
   const rows = res.data.values || [];
@@ -69,7 +74,7 @@ async function pruneSheet(sheetName) {
   }
   console.log(`  Rows found: ${rows.length}`);
 
-  // Extract all non-empty videoIds
+  // Extract all non-empty videoIds (column A)
   const videoIds = [...new Set(rows.map(r => (r[0] || '').trim()).filter(Boolean))];
   console.log(`  Unique videoIds: ${videoIds.length}`);
 
@@ -87,11 +92,20 @@ async function pruneSheet(sheetName) {
       console.warn(`\n  YouTube API error (batch ${Math.floor(i/50)+1}): ${e.message}`);
     }
   }
-  console.log(`\n  Durations fetched: ${durationMap.size}/${videoIds.length}`);
+  const fetchRate = durationMap.size / videoIds.length;
+  console.log(`\n  Durations fetched: ${durationMap.size}/${videoIds.length} (${Math.round(fetchRate*100)}%)`);
+
+  // 安全チェック: 取得率70%未満はAPIエラーの可能性が高いため中断
+  if (fetchRate < 0.70) {
+    console.error(`  ⚠️  取得率が${Math.round(fetchRate*100)}%と低すぎます（API障害・クォータ超過の可能性）。`);
+    console.error(`  安全のため処理を中断します。--dry-run で確認後に再試行してください。`);
+    return [];
+  }
 
   // Classify rows
   const validRows = [];
   const removedIds = [];
+  const notFoundIds = []; // APIで見つからなかった（削除しない）
   const removedDetails = [];
 
   for (const row of rows) {
@@ -100,8 +114,9 @@ async function pruneSheet(sheetName) {
 
     const dur = durationMap.get(videoId);
     if (dur === undefined) {
-      removedIds.push(videoId);
-      removedDetails.push({ videoId, dur: 'N/A', reason: '削除済み/非公開動画' });
+      // API未返答 → 安全のため残す（削除しない）
+      notFoundIds.push(videoId);
+      validRows.push(row);
       continue;
     }
     if (dur < MIN_SEC) {
@@ -117,17 +132,20 @@ async function pruneSheet(sheetName) {
     validRows.push(row);
   }
 
-  console.log(`\n  有効: ${validRows.length}  除外: ${removedDetails.length}`);
+  if (notFoundIds.length > 0) {
+    console.log(`  API未返答 (保持): ${notFoundIds.length} 件`);
+  }
+  console.log(`  有効 (保持): ${validRows.length}  除外: ${removedDetails.length}`);
   if (removedDetails.length > 0) {
     console.log('  除外リスト:');
     removedDetails.forEach(d => console.log(`    - ${d.videoId} [${d.dur}s] ${d.reason}`));
   }
 
   if (!DRY_RUN && removedIds.length > 0) {
-    // Rewrite sheet: clear then write valid rows
+    // 全列をクリア（列ズレ防止のため広めに）してから書き直し
     await sheets.spreadsheets.values.clear({
       spreadsheetId: SHEET_ID,
-      range: `${sheetName}!A2:D`,
+      range: `${sheetName}!A2:Z`,
     });
     if (validRows.length > 0) {
       await sheets.spreadsheets.values.update({

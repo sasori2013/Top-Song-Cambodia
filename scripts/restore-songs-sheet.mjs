@@ -1,8 +1,13 @@
 /**
  * restore-songs-sheet.mjs
  *
- * BQ songs_master から publishedAt 60日以内の曲を SONGS シートに復元する。
- * GAS pruneSongs60d_ のスキーマ不一致バグで失われた曲を回復するための一回限りのスクリプト。
+ * BQ songs_master から SONGS シートを完全上書き復元する。
+ * prune-by-duration-node.mjs の誤削除/列ズレ事故からのリカバリ用。
+ *
+ * 動作:
+ *   1. SONGS!A2:J を完全クリア（ズレた余分列も含め消去）
+ *   2. BQ songs_master から直近60日の曲を取得
+ *   3. GAS互換の4列形式（videoId, artist, title, publishedAt）で書き直す
  *
  * Usage:
  *   node scripts/restore-songs-sheet.mjs
@@ -34,84 +39,69 @@ const sheets = google.sheets({ version: 'v4', auth });
 const bq = new BigQuery({ projectId: PROJECT_ID, credentials: cred });
 
 async function main() {
-  // 1. Get current SONGS videoIds to avoid duplicates
-  const resCurrentSongs = await sheets.spreadsheets.values.get({
-    spreadsheetId: SHEET_ID,
-    range: 'SONGS!A2:A',
-  });
-  const existingIds = new Set(
-    (resCurrentSongs.data.values || []).map(r => String(r[0] || '').trim()).filter(Boolean)
-  );
-  console.log(`Current SONGS sheet: ${existingIds.size} 行`);
+  console.log('=== SONGS シート完全復元 ===');
 
-  // 2. Also get SONGS_LONG videoIds to check if already there
-  const resLong = await sheets.spreadsheets.values.get({
-    spreadsheetId: SHEET_ID,
-    range: 'SONGS_LONG!A2:A',
-  });
-  const longIds = new Set(
-    (resLong.data.values || []).map(r => String(r[0] || '').trim()).filter(Boolean)
-  );
-  console.log(`SONGS_LONG sheet: ${longIds.size} 行`);
-
-  // 3. Fetch within-60d songs from BQ
+  // 1. BQ songs_master から直近60日の曲を取得
   const [rows] = await bq.query(`
     SELECT
-      videoId, artist,
-      COALESCE(NULLIF(cleanTitle, ''), title) as title,
-      '' as cleanTitle,
-      FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', publishedAt) as publishedAt,
-      COALESCE(eventTag, 'None') as eventTag,
-      COALESCE(category, 'Other') as category,
-      COALESCE(detectedArtist, '') as detectedArtist,
-      '' as featuring,
-      CONCAT('https://www.youtube.com/watch?v=', videoId) as url
+      videoId,
+      COALESCE(NULLIF(TRIM(detectedArtist), ''), NULLIF(TRIM(artist), ''), 'Unknown') AS artist,
+      COALESCE(NULLIF(TRIM(title), ''), videoId) AS title,
+      FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', publishedAt) AS publishedAt
     FROM \`${DATASET_ID}.songs_master\`
     WHERE publishedAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
       AND publishedAt IS NOT NULL
+    QUALIFY ROW_NUMBER() OVER(PARTITION BY videoId ORDER BY publishedAt DESC) = 1
     ORDER BY publishedAt DESC
   `);
 
-  console.log(`BQ: ${rows.length} 曲（60日以内）`);
+  console.log(`BQ から取得: ${rows.length} 曲（直近60日）`);
 
-  // 4. Filter out songs already in SONGS
-  const toAdd = rows.filter(r => !existingIds.has(r.videoId));
-  console.log(`追加対象: ${toAdd.length} 曲（SONGS未登録）`);
-
-  if (toAdd.length === 0) {
-    console.log('追加対象なし。終了します。');
-    return;
+  if (rows.length === 0) {
+    console.error('BQ にデータがありません。中断します。');
+    process.exit(1);
   }
 
-  // 5. Append to SONGS sheet (Node.js 10-column schema: A-J)
-  const values = toAdd.map(r => [
-    r.videoId,
-    r.artist,
-    r.title,
-    r.cleanTitle,
-    r.publishedAt,
-    r.eventTag,
-    r.category,
-    r.detectedArtist,
-    r.featuring,
-    r.url,
-  ]);
+  // 2. 行データ構築: A=videoId, B=artist, C=HYPERLINK(title), D=publishedAt
+  const values = rows.map(r => {
+    const url = `https://www.youtube.com/watch?v=${r.videoId}`;
+    const safeTitle = (r.title || '').replace(/"/g, '""');
+    return [
+      r.videoId,
+      r.artist,
+      `=HYPERLINK("${url}","${safeTitle}")`,
+      r.publishedAt,
+    ];
+  });
 
-  // Batch in chunks of 500
+  console.log('最初の3件:');
+  values.slice(0, 3).forEach((r, i) =>
+    console.log(`  [${i+1}] ${r[0]} | ${r[1]} | ${r[3]}`)
+  );
+
+  // 3. SONGS!A2:J を完全クリア（列ズレ解消のため広めにクリア）
+  console.log('\nSONGS!A2:J をクリア中...');
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId: SHEET_ID,
+    range: 'SONGS!A2:J',
+  });
+
+  // 4. 4列で書き直し
+  console.log('データ書き込み中...');
   const CHUNK = 500;
   for (let i = 0; i < values.length; i += CHUNK) {
     const chunk = values.slice(i, i + CHUNK);
-    await sheets.spreadsheets.values.append({
+    await sheets.spreadsheets.values.update({
       spreadsheetId: SHEET_ID,
-      range: 'SONGS!A:J',
+      range: `SONGS!A${i + 2}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: chunk },
     });
-    console.log(`  Appended ${i + chunk.length}/${values.length}...`);
+    console.log(`  ${Math.min(i + CHUNK, values.length)} / ${values.length} 完了`);
   }
 
-  console.log(`\n✅ 完了: ${toAdd.length} 曲を SONGS に復元しました。`);
-  console.log('次に daily-snapshot-node.mjs を実行してBQスナップショットを更新してください。');
+  console.log(`\n✅ 復元完了: ${values.length} 曲を SONGS シートに書き込みました`);
+  console.log('ヘッダー行（行1）は変更していません。');
 }
 
 main().catch(e => {
