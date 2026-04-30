@@ -7,6 +7,7 @@ import fs from 'fs';
 import os from 'os';
 import { sendTelegramNotification } from './telegram-node.mjs';
 import { updateProcessStatus } from './process-tracker.mjs';
+import { validateKhmerSong, loadBlocklist } from './validate-khmer.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../.env.local') });
@@ -169,9 +170,11 @@ async function runRankingNode() {
   const [rows] = await bq.query(sql);
   console.log(`Fetched ${rows.length} records.`);
 
-  // 3. Song metadata (artist, title, cleanTitle) is now read from BQ songs_master (included in main query above).
-  //    Artists sheet is read only for Facebook URLs, which are managed by humans in the sheet.
-  const resArtists = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Artists!A2:E' });
+  // 3. Artists sheet (Facebook URLs) + BLOCKLIST
+  const [resArtists, blocklist] = await Promise.all([
+    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Artists!A2:E' }),
+    loadBlocklist(sheets, SHEET_ID),
+  ]);
   const artistMeta = new Map();
   (resArtists.data.values || []).forEach(r => {
     if (r[0]) artistMeta.set(r[0].trim(), { subs: parseInt(r[3]) || 0, fb: r[4] });
@@ -238,16 +241,34 @@ async function runRankingNode() {
   });
   console.log(`Deduplication: ${rankedList.length} → ${deduped.length} songs`);
 
-  // 4.5 Abnormal Ranking detection (NEW: Alerting on flat chart)
-  if (deduped.length > 0 && deduped[0].heat < 40) {
+  // Layer 2: カンボジア楽曲バリデーション (BLOCKLIST + 外国語スクリプト検出)
+  const rejected = [];
+  const validated = deduped.filter(item => {
+    const result = validateKhmerSong(item.artist, item.title, item.videoId, blocklist);
+    if (!result.valid) {
+      rejected.push({ videoId: item.videoId, artist: item.artist, title: item.title, reason: result.reason });
+      return false;
+    }
+    return true;
+  });
+  if (rejected.length > 0) {
+    console.warn(`[Layer2] Rejected ${rejected.length} non-Khmer songs:`, rejected.map(r => `${r.videoId}(${r.reason})`).join(', '));
+    await sendTelegramNotification(
+      `⚠️ <b>[Layer2] 非クメール楽曲を除外しました</b>\n` +
+      rejected.map(r => `• <code>${r.videoId}</code> ${r.artist} - ${r.title}\n  → ${r.reason}`).join('\n')
+    );
+  }
+
+  // 4.5 Abnormal Ranking detection
+  if (validated.length > 0 && validated[0].heat < 40) {
     await sendTelegramNotification(
       `🚨 <b>ランキング異常警報 (generateRanking)</b>\n` +
-      `本日のランク1位のスコアが <b>${Math.round(rankedList[0].heat * 100) / 100}</b> と非常に低いです。\n` +
+      `本日のランク1位のスコアが <b>${Math.round(validated[0].heat * 100) / 100}</b> と非常に低いです。\n` +
       `データの不整合（昨日のデータ欠落など）が発生している可能性があります。確認してください。`
     );
   }
 
-  const top40 = deduped.slice(0, 40);
+  const top40 = validated.slice(0, 40);
 
   // 5. Build Output (27 columns)
   const output = top40.map((x, i) => [

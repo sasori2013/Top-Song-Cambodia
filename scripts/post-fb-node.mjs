@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { sendTelegramNotification } from './telegram-node.mjs';
 import { updateProcessStatus } from './process-tracker.mjs';
+import { validateKhmerSong, loadBlocklist } from './validate-khmer.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../.env.local') });
@@ -64,6 +65,22 @@ async function runPostFB() {
       console.log('No ranking data found in RANKING_DAILY.');
       await sendTelegramNotification('⚠️ <b>FB投稿中断:</b> ランキングデータが存在しません。');
       return;
+  }
+
+  // Layer 3: 投稿直前バリデーション — 非クメール楽曲が含まれていれば即中止
+  const blocklist = await loadBlocklist(sheets, SHEET_ID);
+  const layer3Violations = rows
+    .map(r => ({ videoId: r[25] || '', artist: r[3] || '', title: r[4] || '', rank: r[1] }))
+    .map(s => ({ ...s, check: validateKhmerSong(s.artist, s.title, s.videoId, blocklist) }))
+    .filter(s => !s.check.valid);
+  if (layer3Violations.length > 0) {
+    const detail = layer3Violations.map(s => `#${s.rank} ${s.artist} - ${s.title}\n  → ${s.check.reason}`).join('\n');
+    console.error('[Layer3] Validation failed. Aborting FB post.\n' + detail);
+    await sendTelegramNotification(
+      `🚨 <b>[Layer3] FB投稿中止</b>\nランキングに非クメール楽曲が検出されました。投稿を中止します。\n\n${detail}`
+    );
+    await updateProcessStatus('Post: Aborted (Layer3 violation)', 0, 100, 'failed');
+    return;
   }
 
   const ranking = rows.map(r => ({
