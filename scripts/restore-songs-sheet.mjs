@@ -41,13 +41,18 @@ const bq = new BigQuery({ projectId: PROJECT_ID, credentials: cred });
 async function main() {
   console.log('=== SONGS シート完全復元 ===');
 
-  // 1. BQ songs_master から直近60日の曲を取得
+  // 1. BQ songs_master から直近60日の曲を全列取得
   const [rows] = await bq.query(`
     SELECT
       videoId,
-      COALESCE(NULLIF(TRIM(detectedArtist), ''), NULLIF(TRIM(artist), ''), 'Unknown') AS artist,
-      COALESCE(NULLIF(TRIM(title), ''), videoId) AS title,
-      FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', publishedAt) AS publishedAt
+      TRIM(artist) AS artist,
+      COALESCE(NULLIF(TRIM(cleanTitle), ''), NULLIF(TRIM(title), ''), videoId) AS displayTitle,
+      COALESCE(NULLIF(TRIM(cleanTitle), ''), '') AS cleanTitle,
+      FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', publishedAt) AS publishedAt,
+      COALESCE(eventTag, '') AS eventTag,
+      COALESCE(category, '') AS category,
+      COALESCE(TRIM(detectedArtist), '') AS detectedArtist,
+      COALESCE(TRIM(featuring), '') AS featuring
     FROM \`${DATASET_ID}.songs_master\`
     WHERE publishedAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
       AND publishedAt IS NOT NULL
@@ -62,31 +67,35 @@ async function main() {
     process.exit(1);
   }
 
-  // 2. 行データ構築: A=videoId, B=artist, C=HYPERLINK(title), D=publishedAt
-  const values = rows.map(r => {
-    const url = `https://www.youtube.com/watch?v=${r.videoId}`;
-    const safeTitle = (r.title || '').replace(/"/g, '""');
-    return [
-      r.videoId,
-      r.artist,
-      `=HYPERLINK("${url}","${safeTitle}")`,
-      r.publishedAt,
-    ];
-  });
+  // 2. 行データ構築（10列）
+  // A=videoId, B=artist, C=displayTitle(plain), D=cleanTitle,
+  // E=publishedAt, F=eventTag, G=category, H=detectedArtist, I=featuring, J=url
+  const values = rows.map(r => [
+    r.videoId,
+    r.artist,
+    r.displayTitle,   // plain text, HYPERLINKなし
+    r.cleanTitle,
+    r.publishedAt,
+    r.eventTag,
+    r.category,
+    r.detectedArtist,
+    r.featuring,
+    `https://www.youtube.com/watch?v=${r.videoId}`,
+  ]);
 
   console.log('最初の3件:');
   values.slice(0, 3).forEach((r, i) =>
-    console.log(`  [${i+1}] ${r[0]} | ${r[1]} | ${r[3]}`)
+    console.log(`  [${i+1}] ${r[0]} | ${r[1]} | C:${r[2]} | D:${r[3]} | E:${r[4]}`)
   );
 
-  // 3. SONGS!A2:J を完全クリア（列ズレ解消のため広めにクリア）
+  // 3. SONGS!A2:J を完全クリア
   console.log('\nSONGS!A2:J をクリア中...');
   await sheets.spreadsheets.values.clear({
     spreadsheetId: SHEET_ID,
     range: 'SONGS!A2:J',
   });
 
-  // 4. 4列で書き直し
+  // 4. 10列で書き直し
   console.log('データ書き込み中...');
   const CHUNK = 500;
   for (let i = 0; i < values.length; i += CHUNK) {
