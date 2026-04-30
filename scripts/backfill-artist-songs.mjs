@@ -116,7 +116,7 @@ async function runBackfill() {
               const totalSec = parseDuration(duration);
               const publishedAt = v.snippet.publishedAt;
 
-              if (totalSec <= 60) continue; // Skip shorts
+              if (totalSec < 80 || totalSec > 600) continue; // Skip shorts/long non-songs
               if (NG_WORDS.some(ng => title.includes(ng))) continue; // Skip NG
 
               artistSongs.push([v.id, artist.name, v.snippet.title, publishedAt]);

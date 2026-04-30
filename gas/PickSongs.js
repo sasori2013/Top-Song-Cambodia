@@ -34,7 +34,8 @@ const CFG = {
   LOOKBACK_DAYS_RANK: 7,     // ランキング差分期間
   MIN_VIEWS: 0,              // 再生数制限を解除（新着を即座に拾う）
   MIN_AGE_DAYS: 0,           // 公開直後から対象
-  MIN_DURATION_SEC: 61,      // Shorts除外（<=60秒を除外）
+  MIN_DURATION_SEC: 80,      // Shorts・短尺除外（<80秒を除外）
+  MAX_DURATION_SEC: 600,     // 長尺非楽曲除外（>600秒=10分を除外）
 
   // タイトル除外（必要なら追加）
   NG_WORDS: [
@@ -449,7 +450,11 @@ function processVideoIds_(ids, artistInfo, shS, existingSet, forceIgnoreFilters 
       }
 
       if (durSec < CFG.MIN_DURATION_SEC) {
-        Logger.log(`Skipped [${title}]: Is Short (${durSec}s)`);
+        Logger.log(`Skipped [${title}]: Too short (${durSec}s)`);
+        continue;
+      }
+      if (durSec > CFG.MAX_DURATION_SEC) {
+        Logger.log(`Skipped [${title}]: Too long (${durSec}s)`);
         continue;
       }
 
@@ -1416,8 +1421,9 @@ function validateAndCreateSongRow_(v, artistInfo) {
 
   // 音楽・エンタメ・ブログ以外を除外
   if (categoryId !== '10' && categoryId !== '24' && categoryId !== '22') return null;
-  // Shorts を除外
+  // 短尺・長尺除外
   if (durSec < CFG.MIN_DURATION_SEC) return null;
+  if (durSec > CFG.MAX_DURATION_SEC) return null;
   // 古すぎる動画を除外
   const pub = new Date(publishedAt);
   const ageDays = (now - pub) / (1000 * 60 * 60 * 24);
