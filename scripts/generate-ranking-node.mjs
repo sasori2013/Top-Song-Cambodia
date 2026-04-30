@@ -204,7 +204,9 @@ async function runRankingNode() {
     const heat = calculateHeatScore(dv, dl, dc, totalV, growthRate, engagement, qFactor);
     const baseArtist = (row.artist || '').trim();
     const detected = (row.detectedArtist || '').trim();
-    const finalArtist = (detected && (baseArtist === '' || baseArtist === 'Unknown')) ? detected : baseArtist;
+    // detectedArtist is the real performing artist (set when channel is a production label).
+    // Prefer it over the channel name whenever it's populated.
+    const finalArtist = detected || baseArtist;
     const displayTitle = (row.cleanTitle || '').trim() || (row.title || '').trim();
     const meta = {
       artist: finalArtist || 'Unknown',
@@ -222,9 +224,22 @@ async function runRankingNode() {
   });
 
   rankedList.sort((a, b) => b.heat - a.heat);
-  
+
+  // Deduplicate: same cleanTitle from production + personal accounts → keep highest heat only
+  const seenTitles = new Set();
+  const deduped = rankedList.filter(item => {
+    const key = (item.title || '')
+      .toLowerCase()
+      .replace(/[\s​ ?!.,:;()\[\]{}'"""''「」『』・、。！？]+/g, '');
+    if (!key) return true;
+    if (seenTitles.has(key)) return false;
+    seenTitles.add(key);
+    return true;
+  });
+  console.log(`Deduplication: ${rankedList.length} → ${deduped.length} songs`);
+
   // 4.5 Abnormal Ranking detection (NEW: Alerting on flat chart)
-  if (rankedList.length > 0 && rankedList[0].heat < 40) {
+  if (deduped.length > 0 && deduped[0].heat < 40) {
     await sendTelegramNotification(
       `🚨 <b>ランキング異常警報 (generateRanking)</b>\n` +
       `本日のランク1位のスコアが <b>${Math.round(rankedList[0].heat * 100) / 100}</b> と非常に低いです。\n` +
@@ -232,7 +247,7 @@ async function runRankingNode() {
     );
   }
 
-  const top40 = rankedList.slice(0, 40);
+  const top40 = deduped.slice(0, 40);
 
   // 5. Build Output (27 columns)
   const output = top40.map((x, i) => [

@@ -1423,6 +1423,9 @@ function validateAndCreateSongRow_(v, artistInfo) {
   const ageDays = (now - pub) / (1000 * 60 * 60 * 24);
   if (ageDays > CFG.LOOKBACK_DAYS_SONGS) return null;
 
+  // タイ語スクリプト排除: タイ文字 (U+0E00–U+0E7F) が3文字以上含まれる動画は除外
+  if ((title.match(/[฀-๿]/g) || []).length > 2) return null;
+
   // チャンネル固有のタイトルフィルタ（I列: Title Filter）
   // パイプ区切りキーワードのいずれかがタイトルに含まれなければ除外
   if (artistInfo.titleFilter) {
