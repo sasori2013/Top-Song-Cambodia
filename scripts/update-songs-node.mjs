@@ -16,7 +16,6 @@ dotenv.config({ path: join(__dirname, '../.env.local') });
 
 const TEST_MODE = process.env.TEST_MODE === 'true';
 const TEST_LIMIT_ARTISTS = parseInt(process.env.TEST_LIMIT || '0');
-const ARTISTS_SHEET_ID = 0; // Found via API
 
 const getEnv = (key) => (process.env[key] || '').trim().replace(/^['"]|['"]$/g, '');
 
@@ -273,7 +272,7 @@ async function runUpdateSongs() {
                 }
                 
                 const totalSec = parseDuration(duration);
-                if (totalSec <= 60) {
+                if (totalSec < 80) {
                     console.log(`  Skipped (Short): ${vid.snippet.title} (${totalSec}s)`);
                     continue;
                 }

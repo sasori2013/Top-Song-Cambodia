@@ -468,11 +468,7 @@ function processVideoIds_(ids, artistInfo, shS, existingSet, forceIgnoreFilters 
       Logger.log(`Force matching [${title}] (Debugging mode)`);
     }
 
-    // 合格（原本データ保護のため、SONGSシートにはクリーンアップせずそのまま保存）
-    // 曲名にYouTubeへのハイパーリンクを付与 (スプレッドシート上)
-    const videoUrl = "https://www.youtube.com/watch?v=" + v.id;
-    const linkedTitle = '=HYPERLINK("' + videoUrl + '", "' + title.replace(/"/g, '""') + '")';
-    toAppend.push([v.id, artistInfo.name, linkedTitle, publishedAt]);
+    toAppend.push([v.id, artistInfo.name, title, publishedAt]);
     Logger.log(`✅ MATCHED: [${title}]`);
   }
 
@@ -1441,11 +1437,7 @@ function validateAndCreateSongRow_(v, artistInfo) {
     if (keywords.length > 0 && !keywords.some(k => titleUpper.includes(k))) return null;
   }
 
-  // リンク付きタイトル
-  const videoUrl = "https://www.youtube.com/watch?v=" + v.id;
-  const linkedTitle = '=HYPERLINK("' + videoUrl + '", "' + title.replace(/"/g, '""') + '")';
-
-  return [v.id, artistInfo.name, linkedTitle, publishedAt];
+  return [v.id, artistInfo.name, title, publishedAt];
 }
 
 /**

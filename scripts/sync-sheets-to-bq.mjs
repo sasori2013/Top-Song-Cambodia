@@ -71,7 +71,7 @@ async function sync() {
   // 1. Fetch data from Google Sheets
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: 'SONGS!A:D' // A:videoId, B:artist, C:title, D:cleanTitle
+    range: 'SONGS!A:J' // A:videoId, B:artist, C:title, D:cleanTitle, E:publishedAt, ...
   });
 
   const rows = res.data.values || [];
@@ -81,12 +81,13 @@ async function sync() {
   }
 
   // Skip header and filter out empty videoIds
+  // Column layout (10-col Node.js schema): A=videoId, B=artist, C=title, D=cleanTitle, E=publishedAt
   const data = rows.slice(1)
     .map(r => ({
-      videoId: r[0],
+      videoId: (r[0] || '').trim(),
       artist: r[1],
       title: r[2],
-      cleanTitle: r[3]
+      cleanTitle: r[3] || ''  // D=cleanTitle (not publishedAt)
     }))
     .filter(r => r.videoId && r.artist);
 
