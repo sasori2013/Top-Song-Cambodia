@@ -67,18 +67,9 @@ async function sync() {
   // 3. Ensure Grid Limits are enough
   console.log('  Ensuring sheet grid limits...');
   const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
-  const songsSheet = spreadsheet.data.sheets.find(s => s.properties.title === 'SONGS');
   const songsLongSheet = spreadsheet.data.sheets.find(s => s.properties.title === 'SONGS_LONG');
 
   const requests = [];
-  if (songsSheet && songsSheet.properties.gridProperties.rowCount < songsTopData.length + 100) {
-    requests.push({
-      updateSheetProperties: {
-        properties: { sheetId: songsSheet.properties.sheetId, gridProperties: { rowCount: songsTopData.length + 500 } },
-        fields: 'gridProperties.rowCount'
-      }
-    });
-  }
   if (songsLongSheet && songsLongSheet.properties.gridProperties.rowCount < songsLongData.length + 100) {
     requests.push({
       updateSheetProperties: {
