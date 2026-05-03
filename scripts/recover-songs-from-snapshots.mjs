@@ -60,6 +60,8 @@ async function main() {
     ) s ON m.videoId = s.videoId
     WHERE m.publishedAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
       AND m.publishedAt IS NOT NULL
+      AND NOT REGEXP_CONTAINS(COALESCE(m.title, ''), r'[぀-ゟ゠-ヿ]')
+      AND NOT REGEXP_CONTAINS(COALESCE(m.artist, ''), r'[぀-ゟ゠-ヿ]')
     QUALIFY ROW_NUMBER() OVER(PARTITION BY m.videoId ORDER BY m.publishedAt DESC) = 1
     ORDER BY m.publishedAt DESC
   `);
