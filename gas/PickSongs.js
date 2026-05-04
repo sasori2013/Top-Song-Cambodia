@@ -1282,9 +1282,11 @@ function pruneSongs60d_(shSongs, keepDays) {
 
   for (let i = 1; i < values.length; i++) {
     const videoId = values[i][CFG.SONGS_COLS.videoId];
-    // GAS writes publishedAt to column D (index 3); Node.js writes it to column E (index 4)
-    const publishedAt = values[i][CFG.SONGS_COLS.publishedAt] || values[i][4];
-    const d = new Date(publishedAt || '');
+    // Node.js schema: E(4)=publishedAt; GAS legacy schema: D(3)=publishedAt
+    // Try each column and use whichever parses as a valid date
+    const dE = new Date(values[i][4] || '');
+    const dD = new Date(values[i][CFG.SONGS_COLS.publishedAt] || '');
+    const d = !isNaN(dE.getTime()) ? dE : dD;
     if (!d || isNaN(d.getTime())) continue;
 
     if (d >= cutoff) {
