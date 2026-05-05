@@ -85,12 +85,19 @@ async function main() {
     return;
   }
 
-  // 2. SONGS!A2:J を完全クリア
-  console.log('\nSONGS!A2:J をクリア中...');
-  await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: 'SONGS!A2:J' });
+  // 2. 現在の SONGS から既存 videoId を取得（update-songs との二重登録防止）
+  const existing = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'SONGS!A2:A' });
+  const existingIds = new Set((existing.data.values || []).flat().map(v => String(v).trim()).filter(Boolean));
+  const newRows = rows.filter(r => !existingIds.has(r.videoId));
+  console.log(`既存 SONGS: ${existingIds.size} 曲 / 追加対象: ${newRows.length} 曲（重複 ${rows.length - newRows.length} 件スキップ）`);
 
-  // 3. データ書き込み
-  const values = rows.map(r => [
+  if (newRows.length === 0) {
+    console.log('✅ 追加すべき曲なし。SONGS は最新状態です。');
+    return;
+  }
+
+  // 3. データ書き込み（クリアせず末尾に append）
+  const values = newRows.map(r => [
     r.videoId, r.artist, r.displayTitle, r.cleanTitle,
     r.publishedAt, r.eventTag, r.category, r.detectedArtist,
     r.featuring, `https://www.youtube.com/watch?v=${r.videoId}`,
@@ -98,15 +105,16 @@ async function main() {
 
   const CHUNK = 1000;
   for (let i = 0; i < values.length; i += CHUNK) {
-    await sheets.spreadsheets.values.update({
+    await sheets.spreadsheets.values.append({
       spreadsheetId: SHEET_ID,
-      range: `SONGS!A${i + 2}`,
+      range: 'SONGS!A:J',
       valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
       requestBody: { values: values.slice(i, i + CHUNK) },
     });
   }
 
-  console.log(`✅ SONGS に ${rows.length} 曲を書き込みました。`);
+  console.log(`✅ SONGS に ${newRows.length} 曲を追加しました（合計 ${existingIds.size + newRows.length} 曲）。`);
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
