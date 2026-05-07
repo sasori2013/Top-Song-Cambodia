@@ -333,14 +333,16 @@ async function main() {
 
         // アンカーのこのバッチでの値
         const anchorVal = (region.values.find(v => v.query === anchor)?.extracted_value) ?? 0;
-        if (anchorVal === 0) continue; // アンカーが0の州はデータ信頼性低いのでスキップ
+        // アンカーが5未満 = その州でVannDaがほぼ検索されていない → 正規化が不安定（爆発リスク）
+        if (anchorVal < 5) continue;
 
         for (const v of region.values) {
           if (v.query === anchor) {
             score[pid][anchor] = 100; // アンカー = 定義上100
           } else {
             // 正規化: このアーティストのスコア / アンカーのスコア × 100
-            const normalized = Math.round((v.extracted_value / anchorVal) * 100);
+            // 上限200: アンカー(=100)の2倍を超えるスコアはクエリ名の曖昧性による誤検出
+          const normalized = Math.min(Math.round((v.extracted_value / anchorVal) * 100), 200);
             // 既存値があれば最大値を採用（複数バッチで同じ州が出た場合は通常ない）
             score[pid][v.query] = Math.max(score[pid][v.query] ?? 0, normalized);
           }
