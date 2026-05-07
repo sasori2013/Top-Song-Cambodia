@@ -367,7 +367,9 @@ async function main() {
 
   // 4. BQ 書き込み（同日の再実行のみ上書き、他の履歴は保持）
   console.log('\n[3] BigQuery 書き込み...');
+  console.log(`  DELETE 実行: run_date = ${runDate}`);
   await bq.query(`DELETE FROM \`${PROJECT_ID}.${DATASET}.trends_score_matrix\` WHERE FORMAT_DATE('%Y-%m-%d', run_date) = '${runDate}'`);
+  console.log(`  DELETE 完了`);
 
   const bqRows = [];
   for (const prov of provinceRankings) {
@@ -383,8 +385,15 @@ async function main() {
     }
   }
   if (bqRows.length > 0) {
-    await bq.dataset(DATASET).table('trends_score_matrix').insert(bqRows);
-    console.log(`  ${bqRows.length}行 挿入完了`);
+    try {
+      await bq.dataset(DATASET).table('trends_score_matrix').insert(bqRows);
+      console.log(`  ${bqRows.length}行 挿入完了`);
+    } catch (insertErr) {
+      if (insertErr.name === 'PartialFailureError') {
+        console.error('  PartialFailureError:', JSON.stringify(insertErr.errors?.slice(0, 3), null, 2));
+      }
+      throw insertErr;
+    }
   }
 
   // 5. Google Sheets 書き込み
@@ -427,10 +436,12 @@ async function main() {
 }
 
 main().catch(async e => {
-  console.error('❌ Fatal:', e.message);
+  const detail = e.errors ? JSON.stringify(e.errors, null, 2) : (e.stack || e.message || String(e));
+  console.error('❌ Fatal:', e.message || '(no message)');
+  console.error('Detail:', detail);
   await sendTelegram(
     `❌ <b>Cambodia Trends 失敗</b>\n\n` +
-    `エラー: ${e.message}\n` +
+    `エラー: ${e.message || String(e)}\n` +
     `日時: ${new Date().toISOString()}`
   );
   process.exit(1);
