@@ -1,0 +1,51 @@
+name: Platform Rankings (Apple Music + Spotify)
+
+on:
+  schedule:
+    # 15:00 UTC = 22:00 KHR — after both charts update for the day
+    - cron: '0 15 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: platform-rankings
+  cancel-in-progress: false
+
+jobs:
+  fetch-rankings:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      # Cache Chromium binary — saves ~2 min per run
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install chromium --with-deps
+
+      - name: Install Chromium system deps (cached run)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Fetch Platform Rankings
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          NEXT_PUBLIC_SHEET_ID: ${{ secrets.NEXT_PUBLIC_SHEET_ID }}
+        run: node scripts/platform-rankings/index.mjs

@@ -26,7 +26,7 @@ const CountUp: React.FC<{ value: number; duration?: number }> = ({ value, durati
     return <span className="tabular-nums">{display.toLocaleString()}</span>;
 };
 
-const Metric: React.FC<{ value: number; label: string; labelJa: string; delay: number }> = ({ value, label, labelJa, delay }) => (
+const Metric: React.FC<{ value: number; label: string; delay: number }> = ({ value, label, delay }) => (
     <motion.div
         initial={{ opacity: 0, y: 12 }}
         whileInView={{ opacity: 1, y: 0 }}
@@ -40,7 +40,6 @@ const Metric: React.FC<{ value: number; label: string; labelJa: string; delay: n
         <p className="text-[9px] md:text-[10px] font-bold text-white/50 uppercase tracking-[0.4em]">
             {label}
         </p>
-        <p className="text-[8px] text-white/25 tracking-widest">{labelJa}</p>
     </motion.div>
 );
 
@@ -55,7 +54,7 @@ export const DailyActions: React.FC<DailyActionsProps> = ({ count }) => {
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 1.5 }}
-            className="w-full max-w-4xl mx-auto mb-12 md:mb-16 p-8 relative overflow-hidden"
+            className="w-full max-w-4xl mx-auto mb-12 md:mb-16 p-8 relative overflow-hidden border border-white/10 bg-white/5 backdrop-blur-md rounded-xl"
         >
             <div className="relative z-10 flex flex-col items-center">
                 <header className="flex flex-col items-center mb-10 text-center text-white">
@@ -65,9 +64,9 @@ export const DailyActions: React.FC<DailyActionsProps> = ({ count }) => {
                 </header>
 
                 <div className="flex flex-row items-start justify-center gap-10 md:gap-20 w-full">
-                    <Metric value={views}    label="VIEWS"    labelJa="再生数"   delay={0}   />
-                    <Metric value={likes}    label="LIKES"    labelJa="いいね数" delay={0.2} />
-                    <Metric value={comments} label="COMMENTS" labelJa="コメント" delay={0.4} />
+                    <Metric value={views}    label="VIEWS"    delay={0}   />
+                    <Metric value={likes}    label="LIKES"    delay={0.2} />
+                    <Metric value={comments} label="COMMENTS" delay={0.4} />
                 </div>
 
                 <div className="mt-8 flex justify-center items-center border-t border-white/5 pt-5 w-full max-w-sm">
@@ -79,7 +78,6 @@ export const DailyActions: React.FC<DailyActionsProps> = ({ count }) => {
                     </div>
                 </div>
 
-                <div className="w-px h-16 bg-gradient-to-b from-white/10 via-white/5 to-transparent mt-6" />
             </div>
         </motion.div>
     );

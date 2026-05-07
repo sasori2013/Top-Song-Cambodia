@@ -69,21 +69,25 @@ async function runRankingNode() {
 
   let latestDate, baseDate;
   
-  // 1. Get dates from BQ and check for stability (at least 400 records)
+  // 1. Get dates from BQ and check for stability
   const [dateRows] = await bq.query(`
-    SELECT date, COUNT(videoId) as count 
-    FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\` 
+    SELECT date, COUNT(videoId) as count
+    FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\`
     GROUP BY date ORDER BY date DESC LIMIT 7
   `);
-  
-  // Filter for stable dates (count > 400)
+
+  // Stability threshold: 80% of the average record count across fetched dates
+  const avgCount = dateRows.reduce((sum, r) => sum + Number(r.count), 0) / dateRows.length;
+  const stabilityThreshold = Math.round(avgCount * 0.8);
+  console.log(`Stability threshold: ${stabilityThreshold} (80% of avg ${Math.round(avgCount)})`);
+
   const stableDates = dateRows
-    .filter(r => r.count > 400)
+    .filter(r => Number(r.count) >= stabilityThreshold)
     .map(r => r.date.value);
   const allDates = dateRows.map(r => r.date.value);
 
   if (stableDates.length === 0) {
-    throw new Error("No stable snapshot dates found (>400 records) in the last 7 days.");
+    throw new Error(`No stable snapshot dates found (>=${stabilityThreshold} records) in the last 7 days.`);
   }
 
   if (forcedDate) {
@@ -92,8 +96,8 @@ async function runRankingNode() {
     // Use latest date only if it's stable. If today's snapshot is incomplete (quota hit etc.),
     // fall back to the most recent stable date to avoid a broken ranking.
     const absoluteLatest = allDates[0];
-    const absoluteLatestCount = dateRows.find(r => r.date.value === absoluteLatest)?.count || 0;
-    if (absoluteLatestCount >= 400) {
+    const absoluteLatestCount = Number(dateRows.find(r => r.date.value === absoluteLatest)?.count || 0);
+    if (absoluteLatestCount >= stabilityThreshold) {
       latestDate = absoluteLatest;
     } else {
       latestDate = stableDates[0]; // fallback to latest stable date
@@ -123,11 +127,17 @@ async function runRankingNode() {
   console.log(`Analyzing: ${latestDate} (Latest) vs ${baseDate} (Base)`);
 
   // Validation: Check stability of selected dates
-  const latestCount = dateRows.find(r => r.date.value === latestDate)?.count || 0;
-  const baseCount = dateRows.find(r => r.date.value === baseDate)?.count || 0;
+  const latestCount = Number(dateRows.find(r => r.date.value === latestDate)?.count || 0);
+  const baseCount = Number(dateRows.find(r => r.date.value === baseDate)?.count || 0);
 
-  if (latestCount < 400) console.warn(`⚠️ Warning: Latest date ${latestDate} is unstable (${latestCount} records).`);
-  if (baseCount < 400) console.warn(`⚠️ Warning: Base date ${baseDate} is unstable (${baseCount} records).`);
+  if (latestCount < stabilityThreshold) console.warn(`⚠️ Warning: Latest date ${latestDate} is unstable (${latestCount} records).`);
+  if (baseCount < stabilityThreshold) console.warn(`⚠️ Warning: Base date ${baseDate} is unstable (${baseCount} records).`);
+
+  // Day normalization: if base is 2+ days ago, divide increments by elapsed days
+  const daysBetween = Math.max(1, Math.round(
+    (new Date(latestDate) - new Date(baseDate)) / (1000 * 60 * 60 * 24)
+  ));
+  if (daysBetween > 1) console.warn(`⚠️ Base date is ${daysBetween} days ago — normalizing increments per day.`);
 
   console.log(`Analyzing: ${latestDate} (Latest) vs ${baseDate} (Base)`);
 
@@ -158,6 +168,7 @@ async function runRankingNode() {
       l.videoId,
       l.views as totalV, l.likes as totalL, l.comments as totalC,
       b.views as baseV, b.likes as baseL, b.comments as baseC,
+      l.qualityScore,
       h.prevRank,
       s.publishedAt, s.eventTag, s.category,
       s.artist, s.title, s.cleanTitle, s.detectedArtist
@@ -193,13 +204,13 @@ async function runRankingNode() {
     const baseL = row.baseL ? parseInt(row.baseL) : 0;
     const baseC = row.baseC ? parseInt(row.baseC) : 0;
 
-    // If we have yesterday's data, calculate the actual increase.
+    // If we have base data, calculate the actual increase normalized to per-day.
+    // Dividing by daysBetween ensures fair comparison when base is 2+ days ago.
     // If not (song just discovered today), set growth to 0 for safety.
-    // This avoids old songs with no baseline being treated as rocket-ships.
-    const dv = baseV !== null ? Math.max(0, totalV - baseV) : 0;
-
-    const dl = Math.max(0, totalL - baseL);
-    const dc = Math.max(0, totalC - baseC);
+    const rawDv = baseV !== null ? Math.max(0, totalV - baseV) : 0;
+    const dv = rawDv / daysBetween;
+    const dl = Math.max(0, totalL - baseL) / daysBetween;
+    const dc = Math.max(0, totalC - baseC) / daysBetween;
     const growthRate = (baseV && baseV > 0) ? dv / baseV : (dv > 0 ? 1.0 : 0);
     const engagement = totalV > 0 ? (totalL + totalC) / totalV : 0;
     const qFactor = row.qualityScore || 1.0;

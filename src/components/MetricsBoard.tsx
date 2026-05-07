@@ -32,7 +32,7 @@ export const MetricsBoard: React.FC<{
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.8 }}
-            className={`flex items-center justify-center bg-white/[0.02] border border-white/5 py-3 rounded-sm ${className}`}
+            className={`flex items-center justify-center border border-white/10 bg-white/5 backdrop-blur-md rounded-xl py-3 ${className}`}
         >
             <MetricItem label="Velocity" value={`+${growth}`} sub="%" />
             <MetricItem label="Reaction" value={engagement} sub="%" />

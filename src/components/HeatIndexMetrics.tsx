@@ -65,7 +65,7 @@ export const HeatIndexMetrics: React.FC<HeatIndexMetricsProps> = ({ growth = 0, 
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 1.5 }}
-            className="w-full max-w-4xl mx-auto mb-12 md:mb-16 p-8 relative overflow-hidden"
+            className="w-full max-w-4xl mx-auto mb-12 md:mb-16 p-8 relative overflow-hidden border border-white/10 bg-white/5 backdrop-blur-md rounded-xl"
         >
             <div className="relative z-10 flex flex-col items-center">
                 <header className="flex flex-col items-center mb-12 text-center text-white">
@@ -150,7 +150,6 @@ export const HeatIndexMetrics: React.FC<HeatIndexMetricsProps> = ({ growth = 0, 
                     </div>
                 </div>
 
-                <div className="w-px h-16 bg-gradient-to-b from-white/10 via-white/5 to-transparent" />
             </div>
         </motion.div>
     );

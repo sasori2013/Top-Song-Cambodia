@@ -138,7 +138,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ stats }) => {
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.4, duration: 1 }}
-                    className="flex justify-center items-center py-4"
+                    className="flex justify-center items-center py-4 px-6 border border-white/10 bg-white/5 backdrop-blur-md rounded-xl"
                 >
                     <div className="flex flex-col items-center px-6 md:px-12 border-r border-white/10 last:border-r-0">
                         <div className="text-[9px] md:text-[11px] font-black tracking-[0.4em] text-white/90 uppercase mb-2 drop-shadow-md">

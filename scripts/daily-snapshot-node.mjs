@@ -120,18 +120,27 @@ async function analyzeCommentQuality(videoId, comments) {
   if (comments.length === 0) return { score: 0.5, summary: 'No comments found' };
 
   const prompt = `
-    Analyze these YouTube comments for a music video. 
-    Evaluate the "Quality" and detect "Inflation/Spam".
-    
-    Criteria:
-    - Meaningful: Specific mention of lyrics, melody, voice, or emotions.
-    - Inflation: Emoji-only, generic "Nice", repetitive bot-like content, many replies with just emojis.
-    
-    Comments:
-    ${JSON.stringify(comments.slice(0, 50))}
-    
-    Output JSON:
-    { "score": 0.0 to 1.0, "summary": "Short 1-sentence analysis" }
+You are analyzing YouTube comments for a Cambodian music video.
+Comments are written in Khmer, English, or both — treat them equally.
+
+Your ONLY job is to measure VARIETY of comment content.
+
+SCORING RULES:
+- High score (0.8–1.0): Comments are diverse. Different people say different things — personal stories, specific reactions, humor, questions, debates, timestamps, varied emotions.
+- Mid score (0.4–0.7): Some variety but a noticeable portion of comments are repetitive or generic.
+- Low score (0.0–0.3): Comments lack variety. Dominated by repetitive patterns: emoji-only, "very good / ល្អណាស់ / nice song" repeated by many users, copy-paste phrases, bot-like uniformity.
+
+IMPORTANT:
+- Do NOT reward or penalize based on positive/negative sentiment.
+- Do NOT require mention of lyrics, melody, or voice.
+- A comment like "ល្អណាស់" or "nice" is fine once, but if 70% of comments say the same thing → low score.
+- Judge DIVERSITY, not depth.
+
+Comments (Khmer and/or English):
+${JSON.stringify(comments.slice(0, 50))}
+
+Output JSON only:
+{ "score": 0.0 to 1.0, "summary": "One sentence in Japanese describing the variety level" }
   `;
 
   try {
@@ -227,11 +236,64 @@ async function runSnapshotNode() {
     }
   }
 
-  // 2.5 Perform AI Quality Audit on Top 30 (by views)
+  // 2.5 Detect view count decreases (YouTube fraud detection cleanup)
+  try {
+    const videoIdList = snapshotsRows.map(r => `'${r.videoId}'`).join(',');
+    if (videoIdList.length > 0) {
+      const [prevRows] = await bq.query(`
+        SELECT videoId, views, CAST(date AS STRING) as date
+        FROM \`${DATASET_ID}.${TABLE_ID}\`
+        WHERE date = (
+          SELECT MAX(date) FROM \`${DATASET_ID}.${TABLE_ID}\`
+          WHERE date < CURRENT_DATE()
+        )
+        AND videoId IN (${videoIdList})
+      `);
+
+      const prevMap = new Map(prevRows.map(r => [r.videoId, { views: parseInt(r.views), date: r.date }]));
+      const decreased = [];
+
+      for (const row of snapshotsRows) {
+        const prev = prevMap.get(row.videoId);
+        if (!prev || prev.views === 0) continue;
+        const drop = prev.views - row.views;
+        const dropPct = drop / prev.views;
+        // Flag: absolute drop > 1,000 AND ratio drop > 3%
+        if (drop > 1000 && dropPct > 0.03) {
+          const meta = songsMap.get(row.videoId);
+          decreased.push({
+            videoId: row.videoId,
+            title: meta?.title || row.videoId,
+            prevViews: prev.views,
+            nowViews: row.views,
+            drop,
+            dropPct: Math.round(dropPct * 1000) / 10,
+          });
+        }
+      }
+
+      if (decreased.length > 0) {
+        decreased.sort((a, b) => b.drop - a.drop);
+        const lines = decreased.map(d =>
+          `• <b>${d.title}</b>\n  累計: ${d.prevViews.toLocaleString()} → ${d.nowViews.toLocaleString()} (▼${d.dropPct}%, -${d.drop.toLocaleString()}再生)`
+        ).join('\n');
+        await sendTelegramNotification(
+          `⚠️ <b>累計再生数の減少を検出 (${decreased.length}曲)</b>\n` +
+          `トータル再生数が前日より減少しています。\n` +
+          `YouTubeの不正再生検知による調整とみられます。\n\n${lines}`
+        );
+        console.warn(`[ViewDrop] ${decreased.length} songs with decreased views detected.`);
+      } else {
+        console.log('[ViewDrop] No view count decreases detected.');
+      }
+    }
+  } catch (e) {
+    console.warn('[ViewDrop] Check failed (non-fatal):', e.message);
+  }
+
+  // 2.6 Perform AI Quality Audit on Top 100 (by views)
   await ensureTableSchema();
   const sortedForAudit = [...snapshotsRows].sort((a, b) => b.views - a.views).slice(0, 100);
-  console.log(`--- Performing AI Comment Quality Audit on Top 100 videos ---`);
-  
   console.log(`--- Performing AI Comment Quality Audit on Top 100 videos (Parallelized) ---`);
   
   const auditConcurrency = 5;

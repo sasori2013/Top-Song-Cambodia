@@ -3,6 +3,7 @@ import { BigQuery } from '@google-cloud/bigquery';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import crypto from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import { sendTelegramNotification } from './telegram-node.mjs';
@@ -10,6 +11,7 @@ import { updateProcessStatus } from './process-tracker.mjs';
 import { classifySong } from './classify-song-node.mjs';
 import { loadNgKeywords } from './cleanup-ng-songs.mjs';
 import { SOURCE } from './constants.mjs';
+import { extractArtistFromDescription } from './extract-artist-description.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../.env.local') });
@@ -28,6 +30,8 @@ const TABLE_SONGS = 'songs_master';
 const MAX_DAILY_QUOTA = 50000;
 const MAX_DURATION_SEC = 600; // 10 minutes limit to exclude streams/albums
 let currentQuotaUsage = 0;
+
+const heatId = videoId => `KH-${crypto.createHash('sha256').update(String(videoId)).digest('hex').slice(0, 10)}`;
 
 // NG_WORDS are loaded from NG_Keywords sheet at runtime (see loadNgKeywords below)
 let NG_WORDS = [];
@@ -85,6 +89,7 @@ async function runUpdateSongs() {
 
   // 1.6 Get Label_Roster
   let rosterMap = new Map();
+  const rosterKnownCombos = new Set(); // "prodName|artistName" — for dedup on auto-add
   try {
     const resRoster = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'Label_Roster!A2:C' });
     (resRoster.data.values || []).forEach(r => {
@@ -95,6 +100,7 @@ async function runUpdateSongs() {
         if (!rosterMap.has(prodName)) rosterMap.set(prodName, []);
         const keywords = keywordsRaw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
         rosterMap.get(prodName).push({ targetArtist, keywords });
+        rosterKnownCombos.add(`${prodName}|${targetArtist.toLowerCase()}`);
       }
     });
   } catch (e) {
@@ -164,6 +170,7 @@ async function runUpdateSongs() {
   let successCount = 0;
   const failedArtists = [];
   const lastSyncUpdates = []; // { row, value }
+  const newRosterEntries = []; // Auto-discovered artists to append to Label_Roster
 
   // 3. Process each artist (Chunking for quota/concurrency)
   for (const artist of artistsToProcess) {
@@ -281,12 +288,10 @@ async function runUpdateSongs() {
                     continue;
                 }
 
-                // Extra check for Keyword search: Title must contain artist name or be from their channel
+                // Strict channel check: only accept videos from the registered channel
                 const isFromChannel = vid.snippet.channelId === artist.channelId;
-                const containsName = vid.snippet.title.toLowerCase().includes(artist.name.toLowerCase());
-                
-                if (!isFromChannel && !containsName) {
-                  console.log(`  Skipped (Not matching artist): ${vid.snippet.title}`);
+                if (!isFromChannel) {
+                  console.log(`  Skipped (Wrong channel ${vid.snippet.channelId}): ${vid.snippet.title}`);
                   continue;
                 }
 
@@ -310,6 +315,34 @@ async function runUpdateSongs() {
                        classification.detectedArtist = candidate.targetArtist;
                        break;
                      }
+                  }
+                }
+
+                // --- Fallback: extract artist from description if Label_Roster had no match ---
+                if (isLabel && !classification.detectedArtist) {
+                  const extracted = extractArtistFromDescription(
+                    vid.snippet.title,
+                    vid.snippet.description,
+                    artist.name
+                  );
+                  if (extracted.artist) {
+                    classification.detectedArtist = extracted.artist;
+                    console.log(`  [DescExtract] "${extracted.artist}" (${extracted.confidence}/${extracted.method}) from "${artist.name}"`);
+
+                    // Auto-add to Label_Roster if this production+artist combo is new
+                    const comboKey = `${artist.name}|${extracted.artist.toLowerCase()}`;
+                    if (!rosterKnownCombos.has(comboKey)) {
+                      const keywords = [extracted.artist.toLowerCase()];
+                      if (extracted.artistKhmer && extracted.artistKhmer !== extracted.artist) {
+                        keywords.push(extracted.artistKhmer);
+                      }
+                      // Update in-memory map so subsequent videos in this run also match
+                      if (!rosterMap.has(artist.name)) rosterMap.set(artist.name, []);
+                      rosterMap.get(artist.name).push({ targetArtist: extracted.artist, keywords });
+                      rosterKnownCombos.add(comboKey);
+                      newRosterEntries.push([artist.name, extracted.artist, keywords.join(', ')]);
+                      console.log(`  [LabelRoster] 自動追加: "${artist.name}" → "${extracted.artist}" (keywords: ${keywords.join(', ')})`);
+                    }
                   }
                 }
 
@@ -341,7 +374,7 @@ async function runUpdateSongs() {
                 if (classification.detectedArtist) {
                   const rawName = String(classification.detectedArtist).trim();
                   if (rawName && rawName !== 'Various Artists') {
-                    const delimiters = /\s*(?:\bx\b|&|,|ft\.?|feat\.?|\||\/|_| - | – | — )\s*/i;
+                    const delimiters = /\s*(?:\bx\b|×|&|,|ft\.?|feat\.?|\||\/|_| - | – | — |\bនិង\b)\s*/i;
                     const parts = rawName.split(delimiters).map(p => p.trim()).filter(Boolean);
                     const normalizedNames = parts.map(p => normalizeArtistName(p));
                     
@@ -385,10 +418,10 @@ async function runUpdateSongs() {
   // 6. Update Sheets and BQ
   if (newSongsData.length > 0) {
     const recentSongs = newSongsData.filter(s => s.isRecent).map(s => [
-      s.videoId, s.artist, s.title, s.cleanTitle, s.publishedAt, s.eventTag, s.category, s.detectedArtist, s.featuring, `https://www.youtube.com/watch?v=${s.videoId}`
+      s.videoId, s.artist, s.title, s.cleanTitle, s.publishedAt, s.eventTag, s.category, s.detectedArtist, s.featuring, `https://www.youtube.com/watch?v=${s.videoId}`, heatId(s.videoId)
     ]);
     const oldSongs = newSongsData.filter(s => !s.isRecent).map(s => [
-      s.videoId, s.artist, s.title, s.cleanTitle, s.publishedAt, s.eventTag, s.category, s.detectedArtist, s.featuring, `https://www.youtube.com/watch?v=${s.videoId}`
+      s.videoId, s.artist, s.title, s.cleanTitle, s.publishedAt, s.eventTag, s.category, s.detectedArtist, s.featuring, `https://www.youtube.com/watch?v=${s.videoId}`, heatId(s.videoId)
     ]);
 
     // Resolve sheet GIDs dynamically by name
@@ -400,7 +433,7 @@ async function runUpdateSongs() {
     if (recentSongs.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: SHEET_ID,
-        range: 'SONGS!A:J',
+        range: 'SONGS!A:K',
         valueInputOption: 'USER_ENTERED',
         requestBody: { values: recentSongs },
       });
@@ -419,7 +452,7 @@ async function runUpdateSongs() {
                   sheetId: songsGid,
                   startRowIndex: 1, // Skip header
                   startColumnIndex: 0,
-                  endColumnIndex: 10
+                  endColumnIndex: 11
                 },
                 sortSpecs: [
                   {
@@ -457,7 +490,7 @@ async function runUpdateSongs() {
                   sheetId: songsLongGid,
                   startRowIndex: 1,
                   startColumnIndex: 0,
-                  endColumnIndex: 10
+                  endColumnIndex: 11
                 },
                 sortSpecs: [
                   {
@@ -549,11 +582,27 @@ async function runUpdateSongs() {
     ? `\n❌ <b>失敗: ${failedArtists.length}名</b>\n${failedArtists.join('\n')}`
     : '';
 
+  // 9. Append auto-discovered artists to Label_Roster sheet
+  if (newRosterEntries.length > 0) {
+    try {
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SHEET_ID,
+        range: 'Label_Roster!A:C',
+        valueInputOption: 'RAW',
+        requestBody: { values: newRosterEntries },
+      });
+      console.log(`[LabelRoster] ${newRosterEntries.length}件を Label_Roster に自動追加しました`);
+    } catch (e) {
+      console.warn('[LabelRoster] シート書き込み失敗:', e.message);
+    }
+  }
+
   await sendTelegramNotification(
     `✅ <b>新曲探索完了</b>\n` +
     `対象: ${artistsToProcess.length}名中 ${successCount}名成功\n` +
     `追加された曲: ${newSongsData.length}件` +
     (newlyRegisteredArtists.length > 0 ? `\n✨ <b>新規登録: ${newlyRegisteredArtists.length}名</b>\n${newlyRegisteredArtists.join(', ')}` : '') +
+    (newRosterEntries.length > 0 ? `\n📋 <b>Label_Roster 自動追加: ${newRosterEntries.length}件</b>\n${newRosterEntries.map(r => `${r[0]} → ${r[1]}`).join('\n')}` : '') +
     failureMsg
   );
 }

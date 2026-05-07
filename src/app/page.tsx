@@ -3,6 +3,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { RankingList } from '@/components/RankingList';
 import { ArtistRegistration } from '@/components/ArtistRegistration';
 import { Footer } from '@/components/Footer';
+import { CambodiaHeatmap } from '@/components/CambodiaHeatmap';
 import { getRankingData } from '@/lib/api';
 
 export const dynamic = 'force-dynamic';
@@ -22,6 +23,8 @@ export default async function Home() {
       >
         <ArtistRegistration />
       </RankingList>
+
+      <CambodiaHeatmap />
 
       <Footer />
     </main>
