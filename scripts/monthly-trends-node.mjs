@@ -375,7 +375,7 @@ async function main() {
   for (const prov of provinceRankings) {
     for (const a of prov.artists) {
       bqRows.push({
-        run_date:      { value: runDate },
+        run_date:      runDate,
         province_id:   prov.province_id,
         province_name: prov.province_name,
         artist_name:   a.artist,
