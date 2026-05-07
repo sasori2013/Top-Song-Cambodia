@@ -367,9 +367,6 @@ async function main() {
 
   // 4. BQ 書き込み（同日の再実行のみ上書き、他の履歴は保持）
   console.log('\n[3] BigQuery 書き込み...');
-  console.log(`  DELETE 実行: run_date = ${runDate}`);
-  await bq.query(`DELETE FROM \`${PROJECT_ID}.${DATASET}.trends_score_matrix\` WHERE FORMAT_DATE('%Y-%m-%d', run_date) = '${runDate}'`);
-  console.log(`  DELETE 完了`);
 
   const bqRows = [];
   for (const prov of provinceRankings) {
@@ -384,7 +381,24 @@ async function main() {
       });
     }
   }
-  if (bqRows.length > 0) {
+
+  let bqSkipped = false;
+  try {
+    console.log(`  DELETE 実行: run_date = ${runDate}`);
+    await bq.query(`DELETE FROM \`${PROJECT_ID}.${DATASET}.trends_score_matrix\` WHERE FORMAT_DATE('%Y-%m-%d', run_date) = '${runDate}'`);
+    console.log(`  DELETE 完了`);
+  } catch (delErr) {
+    if (delErr.message?.includes('streaming buffer')) {
+      // 直前のstreaming insertがバッファに残っているため同日削除不可
+      // 月次パイプラインでは通常発生しないが、同日再実行テスト時に起きる
+      console.log(`  ⚠️  Streaming buffer制限: 同日再実行のためBQ書き込みをスキップ`);
+      bqSkipped = true;
+    } else {
+      throw delErr;
+    }
+  }
+
+  if (!bqSkipped && bqRows.length > 0) {
     try {
       await bq.dataset(DATASET).table('trends_score_matrix').insert(bqRows);
       console.log(`  ${bqRows.length}行 挿入完了`);
