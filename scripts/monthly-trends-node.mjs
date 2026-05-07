@@ -333,8 +333,8 @@ async function main() {
 
         // アンカーのこのバッチでの値
         const anchorVal = (region.values.find(v => v.query === anchor)?.extracted_value) ?? 0;
-        // アンカーが5未満 = その州でVannDaがほぼ検索されていない → 正規化が不安定（爆発リスク）
-        if (anchorVal < 5) continue;
+        // アンカーが15未満 = その州でVannDaの検索量が少ない → 正規化が不安定（爆発リスク）
+        if (anchorVal < 15) continue;
 
         for (const v of region.values) {
           if (v.query === anchor) {
