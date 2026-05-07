@@ -1,0 +1,41 @@
+name: Monthly Cambodia Trends
+
+on:
+  schedule:
+    - cron: '0 12 1 * *'  # 毎月1日  12:00 UTC (19:00 KHR)
+    - cron: '0 12 15 * *' # 毎月15日 12:00 UTC (19:00 KHR)
+  workflow_dispatch:      # 手動実行（テスト用）
+
+jobs:
+  trends:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - run: npm install
+
+      - name: Run Monthly Trends Pipeline
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          SERPAPI_KEY: ${{ secrets.SERPAPI_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          NEXT_PUBLIC_SHEET_ID: ${{ secrets.NEXT_PUBLIC_SHEET_ID }}
+        run: node scripts/monthly-trends-node.mjs
+
+      - name: Notify failure (fallback)
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            -d parse_mode="HTML" \
+            -d text="❌ <b>Cambodia Trends ワークフロー失敗</b>%0A%0ARun: ${{ github.run_id }}%0A日時: $(date -u '+%Y-%m-%d %H:%M UTC')"
