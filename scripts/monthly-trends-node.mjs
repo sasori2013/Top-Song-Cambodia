@@ -127,10 +127,13 @@ async function getScoredArtists() {
         AND targetArtist NOT IN (SELECT name FROM production_names)
     ),
     recent_releases AS (
-      SELECT artist, COUNT(*) AS song_count_90d
-      FROM \`${PROJECT_ID}.${DATASET}.songs_master\`
-      WHERE DATE(publishedAt) >= DATE_SUB(CURRENT_DATE(), INTERVAL 90 DAY)
-      GROUP BY artist
+      -- songs_master には非音楽コンテンツが混在するため rank_history でフィルタ
+      -- 過去6ヶ月以内に実際にランクインした楽曲を持つアーティストのみ対象
+      SELECT DISTINCT s.artist
+      FROM \`${PROJECT_ID}.${DATASET}.rank_history\` r
+      JOIN \`${PROJECT_ID}.${DATASET}.songs_master\` s ON r.videoId = s.videoId
+      WHERE r.date >= DATE_SUB(CURRENT_DATE(), INTERVAL 180 DAY)
+        AND r.type = 'DAILY'
     ),
     ranking_stats AS (
       SELECT s.artist, COUNT(*) AS rank_appearances, AVG(r.heatScore) AS avg_heat
@@ -148,14 +151,14 @@ async function getScoredArtists() {
         (
           0.40 * LEAST(COALESCE(rs.rank_appearances, 0) / 30.0, 1.0) * 100
           + 0.30 * LEAST(LN(GREATEST(COALESCE(sd.subscribers, 0), 1)) / LN(1000000), 1.0) * 100
-          + 0.20 * IF(COALESCE(rr.song_count_90d, 0) > 0, 100, 0)
+          + 0.20 * IF(rr.artist IS NOT NULL, 100, 0)
           + 0.10 * LEAST(COALESCE(rs.avg_heat, 0) / 100.0, 1.0) * 100
         ) AS composite_score
       FROM all_artists a
       LEFT JOIN recent_releases rr ON a.artist = rr.artist
       LEFT JOIN ranking_stats   rs ON a.artist = rs.artist
       LEFT JOIN subs            sd ON a.artist = sd.name
-      WHERE COALESCE(rr.song_count_90d, 0) > 0 OR COALESCE(rs.rank_appearances, 0) > 0
+      WHERE rr.artist IS NOT NULL  -- 6ヶ月以内にランクインした楽曲あり（必須）
     )
     SELECT artist FROM scored ORDER BY composite_score DESC LIMIT ${MAX_ARTISTS}
   `);
