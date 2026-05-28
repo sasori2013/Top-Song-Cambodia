@@ -10,6 +10,42 @@ const TIMING_COLOR = { now: '#C0392B', soon: '#B7770D', watch: '#888' };
 const GROWTH_COLOR = { hot: '#C0392B', rising: '#1A6EBD', stable: '#1A7A4A', flat: '#888', new: '#B7770D' };
 const DIR_COLOR    = { up: '#1A6EBD', flat: '#888', down: '#C0392B', new: '#B7770D' };
 
+// ── SVG 円グラフ生成 ─────────────────────────────────────────────
+function buildPieChart(slices) {
+  // slices: [{ label, pct, color }]  pct は合計100を想定
+  const R = 54, CX = 64, CY = 64;
+  const total = slices.reduce((s, x) => s + x.pct, 0);
+  let angle = -Math.PI / 2;
+
+  const paths = slices.map(sl => {
+    const sweep = (sl.pct / total) * Math.PI * 2;
+    const x1 = CX + R * Math.cos(angle);
+    const y1 = CY + R * Math.sin(angle);
+    angle += sweep;
+    const x2 = CX + R * Math.cos(angle);
+    const y2 = CY + R * Math.sin(angle);
+    const large = sweep > Math.PI ? 1 : 0;
+    // 100%のとき arc が描けないので円で代替
+    const d = sl.pct >= 100
+      ? `M${CX},${CY - R} A${R},${R} 0 1,1 ${CX - 0.01},${CY - R} Z`
+      : `M${CX},${CY} L${x1.toFixed(2)},${y1.toFixed(2)} A${R},${R} 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z`;
+    return `<path d="${d}" fill="${sl.color}"/>`;
+  });
+
+  const legend = slices.map((sl, i) => {
+    const y = 16 + i * 22;
+    return `<rect x="0" y="${y - 9}" width="10" height="10" rx="2" fill="${sl.color}"/>
+    <text x="16" y="${y}" font-size="12" fill="#555" font-family="sans-serif">${sl.label}</text>
+    <text x="150" y="${y}" font-size="12" fill="#111" font-weight="700" font-family="sans-serif" text-anchor="end">${sl.pct}%</text>`;
+  }).join('');
+
+  return `<svg width="300" height="128" viewBox="0 0 300 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <g>${paths.join('')}</g>
+  <circle cx="${CX}" cy="${CY}" r="28" fill="#fff"/>
+  <g transform="translate(148, 14)">${legend}</g>
+</svg>`;
+}
+
 export function renderReport({ client, artists, market, reportDate }) {
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -192,22 +228,38 @@ export function renderReport({ client, artists, market, reportDate }) {
 
   <!-- Market Overview -->
   <div class="section-label">Cambodia Market Overview</div>
-  <div class="market-grid">
-    <div class="market-card">
-      <div class="m-label">チャート参加アーティスト</div>
-      <div class="m-value">${market.chartingArtists}</div>
-      <div class="m-sub">今週のアクティブ数</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:36px;">
+
+    <!-- 左：3枚の指標カード -->
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <div class="market-card">
+        <div class="m-label">チャート参加アーティスト</div>
+        <div class="m-value">${market.chartingArtists}</div>
+        <div class="m-sub">今週のアクティブ数</div>
+      </div>
+      <div class="market-card">
+        <div class="m-label">Spotify Cambodia</div>
+        <div class="m-value">${market.spotifyPresence}</div>
+        <div class="m-sub">クメール楽曲の展開状況</div>
+      </div>
+      <div class="market-card">
+        <div class="m-label">Apple Music Cambodia</div>
+        <div class="m-value">${market.appleMusicPresence}</div>
+        <div class="m-sub">クメール楽曲の展開状況</div>
+      </div>
     </div>
-    <div class="market-card">
-      <div class="m-label">Spotify Cambodia</div>
-      <div class="m-value">${market.spotifyPresence}</div>
-      <div class="m-sub">クメール楽曲の展開状況</div>
+
+    <!-- 右：プラットフォーム分布 円グラフ -->
+    <div class="market-card" style="display:flex;flex-direction:column;justify-content:center;">
+      <div class="m-label" style="margin-bottom:16px;">プラットフォーム別リーチ分布</div>
+      ${buildPieChart([
+        { label: 'YouTube',  pct: 62, color: '#E53935' },
+        { label: 'Facebook', pct: 24, color: '#1877F2' },
+        { label: 'TikTok',   pct: 14, color: '#222' },
+      ])}
+      <div class="m-sub" style="margin-top:14px;">※ 推計値。実測データ統合後に更新予定</div>
     </div>
-    <div class="market-card">
-      <div class="m-label">Apple Music Cambodia</div>
-      <div class="m-value">${market.appleMusicPresence}</div>
-      <div class="m-sub">クメール楽曲の展開状況</div>
-    </div>
+
   </div>
 
   <!-- Artist Cards -->
