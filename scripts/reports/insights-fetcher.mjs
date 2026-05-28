@@ -1,29 +1,46 @@
 /**
  * insights-fetcher.mjs
  *
- * YouTubeコメント＋動画説明文をClaude で分析し、
+ * YouTubeコメント＋動画説明文を Vertex AI (Gemini) で分析し、
  * アーティストの印象・ウィークポイントをシグナルとして返す。
  * 結果は BQ にキャッシュ（7日間）。生テキストは外部に渡さない。
  */
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
 import { google } from 'googleapis';
+import { writeFileSync } from 'fs';
+import { join } from 'path';
+import { tmpdir } from 'os';
 
 const DS         = 'heat_ranking';
 const CACHE_DAYS = 7;
 const yt         = google.youtube('v3');
 
+// ── Gemini クライアント初期化（ADC + サービスアカウント両対応） ──
+function createGemini(credentials, projectId) {
+  if (credentials?.private_key && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    const tmpPath = join(tmpdir(), 'vertex-sa.json');
+    writeFileSync(tmpPath, JSON.stringify(credentials));
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = tmpPath;
+  }
+  return new GoogleGenAI({
+    vertexai: true,
+    project:  projectId,
+    location: 'us-central1',
+  });
+}
+
 // ── BQ テーブル初期化（初回のみ） ───────────────────────────────
 async function ensureTable(bq) {
   await bq.query(`
     CREATE TABLE IF NOT EXISTS \`${DS}.artist_insights\` (
-      artist          STRING,
-      video_id        STRING,
-      impressions     STRING,
+      artist            STRING,
+      video_id          STRING,
+      impressions       STRING,
       brand_personality STRING,
-      target_affinity STRING,
-      weaknesses      STRING,
-      content_risk    STRING,
-      analyzed_at     TIMESTAMP
+      target_affinity   STRING,
+      weaknesses        STRING,
+      content_risk      STRING,
+      analyzed_at       TIMESTAMP
     )
   `).catch(() => {});
 }
@@ -80,19 +97,12 @@ async function fetchDescription(videoId, apiKey) {
   } catch { return ''; }
 }
 
-// ── Claude 分析 ──────────────────────────────────────────────────
-async function analyzeWithClaude(artistName, comments, description) {
-  const client = new Anthropic();
-
+// ── Gemini 分析 ──────────────────────────────────────────────────
+async function analyzeWithGemini(ai, artistName, comments, description) {
   const commentBlock = comments.slice(0, 40).join('\n') || '（コメントなし）';
   const descBlock    = description.slice(0, 1000)       || '（説明文なし）';
 
-  const msg = await client.messages.create({
-    model:      'claude-haiku-4-5-20251001',
-    max_tokens: 900,
-    messages: [{
-      role: 'user',
-      content: `カンボジア音楽アーティスト「${artistName}」のYouTubeデータを分析し、ブランドパートナーシップ観点での評価を行ってください。
+  const prompt = `カンボジア音楽アーティスト「${artistName}」のYouTubeデータを分析し、ブランドパートナーシップ観点での評価を行ってください。
 
 【視聴者コメント（抜粋）】
 ${commentBlock}
@@ -107,18 +117,22 @@ ${descBlock}
   "target_affinity": ["相性の良いブランドカテゴリ（例: 飲料）", "カテゴリ2", "カテゴリ3"],
   "weaknesses": ["ブランド連携上のリスク・懸念点（例: 恋愛テーマに偏りすぎており家族向けには不向き）", "懸念点2"],
   "content_risk": "low または medium または high"
-}`,
-    }],
+}`;
+
+  const result = await ai.models.generateContent({
+    model:    'gemini-2.0-flash',
+    contents: prompt,
+    config:   { maxOutputTokens: 900, temperature: 0.2 },
   });
 
-  const raw  = msg.content[0].text.trim();
+  const raw  = result.text.trim();
   const json = JSON.parse(raw.match(/\{[\s\S]*\}/)[0]);
 
   return {
-    impressions:      Array.isArray(json.impressions)     ? json.impressions     : [],
+    impressions:      Array.isArray(json.impressions)            ? json.impressions       : [],
     brandPersonality: typeof json.brand_personality === 'string' ? json.brand_personality : '',
-    targetAffinity:   Array.isArray(json.target_affinity) ? json.target_affinity : [],
-    weaknesses:       Array.isArray(json.weaknesses)      ? json.weaknesses      : [],
+    targetAffinity:   Array.isArray(json.target_affinity)        ? json.target_affinity   : [],
+    weaknesses:       Array.isArray(json.weaknesses)             ? json.weaknesses        : [],
     contentRisk:      ['low','medium','high'].includes(json.content_risk) ? json.content_risk : 'low',
   };
 }
@@ -144,12 +158,8 @@ async function cacheInsights(bq, videoId, artistName, ins) {
 }
 
 // ── 公開API ──────────────────────────────────────────────────────
-export async function fetchArtistInsights(bq, videoId, artistName) {
+export async function fetchArtistInsights(bq, videoId, artistName, credentials, projectId) {
   const ytApiKey = process.env.YOUTUBE_API_KEY;
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.warn('  ⚠ ANTHROPIC_API_KEY 未設定 — insights スキップ');
-    return null;
-  }
 
   await ensureTable(bq);
 
@@ -159,13 +169,15 @@ export async function fetchArtistInsights(bq, videoId, artistName) {
     return cached;
   }
 
-  console.log(`    insights: Claude 分析中 (${videoId})`);
+  console.log(`    insights: Gemini 分析中 (${videoId})`);
+
+  const ai = createGemini(credentials, projectId);
   const [comments, description] = await Promise.all([
     fetchComments(videoId, ytApiKey),
     fetchDescription(videoId, ytApiKey),
   ]);
 
-  const insights = await analyzeWithClaude(artistName, comments, description);
+  const insights = await analyzeWithGemini(ai, artistName, comments, description);
   await cacheInsights(bq, videoId, artistName, insights);
   return insights;
 }
