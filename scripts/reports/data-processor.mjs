@@ -181,7 +181,7 @@ function buildSparkline(ranks) {
   }).join(' ');
 
   const isUp = ranks[ranks.length - 1] < ranks[0]; // ランク数値が小さい=上昇
-  const color = isUp ? '#00E5FF' : '#FF6B6B';
+  const color = isUp ? '#1A6EBD' : '#C0392B';
 
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" fill="none" xmlns="http://www.w3.org/2000/svg">
   <polyline points="${points}" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>

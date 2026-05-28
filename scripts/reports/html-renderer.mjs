@@ -6,9 +6,9 @@
  * 外部JS・外部CSSなし。inline styleのみ。
  */
 
-const TIMING_COLOR = { now: '#00E5FF', soon: '#FFD600', watch: '#888' };
-const GROWTH_COLOR = { hot: '#FF4D4D', rising: '#00E5FF', stable: '#00FFA3', flat: '#888', new: '#FFD600' };
-const DIR_COLOR    = { up: '#00E5FF', flat: '#888', down: '#FF6B6B', new: '#FFD600' };
+const TIMING_COLOR = { now: '#C0392B', soon: '#B7770D', watch: '#888' };
+const GROWTH_COLOR = { hot: '#C0392B', rising: '#1A6EBD', stable: '#1A7A4A', flat: '#888', new: '#B7770D' };
+const DIR_COLOR    = { up: '#1A6EBD', flat: '#888', down: '#C0392B', new: '#B7770D' };
 
 export function renderReport({ client, artists, market, reportDate }) {
   return `<!DOCTYPE html>
@@ -22,13 +22,12 @@ export function renderReport({ client, artists, market, reportDate }) {
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   html { -webkit-text-size-adjust: 100%; }
   body {
-    background: #080808;
-    color: #e0e0e0;
+    background: #F4F4F1;
+    color: #111;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-size: 14px;
     line-height: 1.6;
     min-height: 100vh;
-    /* 印刷・保存抑止 */
     -webkit-user-select: none;
     -moz-user-select: none;
     user-select: none;
@@ -37,127 +36,125 @@ export function renderReport({ client, artists, market, reportDate }) {
   a { color: inherit; text-decoration: none; }
 
   .shell    { max-width: 900px; margin: 0 auto; padding: 0 24px 64px; }
-  .header   { border-bottom: 1px solid #1a1a1a; padding: 28px 0 24px; display: flex; justify-content: space-between; align-items: flex-end; }
+
+  /* Header */
+  .header   { border-bottom: 1px solid #ddd; padding: 28px 0 20px; display: flex; justify-content: space-between; align-items: flex-end; }
   .logo-row { display: flex; align-items: center; gap: 12px; }
-  .logo-heat { font-size: 20px; font-weight: 900; letter-spacing: .06em; color: #00E5FF; }
-  .logo-sep  { color: #333; font-size: 18px; }
-  .logo-mn   { font-size: 14px; font-weight: 600; color: #666; letter-spacing: .08em; }
+  .logo-heat { font-size: 20px; font-weight: 900; letter-spacing: .06em; color: #111; }
+  .logo-sep  { color: #bbb; font-size: 18px; }
+  .logo-mn   { font-size: 13px; font-weight: 600; color: #999; letter-spacing: .08em; }
   .header-right { text-align: right; }
-  .header-right .label { font-size: 10px; color: #444; letter-spacing: .15em; }
-  .header-right .date  { font-size: 13px; color: #666; margin-top: 2px; }
+  .header-right .label { font-size: 10px; color: #aaa; letter-spacing: .15em; }
+  .header-right .date  { font-size: 13px; color: #555; margin-top: 2px; }
 
   .confidential {
-    background: #0d0d0d; border: 1px solid #1e1e1e; border-radius: 6px;
-    padding: 8px 16px; margin: 20px 0; font-size: 11px;
-    color: #444; letter-spacing: .12em; text-align: center;
+    background: #fff; border: 1px solid #e0e0e0; border-radius: 4px;
+    padding: 7px 16px; margin: 16px 0; font-size: 10px;
+    color: #aaa; letter-spacing: .14em; text-align: center;
   }
 
-  .hero { padding: 48px 0 40px; }
-  .hero-eyebrow { font-size: 11px; letter-spacing: .2em; color: #444; margin-bottom: 12px; }
-  .hero-title { font-size: 32px; font-weight: 800; line-height: 1.25; color: #fff; margin-bottom: 16px; }
-  .hero-title span { color: #00E5FF; }
-  .hero-body  { font-size: 14px; color: #666; max-width: 560px; line-height: 1.8; }
+  /* Hero */
+  .hero { padding: 44px 0 36px; }
+  .hero-eyebrow { font-size: 10px; letter-spacing: .22em; color: #aaa; margin-bottom: 12px; text-transform: uppercase; }
+  .hero-title { font-size: 30px; font-weight: 800; line-height: 1.25; color: #111; margin-bottom: 14px; }
+  .hero-title span { color: #1A6EBD; }
+  .hero-body  { font-size: 14px; color: #666; max-width: 580px; line-height: 1.9; }
+  .hero-body strong { color: #111; font-weight: 600; }
 
   .section-label {
-    font-size: 10px; letter-spacing: .2em; color: #333;
-    border-top: 1px solid #161616; padding-top: 32px;
-    margin-top: 32px; margin-bottom: 20px;
+    font-size: 10px; letter-spacing: .2em; color: #aaa; text-transform: uppercase;
+    border-top: 1px solid #e0e0e0; padding-top: 28px;
+    margin-top: 28px; margin-bottom: 18px; font-weight: 600;
   }
 
   /* Market signals */
-  .market-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 40px; }
+  .market-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 36px; }
   .market-card {
-    background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 10px;
+    background: #fff; border: 1px solid #e5e5e5; border-radius: 10px;
     padding: 18px 20px;
   }
-  .market-card .m-label { font-size: 10px; color: #444; letter-spacing: .1em; margin-bottom: 8px; }
-  .market-card .m-value { font-size: 18px; font-weight: 700; color: #ccc; }
-  .market-card .m-sub   { font-size: 11px; color: #555; margin-top: 4px; }
+  .market-card .m-label { font-size: 10px; color: #aaa; letter-spacing: .1em; margin-bottom: 8px; text-transform: uppercase; }
+  .market-card .m-value { font-size: 20px; font-weight: 700; color: #111; }
+  .market-card .m-sub   { font-size: 11px; color: #aaa; margin-top: 4px; }
 
   /* Artist cards */
   .artist-card {
-    background: #0d0d0d; border: 1px solid #1a1a1a;
-    border-radius: 14px; padding: 32px 36px;
+    background: #fff; border: 1px solid #e5e5e5;
+    border-radius: 12px; padding: 28px 32px;
     margin-bottom: 20px; position: relative; overflow: hidden;
-  }
-  .artist-card::before {
-    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.04);
   }
   .card-pick {
     position: absolute; top: 20px; right: 24px;
-    font-size: 10px; font-weight: 700; letter-spacing: .15em; opacity: .7;
+    font-size: 10px; font-weight: 700; letter-spacing: .15em;
   }
-  .card-header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 6px; }
-  .card-rank   { font-size: 12px; color: #444; }
-  .card-name   { font-size: 24px; font-weight: 800; color: #fff; }
-  .card-age    { font-size: 12px; color: #444; margin-bottom: 28px; }
+  .card-header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  .card-rank   { font-size: 11px; color: #aaa; font-weight: 600; letter-spacing: .05em; }
+  .card-name   { font-size: 24px; font-weight: 800; color: #111; }
+  .card-age    { font-size: 12px; color: #bbb; margin-bottom: 24px; }
 
-  .metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
   .metric-box  {
-    background: #111; border: 1px solid #1a1a1a; border-radius: 8px; padding: 14px 16px;
+    background: #F8F8F6; border: 1px solid #e8e8e8; border-radius: 8px; padding: 14px 14px;
   }
-  .metric-box.hl { border-color: #00E5FF33; background: #00E5FF08; }
-  .metric-box .m-tag   { font-size: 9px; letter-spacing: .12em; color: #444; margin-bottom: 8px; }
-  .metric-box .m-main  { font-size: 18px; font-weight: 800; margin-bottom: 3px; }
-  .metric-box .m-desc  { font-size: 11px; color: #555; }
+  .metric-box.hl { border-color: #1A6EBD33; background: #1A6EBD08; }
+  .metric-box .m-tag   { font-size: 9px; letter-spacing: .12em; color: #aaa; margin-bottom: 8px; text-transform: uppercase; font-weight: 600; }
+  .metric-box .m-main  { font-size: 15px; font-weight: 800; margin-bottom: 3px; }
+  .metric-box .m-desc  { font-size: 11px; color: #aaa; }
 
-  .spark-row   { display: flex; align-items: center; gap: 8px; margin-bottom: 20px; }
-  .spark-label { font-size: 10px; color: #444; }
-
-  .platform-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
-  .plat-badge {
-    display: flex; align-items: center; gap: 6px;
-    background: #111; border: 1px solid #1a1a1a;
-    border-radius: 6px; padding: 6px 12px; font-size: 11px; color: #666;
-  }
-  .plat-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .spark-row   { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+  .spark-label { font-size: 10px; color: #bbb; letter-spacing: .08em; }
 
   .timing-bar {
     border-radius: 8px; padding: 12px 18px;
     display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 4px;
   }
-  .timing-bar .t-label { font-size: 11px; color: #888; }
+  .timing-bar .t-label { font-size: 11px; color: #999; }
   .timing-bar .t-val   { font-size: 13px; font-weight: 700; }
 
+  /* Narrative */
   .narrative-block {
-    margin-top: 20px;
-    border: 1px solid #1e1e1e; border-radius: 10px;
-    overflow: hidden;
+    margin-top: 16px;
+    border: 1px solid #e8e8e8; border-radius: 8px;
+    overflow: hidden; background: #FAFAF8;
   }
   .n-row {
-    display: grid; grid-template-columns: 9em 1fr;
-    gap: 16px; padding: 14px 20px;
-    border-bottom: 1px solid #141414;
+    display: grid; grid-template-columns: 8.5em 1fr;
+    gap: 16px; padding: 13px 18px;
+    border-bottom: 1px solid #efefef;
     align-items: baseline;
   }
   .n-label {
-    font-size: 10px; font-weight: 700; letter-spacing: .12em;
-    color: #555; text-transform: uppercase; white-space: nowrap;
+    font-size: 10px; font-weight: 700; letter-spacing: .1em;
+    color: #aaa; text-transform: uppercase; white-space: nowrap;
     padding-top: 2px;
   }
   .n-text {
-    font-size: 13px; color: #888; line-height: 1.85;
+    font-size: 13px; color: #444; line-height: 1.85;
   }
 
   /* Comparison table */
-  .compare-wrap { background: #0d0d0d; border: 1px solid #1a1a1a; border-radius: 12px; overflow: hidden; margin-bottom: 40px; }
-  .compare-head { padding: 16px 24px; border-bottom: 1px solid #161616; }
-  .compare-head h3 { font-size: 10px; letter-spacing: .2em; color: #444; font-weight: 600; }
+  .compare-wrap { background: #fff; border: 1px solid #e5e5e5; border-radius: 10px; overflow: hidden; margin-bottom: 36px; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
+  .compare-head { padding: 14px 22px; border-bottom: 1px solid #efefef; background: #FAFAF8; }
+  .compare-head h3 { font-size: 10px; letter-spacing: .2em; color: #aaa; font-weight: 700; text-transform: uppercase; }
   table { width: 100%; border-collapse: collapse; }
-  th { padding: 10px 24px; text-align: left; font-size: 10px; letter-spacing: .1em; color: #444; font-weight: 600; border-bottom: 1px solid #161616; }
-  td { padding: 14px 24px; font-size: 13px; color: #888; border-bottom: 1px solid #0f0f0f; }
+  th { padding: 10px 22px; text-align: left; font-size: 10px; letter-spacing: .1em; color: #bbb; font-weight: 700; border-bottom: 1px solid #efefef; text-transform: uppercase; }
+  td { padding: 13px 22px; font-size: 13px; color: #444; border-bottom: 1px solid #f5f5f5; }
   tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #FAFAF8; }
 
+  /* Footer */
   .footer {
-    border-top: 1px solid #141414; padding-top: 24px; margin-top: 40px;
+    border-top: 1px solid #e5e5e5; padding-top: 22px; margin-top: 36px;
     display: flex; justify-content: space-between; align-items: center;
   }
-  .footer-left  { font-size: 11px; color: #333; }
-  .footer-right { font-size: 10px; color: #2a2a2a; }
+  .footer-left  { font-size: 11px; color: #bbb; }
+  .footer-right { font-size: 10px; color: #ccc; }
 
   .watermark {
     position: fixed; bottom: 20px; right: 20px;
-    font-size: 10px; color: #1a1a1a; letter-spacing: .1em;
+    font-size: 10px; color: #ccc; letter-spacing: .1em;
     pointer-events: none;
   }
 </style>
@@ -182,19 +179,19 @@ export function renderReport({ client, artists, market, reportDate }) {
 
   <!-- Hero -->
   <section class="hero">
-    <div class="hero-eyebrow">CAMBODIA MUSIC INTELLIGENCE · BRAND PARTNERSHIP INSIGHT</div>
+    <div class="hero-eyebrow">Cambodia Music Intelligence · Brand Partnership Insight</div>
     <h1 class="hero-title">
       次のスター、<span>ピーク前に。</span>
     </h1>
     <p class="hero-body">
       HEATはカンボジア全土のYouTube・Spotify・Apple Musicを毎日監視しています。
-      このレポートに掲載された3名は、現在<strong style="color:#ccc">最も費用対効果の高い契約窓</strong>にいるアーティストです。
-      数値は非公開ですが、全ての傾向はHEATが独自に計算・検証済みです。
+      このレポートに掲載された3名は、現在<strong>最も費用対効果の高い契約窓</strong>にいるアーティストです。
+      全ての傾向はHEATが独自に計算・検証済みです。
     </p>
   </section>
 
   <!-- Market Overview -->
-  <div class="section-label">CAMBODIA MARKET OVERVIEW</div>
+  <div class="section-label">Cambodia Market Overview</div>
   <div class="market-grid">
     <div class="market-card">
       <div class="m-label">チャート参加アーティスト</div>
@@ -214,17 +211,16 @@ export function renderReport({ client, artists, market, reportDate }) {
   </div>
 
   <!-- Artist Cards -->
-  <div class="section-label">RECOMMENDED ARTISTS FOR PARTNERSHIP</div>
+  <div class="section-label">Recommended Artists for Partnership</div>
 
   ${artists.map((a, i) => {
-    const accentColor = ['#00E5FF', '#00FFA3', '#FFD600'][i];
+    const accentColor = ['#1A6EBD', '#1A7A4A', '#B7770D'][i];
     const timingColor = TIMING_COLOR[a.timing.urgency] || '#888';
     const growthColor = GROWTH_COLOR[a.growth.level]  || '#888';
     const dirColor    = DIR_COLOR[a.rankMovement.direction] || '#888';
 
     return `
-  <div class="artist-card" style="border-color: ${accentColor}18;">
-    <div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,${accentColor},transparent);"></div>
+  <div class="artist-card" style="border-top: 3px solid ${accentColor};">
     <div class="card-pick" style="color:${accentColor};">${a.pickLabel}</div>
     <div class="card-header">
       <span class="card-rank">${a.rank} HEAT</span>
@@ -233,7 +229,7 @@ export function renderReport({ client, artists, market, reportDate }) {
     <div class="card-age">${a.releaseAge}</div>
 
     <div class="metrics-row">
-      <div class="metric-box hl">
+      <div class="metric-box hl" style="border-color:${accentColor}33;background:${accentColor}08;">
         <div class="m-tag">30日間の勢い</div>
         <div class="m-main" style="color:${growthColor};">${a.growth.arrow} ${a.growth.label}</div>
         <div class="m-desc">先月との比較</div>
@@ -249,8 +245,8 @@ export function renderReport({ client, artists, market, reportDate }) {
         <div class="m-desc">ファンの熱量指数</div>
       </div>
       <div class="metric-box">
-        <div class="m-tag">展開プラットフォーム</div>
-        <div class="m-main" style="font-size:14px;color:#ccc;">${a.platform.label}</div>
+        <div class="m-tag">プラットフォーム</div>
+        <div class="m-main" style="font-size:13px;color:#333;">${a.platform.label}</div>
         <div class="m-desc">${a.platform.platforms.join(' · ')}</div>
       </div>
     </div>
@@ -261,7 +257,7 @@ export function renderReport({ client, artists, market, reportDate }) {
       ${a.sparklineSvg}
     </div>` : ''}
 
-    <div class="timing-bar" style="background:${timingColor}12;border:1px solid ${timingColor}22;">
+    <div class="timing-bar" style="background:${timingColor}10;border:1px solid ${timingColor}30;">
       <span class="t-label">パートナーシップ推奨タイミング</span>
       <span class="t-val" style="color:${timingColor};">▶ ${a.timing.label}</span>
     </div>
@@ -277,14 +273,14 @@ export function renderReport({ client, artists, market, reportDate }) {
       </div>
       <div class="n-row" style="border-bottom:none;">
         <div class="n-label" style="color:${timingColor};">今推奨する理由</div>
-        <div class="n-text" style="color:#bbb;">${a.narrative.timingReason}</div>
+        <div class="n-text" style="color:#333;">${a.narrative.timingReason}</div>
       </div>
     </div>
   </div>`;
   }).join('')}
 
   <!-- Comparison Table -->
-  <div class="section-label">SIDE-BY-SIDE COMPARISON</div>
+  <div class="section-label">Side-by-Side Comparison</div>
   <div class="compare-wrap">
     <div class="compare-head"><h3>3アーティスト比較</h3></div>
     <table>
@@ -300,35 +296,33 @@ export function renderReport({ client, artists, market, reportDate }) {
       </thead>
       <tbody>
         ${artists.map((a, i) => {
-          const c = ['#00E5FF','#00FFA3','FFD600'][i];
+          const ac = ['#1A6EBD','#1A7A4A','#B7770D'][i];
           return `<tr>
-            <td style="font-weight:700;color:${['#00E5FF','#00FFA3','#FFD600'][i]};">${a.artist}</td>
-            <td>${a.rank} ${a.rankMovement.delta != null ? `<span style="color:#00E5FF;font-size:11px;">▲${a.rankMovement.delta}</span>` : ''}</td>
-            <td style="color:${GROWTH_COLOR[a.growth.level]};">${a.growth.label}</td>
-            <td>${a.engagement.label}</td>
-            <td style="color:#555;">${a.platform.platforms.join(' · ')}</td>
-            <td style="color:${TIMING_COLOR[a.timing.urgency]};font-weight:600;">${a.timing.label}</td>
+            <td style="font-weight:700;color:${ac};">${a.artist}</td>
+            <td style="color:#333;">${a.rank}${a.rankMovement.delta != null && a.rankMovement.direction === 'up' ? ` <span style="color:#1A6EBD;font-size:11px;font-weight:600;">▲${a.rankMovement.delta}</span>` : ''}</td>
+            <td style="color:${GROWTH_COLOR[a.growth.level]};font-weight:600;">${a.growth.label}</td>
+            <td style="color:#444;">${a.engagement.label}</td>
+            <td style="color:#888;">${a.platform.platforms.join(' · ')}</td>
+            <td style="color:${TIMING_COLOR[a.timing.urgency]};font-weight:700;">${a.timing.label}</td>
           </tr>`;
         }).join('')}
       </tbody>
     </table>
   </div>
 
-  <!-- Methodology -->
-  <div class="section-label">ABOUT THIS REPORT</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:40px;">
+  <!-- About -->
+  <div class="section-label">About This Report</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-bottom:36px;">
     <div>
-      <p style="font-size:13px;color:#555;line-height:1.9;">
+      <p style="font-size:13px;color:#666;line-height:1.9;">
         HEATはカンボジアのインディペンデントな音楽インテリジェンスプラットフォームです。
-        ランキングは視聴者行動の実測値のみから算出され、
-        レーベルや事務所との資本関係は一切ありません。データは毎日更新されます。
+        ランキングは視聴者行動の実測値のみから算出され、レーベルや事務所との資本関係は一切ありません。データは毎日更新されます。
       </p>
     </div>
     <div>
-      <p style="font-size:13px;color:#555;line-height:1.9;">
+      <p style="font-size:13px;color:#666;line-height:1.9;">
         本レポートの傾向データはHEATが独自に加工・シグナル化したものです。
-        生の再生回数・スコア等の数値は開示されません。
-        MekongNetの契約クライアント企業のみに配布される限定資料です。
+        生の再生回数・スコア等の数値は開示されません。MekongNetの契約クライアント企業のみに配布される限定資料です。
       </p>
     </div>
   </div>
@@ -341,7 +335,6 @@ export function renderReport({ client, artists, market, reportDate }) {
 
 </div>
 
-<!-- Watermark -->
 <div class="watermark">${client.company_name} · HEAT CONFIDENTIAL</div>
 
 </body>
