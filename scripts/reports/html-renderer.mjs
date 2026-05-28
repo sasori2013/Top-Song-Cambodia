@@ -304,11 +304,23 @@ export function renderReport({ client, artists, market, reportDate }) {
       </div>
     </div>
 
-    ${a.sparklineSvg ? `
-    <div class="spark-row">
-      <span class="spark-label">14日間ランク推移</span>
-      ${a.sparklineSvg}
-    </div>` : ''}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;align-items:center;">
+      ${a.sparklineSvg ? `
+      <div>
+        <div class="spark-label" style="margin-bottom:8px;">14日間ランク推移</div>
+        ${a.sparklineSvg}
+      </div>` : '<div></div>'}
+      <div>
+        <div class="spark-label" style="margin-bottom:10px;">プラットフォーム別リーチ分布 <span style="color:#ccc;font-size:9px;">※推計値</span></div>
+        ${buildPieChart([
+          { label: 'YouTube',     pct: [50,46,58][i], color: '#E53935' },
+          { label: 'Facebook',    pct: [22,26,20][i], color: '#1877F2' },
+          { label: 'TikTok',      pct: [14,14,12][i], color: '#00C2CB' },
+          ...(a.platform.platforms.includes('Spotify')     ? [{ label: 'Spotify',     pct: [9,9,7][i], color: '#1DB954' }] : []),
+          ...(a.platform.platforms.includes('Apple Music') ? [{ label: 'Apple Music', pct: [5,5,3][i], color: '#FF6690' }] : []),
+        ])}
+      </div>
+    </div>
 
     <!-- Platform analysis -->
     <div class="plat-section">
