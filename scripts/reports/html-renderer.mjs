@@ -149,6 +149,23 @@ export function renderReport({ client, artists, market, reportDate }) {
   .timing-bar .t-label { font-size: 11px; color: #999; }
   .timing-bar .t-val   { font-size: 13px; font-weight: 700; }
 
+  /* Platform analysis */
+  .plat-section { margin-bottom: 16px; border: 1px solid #e8e8e8; border-radius: 8px; overflow: hidden; }
+  .plat-section-head { padding: 9px 16px; background: #F8F8F6; font-size: 9px; font-weight: 700; letter-spacing: .14em; color: #aaa; text-transform: uppercase; border-bottom: 1px solid #efefef; }
+  .plat-row { display: grid; grid-template-columns: 11em 1fr; gap: 14px; padding: 11px 16px; border-bottom: 1px solid #f5f5f5; align-items: start; }
+  .plat-row:last-child { border-bottom: none; }
+  .plat-row-left { display: flex; flex-direction: column; gap: 5px; }
+  .plat-name   { font-size: 11px; font-weight: 700; }
+  .plat-status { font-size: 9px; font-weight: 700; letter-spacing: .08em; padding: 2px 7px; border-radius: 4px; display: inline-block; }
+  .plat-row-right { }
+  .plat-audience { font-size: 12px; color: #666; line-height: 1.7; }
+  .plat-fit      { font-size: 12px; color: #444; line-height: 1.7; margin-top: 4px; font-weight: 500; }
+
+  /* Power profile */
+  .power-profile { padding: 14px 18px; background: #FAFAF8; border: 1px solid #e8e8e8; border-radius: 8px; margin-bottom: 16px; }
+  .power-type { font-size: 10px; font-weight: 700; letter-spacing: .1em; margin-bottom: 8px; text-transform: uppercase; }
+  .power-desc { font-size: 13px; color: #444; line-height: 1.85; }
+
   /* Narrative */
   .narrative-block {
     margin-top: 16px;
@@ -287,42 +304,34 @@ export function renderReport({ client, artists, market, reportDate }) {
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;align-items:center;">
-      ${a.sparklineSvg ? `
-      <div>
-        <div class="spark-label" style="margin-bottom:8px;">14日間ランク推移</div>
-        ${a.sparklineSvg}
-      </div>` : '<div></div>'}
-      <div>
-        <div class="spark-label" style="margin-bottom:10px;">プラットフォーム別リーチ分布 <span style="color:#ccc;font-size:9px;">※推計値</span></div>
-        ${(() => {
-          const hasSpotify = a.platform.platforms.includes('Spotify');
-          const hasApple   = a.platform.platforms.includes('Apple Music');
-          const slices = [
-            { label: 'YouTube',     pct: [50,46,58][i], color: '#E53935' },
-            { label: 'Facebook',    pct: [22,26,20][i], color: '#1877F2' },
-            { label: 'TikTok',      pct: [14,14,12][i], color: '#00C2CB' },
-            ...(hasSpotify ? [{ label: 'Spotify',     pct: [9, 9, 7][i], color: '#1DB954' }] : []),
-            ...(hasApple   ? [{ label: 'Apple Music', pct: [5, 5, 3][i], color: '#FF6690' }] : []),
-          ];
-          return buildPieChart(slices);
-        })()}
-      </div>
+    ${a.sparklineSvg ? `
+    <div class="spark-row">
+      <span class="spark-label">14日間ランク推移</span>
+      ${a.sparklineSvg}
+    </div>` : ''}
+
+    <!-- Platform analysis -->
+    <div class="plat-section">
+      <div class="plat-section-head">プラットフォーム別オーディエンス分析</div>
+      ${a.platformProfile.platforms.map(p => `
+      <div class="plat-row" style="border-left: 3px solid ${p.active ? p.color : '#e0e0e0'};">
+        <div class="plat-row-left">
+          <span class="plat-name" style="color:${p.active ? p.color : '#bbb'};">${p.name}</span>
+          <span class="plat-status" style="background:${p.active ? p.color + '18' : '#f0f0f0'};color:${p.active ? p.color : '#bbb'};">${p.status}</span>
+        </div>
+        <div class="plat-row-right">
+          <div class="plat-audience">${p.audience}</div>
+          ${p.brandFit ? `<div class="plat-fit">→ ${p.brandFit}</div>` : ''}
+        </div>
+      </div>`).join('')}
     </div>
 
-    <!-- Platform evaluation badges -->
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:18px;">
-      ${[
-        { name: 'YouTube',     color: '#E53935', status: 'HEAT対象',  active: true },
-        { name: 'Spotify',     color: '#1DB954', status: a.platform.platforms.includes('Spotify')     ? 'チャートイン' : '未展開', active: a.platform.platforms.includes('Spotify') },
-        { name: 'Apple Music', color: '#FF6690', status: a.platform.platforms.includes('Apple Music') ? 'チャートイン' : '未展開', active: a.platform.platforms.includes('Apple Music') },
-        { name: 'Facebook',    color: '#1877F2', status: '収集中',    active: false },
-        { name: 'TikTok',      color: '#00C2CB', status: '収集中',    active: false },
-      ].map(p => `
-      <div style="background:#F8F8F6;border:1px solid ${p.active ? p.color + '55' : '#e8e8e8'};border-radius:8px;padding:10px 8px;text-align:center;">
-        <div style="font-size:9px;font-weight:700;color:${p.active ? p.color : '#bbb'};letter-spacing:.06em;margin-bottom:5px;">${p.name}</div>
-        <div style="font-size:11px;color:${p.active ? '#333' : '#bbb'};font-weight:${p.active ? '600' : '400'};">${p.status}</div>
-      </div>`).join('')}
+    <!-- Power profile -->
+    <div class="power-profile" style="border-left: 4px solid ${a.platformProfile.powerProfile.color};">
+      <div class="power-type" style="color:${a.platformProfile.powerProfile.color};">
+        アーティスト力プロファイル &nbsp;·&nbsp; ${a.platformProfile.powerProfile.type}
+      </div>
+      <div class="power-desc">${a.platformProfile.powerProfile.desc}</div>
     </div>
 
     <div class="timing-bar" style="background:${timingColor}10;border:1px solid ${timingColor}30;">

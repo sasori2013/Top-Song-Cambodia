@@ -141,14 +141,19 @@ export async function getRisingArtistSignals(bq, industry = 'beverage') {
     const rankArr = (r.rank_history || []).map(Number);
     const sparkline = buildSparkline(rankArr);
 
-    const growth      = growthSignal(growthPct);
-    const engagement  = engagementSignal(engRate);
-    const rankMovement = rankSignal(Number(r.rank), r.prev_rank ? Number(r.prev_rank) : null);
-    const platform    = platformSignal(r.sp_rank, r.am_rank);
-    const timing      = timingSignal(growthPct, rankDelta, isNew);
-    const narrative   = buildNarrative(
+    const growth         = growthSignal(growthPct);
+    const engagement     = engagementSignal(engRate);
+    const rankMovement   = rankSignal(Number(r.rank), r.prev_rank ? Number(r.prev_rank) : null);
+    const platform       = platformSignal(r.sp_rank, r.am_rank);
+    const timing         = timingSignal(growthPct, rankDelta, isNew);
+    const narrative      = buildNarrative(
       growth.level, engagement.level, rankMovement.direction,
       rankDelta, isNew, platform.platforms.length, industry,
+    );
+    const platformProfile = buildPlatformProfile(
+      Number(r.rank), growth.level, engRate,
+      r.sp_rank ? Number(r.sp_rank) : null,
+      r.am_rank ? Number(r.am_rank) : null,
     );
 
     return {
@@ -163,6 +168,7 @@ export async function getRisingArtistSignals(bq, industry = 'beverage') {
       timing,
       sparklineSvg: sparkline,
       narrative,
+      platformProfile,
     };
   });
 }
@@ -186,6 +192,115 @@ function buildSparkline(ranks) {
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" fill="none" xmlns="http://www.w3.org/2000/svg">
   <polyline points="${points}" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
 </svg>`;
+}
+
+/**
+ * 各プラットフォームでの立ち位置と、それが示すオーディエンス像を返す。
+ * 生のランク数値は外部に渡さず、強度レベルのみに変換する。
+ */
+function buildPlatformProfile(rank, growthLevel, engRate, spRank, amRank) {
+  const ytStrength = rank <= 15 ? 'strong' : rank <= 28 ? 'mid' : 'rising';
+
+  const platforms = [
+    {
+      name: 'YouTube',
+      color: '#E53935',
+      status: ytStrength === 'strong' ? 'チャート上位' : ytStrength === 'mid' ? 'チャートイン' : '上昇中',
+      active: true,
+      audience: 'カンボジア国内の幅広い年齢層（13〜35歳）にリーチ。動画視聴が主な消費行動であり、認知形成の最大チャネル。',
+      brandFit: ytStrength === 'strong'
+        ? '高い露出量が見込め、マス向けキャンペーンの主軸として機能する。'
+        : 'チャートイン中のタイミングであり、認知拡大フェーズのブランド連動に適している。',
+    },
+    {
+      name: 'Spotify',
+      color: '#1DB954',
+      status: spRank ? 'チャートイン' : '未展開',
+      active: !!spRank,
+      audience: spRank
+        ? '月額課金の音楽ストリーミングユーザー。可処分所得が高いミドル〜アッパー層が中心で、ブランドへの信頼感が高い消費者層。'
+        : '現時点ではSpotifyへの展開なし。ストリーミング課金層へのリーチは限定的。',
+      brandFit: spRank
+        ? 'プレミアム・ライフスタイル系ブランドとの親和性が高い。高関与ファン層への精度の高いリーチが可能。'
+        : null,
+    },
+    {
+      name: 'Apple Music',
+      color: '#FF6690',
+      status: amRank ? 'チャートイン' : '未展開',
+      active: !!amRank,
+      audience: amRank
+        ? 'iPhoneユーザー層。東南アジアでは所得上位層と相関が強く、ライフスタイル・高級ブランドへの感度が高い。'
+        : '現時点ではApple Musicへの展開なし。',
+      brandFit: amRank
+        ? 'ラグジュアリー・プレミアムブランドとの相性が最も高いオーディエンス。購買力の高い層への訴求に有効。'
+        : null,
+    },
+    {
+      name: 'Facebook',
+      color: '#1877F2',
+      status: 'データ収集中',
+      active: false,
+      audience: '25〜45歳の購買力のある社会人層に強い。コミュニティ形成とブランドの長期露出に有効なチャネル。',
+      brandFit: 'ブランドとの継続的な関係構築に適している。（実データ統合後に評価更新予定）',
+    },
+    {
+      name: 'TikTok',
+      color: '#00C2CB',
+      status: 'データ収集中',
+      active: false,
+      audience: 'Z世代（15〜25歳）のバイラル拡散に特化。短期間での認知爆発と新規ファン獲得に強い。',
+      brandFit: 'トレンド感・話題性を重視するキャンペーンに最適。（実データ統合後に評価更新予定）',
+    },
+  ];
+
+  // ── 総合パワープロファイルの合成 ──
+  const hasSpotify   = !!spRank;
+  const hasApple     = !!amRank;
+  const hasBoth      = hasSpotify && hasApple;
+  const hasStreaming  = hasSpotify || hasApple;
+  const isHighEng    = engRate >= 2;
+
+  let powerProfile;
+  if (hasBoth && ytStrength === 'strong' && isHighEng) {
+    powerProfile = {
+      type:  'プレミアム×マス完全両立型',
+      color: '#1A6EBD',
+      desc:  'YouTube・Spotify・Apple Musicの全方位で強い存在感を持ち、かつファンの熱量も高い。マス認知とプレミアム層への浸透を同時に実現できる希少なポジション。高級ブランドから生活消費財まで幅広い業種のフラッグシップ契約に適している。',
+    };
+  } else if (hasBoth && ytStrength === 'strong') {
+    powerProfile = {
+      type:  'マス×プレミアム両立型',
+      color: '#1A6EBD',
+      desc:  'YouTubeでのマス認知とSpotify・Apple Musicでのプレミアム層浸透を兼ね備える。ブランドキャンペーンの幅が広く、ターゲットを選ばない汎用性の高いアーティスト。',
+    };
+  } else if (hasBoth) {
+    powerProfile = {
+      type:  'ストリーミング特化型（高関与層）',
+      color: '#1A7A4A',
+      desc:  'Spotify・Apple Music両方でチャートイン。音楽に対して課金するほど関与度の高い消費者層に強くリーチできる。プレミアム・ライフスタイル・金融・旅行系ブランドとの相性が特に高い。',
+    };
+  } else if (hasStreaming && ytStrength === 'strong') {
+    powerProfile = {
+      type:  '認知×プレミアム成長型',
+      color: '#1A7A4A',
+      desc:  'YouTubeで幅広い認知を持ちつつ、ストリーミングプラットフォームでの浸透が進んでいる成長期のアーティスト。マス向けキャンペーンとプレミアム訴求の両軸で展開できる。',
+    };
+  } else if (hasStreaming) {
+    powerProfile = {
+      type:  'コアファン型',
+      color: '#B7770D',
+      desc:  'ストリーミングでの存在感は音楽への深い関与を示す。ファンは熱量が高く、ブランドへの信頼転移が起きやすい層。限定コラボや特定コミュニティへの精度の高い訴求に向く。',
+    };
+  } else {
+    powerProfile = {
+      type:  'YouTube集中型（マスリーチ）',
+      color: '#888',
+      desc:  'カンボジア最大の動画プラットフォームで認知を形成中。幅広い年齢層への露出と短期間での認知拡大に強い。現時点では課金層よりも広義のマス層へのリーチが主体。',
+    };
+  }
+
+  return { platforms, powerProfile };
 }
 
 /**
