@@ -287,7 +287,7 @@ export function renderReport({ client, artists, market, reportDate }) {
       </div>
     </div>
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;align-items:center;">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;align-items:center;">
       ${a.sparklineSvg ? `
       <div>
         <div class="spark-label" style="margin-bottom:8px;">14日間ランク推移</div>
@@ -295,12 +295,34 @@ export function renderReport({ client, artists, market, reportDate }) {
       </div>` : '<div></div>'}
       <div>
         <div class="spark-label" style="margin-bottom:10px;">プラットフォーム別リーチ分布 <span style="color:#ccc;font-size:9px;">※推計値</span></div>
-        ${buildPieChart([
-          { label: 'YouTube',  pct: [60,55,68][i], color: '#E53935' },
-          { label: 'Facebook', pct: [25,30,20][i], color: '#1877F2' },
-          { label: 'TikTok',   pct: [15,15,12][i], color: '#333' },
-        ])}
+        ${(() => {
+          const hasSpotify = a.platform.platforms.includes('Spotify');
+          const hasApple   = a.platform.platforms.includes('Apple Music');
+          const slices = [
+            { label: 'YouTube',     pct: [50,46,58][i], color: '#E53935' },
+            { label: 'Facebook',    pct: [22,26,20][i], color: '#1877F2' },
+            { label: 'TikTok',      pct: [14,14,12][i], color: '#00C2CB' },
+            ...(hasSpotify ? [{ label: 'Spotify',     pct: [9, 9, 7][i], color: '#1DB954' }] : []),
+            ...(hasApple   ? [{ label: 'Apple Music', pct: [5, 5, 3][i], color: '#FF6690' }] : []),
+          ];
+          return buildPieChart(slices);
+        })()}
       </div>
+    </div>
+
+    <!-- Platform evaluation badges -->
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:18px;">
+      ${[
+        { name: 'YouTube',     color: '#E53935', status: 'HEAT対象',  active: true },
+        { name: 'Spotify',     color: '#1DB954', status: a.platform.platforms.includes('Spotify')     ? 'チャートイン' : '未展開', active: a.platform.platforms.includes('Spotify') },
+        { name: 'Apple Music', color: '#FF6690', status: a.platform.platforms.includes('Apple Music') ? 'チャートイン' : '未展開', active: a.platform.platforms.includes('Apple Music') },
+        { name: 'Facebook',    color: '#1877F2', status: '収集中',    active: false },
+        { name: 'TikTok',      color: '#00C2CB', status: '収集中',    active: false },
+      ].map(p => `
+      <div style="background:#F8F8F6;border:1px solid ${p.active ? p.color + '55' : '#e8e8e8'};border-radius:8px;padding:10px 8px;text-align:center;">
+        <div style="font-size:9px;font-weight:700;color:${p.active ? p.color : '#bbb'};letter-spacing:.06em;margin-bottom:5px;">${p.name}</div>
+        <div style="font-size:11px;color:${p.active ? '#333' : '#bbb'};font-weight:${p.active ? '600' : '400'};">${p.status}</div>
+      </div>`).join('')}
     </div>
 
     <div class="timing-bar" style="background:${timingColor}10;border:1px solid ${timingColor}30;">
