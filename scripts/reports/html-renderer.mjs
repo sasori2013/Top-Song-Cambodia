@@ -166,6 +166,22 @@ export function renderReport({ client, artists, market, reportDate }) {
   .power-type { font-size: 10px; font-weight: 700; letter-spacing: .1em; margin-bottom: 8px; text-transform: uppercase; }
   .power-desc { font-size: 13px; color: #444; line-height: 1.85; }
 
+  /* AI insights */
+  .insights-block { margin-bottom: 16px; border: 1px solid #e8e8e8; border-radius: 8px; overflow: hidden; }
+  .insights-head  { display: flex; justify-content: space-between; align-items: center; padding: 9px 16px; background: #F8F8F6; border-bottom: 1px solid #efefef; font-size: 9px; font-weight: 700; letter-spacing: .14em; color: #aaa; text-transform: uppercase; }
+  .risk-badge { border-radius: 4px; padding: 2px 8px; font-size: 9px; font-weight: 700; }
+  .risk-low    { background: #E8F5E9; color: #2E7D32; }
+  .risk-medium { background: #FFF8E1; color: #B7770D; }
+  .risk-high   { background: #FFEBEE; color: #C0392B; }
+  .insights-section { padding: 11px 16px; border-bottom: 1px solid #f5f5f5; }
+  .ins-label  { font-size: 9px; font-weight: 700; letter-spacing: .1em; color: #aaa; text-transform: uppercase; margin-bottom: 8px; }
+  .ins-text   { font-size: 13px; color: #444; line-height: 1.8; }
+  .tag-row    { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag        { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 4px; }
+  .tag-imp    { background: #EEF4FF; color: #1A6EBD; }
+  .tag-fit    { background: #E8F5E9; color: #1A7A4A; }
+  .weakness-row { font-size: 13px; color: #C0392B; line-height: 1.8; margin-top: 4px; }
+
   /* Narrative */
   .narrative-block {
     margin-top: 16px;
@@ -350,6 +366,41 @@ export function renderReport({ client, artists, market, reportDate }) {
       <span class="t-label">パートナーシップ推奨タイミング</span>
       <span class="t-val" style="color:${timingColor};">▶ ${a.timing.label}</span>
     </div>
+
+    ${a.insights ? `
+    <!-- Impression & weakness analysis -->
+    <div class="insights-block">
+      <div class="insights-head">
+        <span>AI印象分析</span>
+        <span class="risk-badge risk-${a.insights.contentRisk}">
+          コンテンツリスク: ${{ low: '低', medium: '中', high: '高' }[a.insights.contentRisk]}
+        </span>
+      </div>
+
+      <div class="insights-section">
+        <div class="ins-label">印象キーワード</div>
+        <div class="tag-row">
+          ${a.insights.impressions.map(tag => `<span class="tag tag-imp">${tag}</span>`).join('')}
+        </div>
+      </div>
+
+      <div class="insights-section">
+        <div class="ins-label">ブランド人格</div>
+        <div class="ins-text">${a.insights.brandPersonality}</div>
+      </div>
+
+      <div class="insights-section">
+        <div class="ins-label">相性の良い業種</div>
+        <div class="tag-row">
+          ${a.insights.targetAffinity.map(tag => `<span class="tag tag-fit">${tag}</span>`).join('')}
+        </div>
+      </div>
+
+      <div class="insights-section" style="border-bottom:none;">
+        <div class="ins-label" style="color:#C0392B;">ウィークポイント</div>
+        ${a.insights.weaknesses.map(w => `<div class="weakness-row">▲ ${w}</div>`).join('')}
+      </div>
+    </div>` : ''}
 
     <div class="narrative-block">
       <div class="n-row">

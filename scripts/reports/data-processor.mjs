@@ -159,6 +159,7 @@ export async function getRisingArtistSignals(bq, industry = 'beverage') {
     return {
       pickLabel:    ['#1 PICK', '#2 PICK', '#3 PICK'][i],
       artist:       r.artist,
+      videoId:      r.videoId,
       rank:         `TOP ${r.rank}`,
       releaseAge:   age != null ? `リリースから${age}日` : '最新リリース',
       growth,

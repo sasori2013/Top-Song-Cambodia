@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 import { createBQ, getRisingArtistSignals, getMarketSignals } from './data-processor.mjs';
+import { fetchArtistInsights } from './insights-fetcher.mjs';
 import { renderReport } from './html-renderer.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -57,7 +58,18 @@ for (const client of clients) {
       continue;
     }
 
-    const html = renderReport({ client, artists, market, reportDate });
+    // アーティストごとにコメント・歌詞分析を付加（キャッシュ優先）
+    const artistsWithInsights = await Promise.all(
+      artists.map(async a => ({
+        ...a,
+        insights: await fetchArtistInsights(bq, a.videoId, a.artist).catch(err => {
+          console.warn(`    insights エラー (${a.artist}): ${err.message}`);
+          return null;
+        }),
+      }))
+    );
+
+    const html = renderReport({ client, artists: artistsWithInsights, market, reportDate });
 
     // GCSに保存: reports/{slug}/index.html
     const file = bucket.file(`reports/${client.slug}/index.html`);
