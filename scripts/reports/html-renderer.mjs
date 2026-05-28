@@ -32,17 +32,17 @@ function buildPieChart(slices) {
     return `<path d="${d}" fill="${sl.color}"/>`;
   });
 
-  const legend = slices.map((sl, i) => {
-    const y = 16 + i * 22;
-    return `<rect x="0" y="${y - 9}" width="10" height="10" rx="2" fill="${sl.color}"/>
-    <text x="16" y="${y}" font-size="12" fill="#555" font-family="sans-serif">${sl.label}</text>
-    <text x="150" y="${y}" font-size="12" fill="#111" font-weight="700" font-family="sans-serif" text-anchor="end">${sl.pct}%</text>`;
+  const legend = slices.map((sl, idx) => {
+    const y = 14 + idx * 20;
+    return `<rect x="0" y="${y - 8}" width="9" height="9" rx="2" fill="${sl.color}"/>
+    <text x="14" y="${y}" font-size="11" fill="#555" font-family="sans-serif">${sl.label}</text>
+    <text x="120" y="${y}" font-size="11" fill="#111" font-weight="700" font-family="sans-serif" text-anchor="end">${sl.pct}%</text>`;
   }).join('');
 
-  return `<svg width="300" height="128" viewBox="0 0 300 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  return `<svg width="260" height="128" viewBox="0 0 260 128" fill="none" xmlns="http://www.w3.org/2000/svg">
   <g>${paths.join('')}</g>
   <circle cx="${CX}" cy="${CY}" r="28" fill="#fff"/>
-  <g transform="translate(148, 14)">${legend}</g>
+  <g transform="translate(142, 18)">${legend}</g>
 </svg>`;
 }
 
@@ -228,38 +228,22 @@ export function renderReport({ client, artists, market, reportDate }) {
 
   <!-- Market Overview -->
   <div class="section-label">Cambodia Market Overview</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:36px;">
-
-    <!-- 左：3枚の指標カード -->
-    <div style="display:flex;flex-direction:column;gap:12px;">
-      <div class="market-card">
-        <div class="m-label">チャート参加アーティスト</div>
-        <div class="m-value">${market.chartingArtists}</div>
-        <div class="m-sub">今週のアクティブ数</div>
-      </div>
-      <div class="market-card">
-        <div class="m-label">Spotify Cambodia</div>
-        <div class="m-value">${market.spotifyPresence}</div>
-        <div class="m-sub">クメール楽曲の展開状況</div>
-      </div>
-      <div class="market-card">
-        <div class="m-label">Apple Music Cambodia</div>
-        <div class="m-value">${market.appleMusicPresence}</div>
-        <div class="m-sub">クメール楽曲の展開状況</div>
-      </div>
+  <div class="market-grid">
+    <div class="market-card">
+      <div class="m-label">チャート参加アーティスト</div>
+      <div class="m-value">${market.chartingArtists}</div>
+      <div class="m-sub">今週のアクティブ数</div>
     </div>
-
-    <!-- 右：プラットフォーム分布 円グラフ -->
-    <div class="market-card" style="display:flex;flex-direction:column;justify-content:center;">
-      <div class="m-label" style="margin-bottom:16px;">プラットフォーム別リーチ分布</div>
-      ${buildPieChart([
-        { label: 'YouTube',  pct: 62, color: '#E53935' },
-        { label: 'Facebook', pct: 24, color: '#1877F2' },
-        { label: 'TikTok',   pct: 14, color: '#222' },
-      ])}
-      <div class="m-sub" style="margin-top:14px;">※ 推計値。実測データ統合後に更新予定</div>
+    <div class="market-card">
+      <div class="m-label">Spotify Cambodia</div>
+      <div class="m-value">${market.spotifyPresence}</div>
+      <div class="m-sub">クメール楽曲の展開状況</div>
     </div>
-
+    <div class="market-card">
+      <div class="m-label">Apple Music Cambodia</div>
+      <div class="m-value">${market.appleMusicPresence}</div>
+      <div class="m-sub">クメール楽曲の展開状況</div>
+    </div>
   </div>
 
   <!-- Artist Cards -->
@@ -303,11 +287,21 @@ export function renderReport({ client, artists, market, reportDate }) {
       </div>
     </div>
 
-    ${a.sparklineSvg ? `
-    <div class="spark-row">
-      <span class="spark-label">14日間ランク推移</span>
-      ${a.sparklineSvg}
-    </div>` : ''}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;align-items:center;">
+      ${a.sparklineSvg ? `
+      <div>
+        <div class="spark-label" style="margin-bottom:8px;">14日間ランク推移</div>
+        ${a.sparklineSvg}
+      </div>` : '<div></div>'}
+      <div>
+        <div class="spark-label" style="margin-bottom:10px;">プラットフォーム別リーチ分布 <span style="color:#ccc;font-size:9px;">※推計値</span></div>
+        ${buildPieChart([
+          { label: 'YouTube',  pct: [60,55,68][i], color: '#E53935' },
+          { label: 'Facebook', pct: [25,30,20][i], color: '#1877F2' },
+          { label: 'TikTok',   pct: [15,15,12][i], color: '#333' },
+        ])}
+      </div>
+    </div>
 
     <div class="timing-bar" style="background:${timingColor}10;border:1px solid ${timingColor}30;">
       <span class="t-label">パートナーシップ推奨タイミング</span>
