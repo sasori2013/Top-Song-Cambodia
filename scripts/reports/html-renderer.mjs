@@ -119,10 +119,24 @@ export function renderReport({ client, artists, market, reportDate }) {
   .timing-bar .t-label { font-size: 11px; color: #888; }
   .timing-bar .t-val   { font-size: 13px; font-weight: 700; }
 
-  .brand-note {
-    margin-top: 16px; padding: 14px 18px;
-    background: #0a0a0a; border-left: 2px solid #1e1e1e;
-    font-size: 13px; color: #666; line-height: 1.7;
+  .narrative-block {
+    margin-top: 20px;
+    border: 1px solid #1e1e1e; border-radius: 10px;
+    overflow: hidden;
+  }
+  .n-row {
+    display: grid; grid-template-columns: 9em 1fr;
+    gap: 16px; padding: 14px 20px;
+    border-bottom: 1px solid #141414;
+    align-items: baseline;
+  }
+  .n-label {
+    font-size: 10px; font-weight: 700; letter-spacing: .12em;
+    color: #555; text-transform: uppercase; white-space: nowrap;
+    padding-top: 2px;
+  }
+  .n-text {
+    font-size: 13px; color: #888; line-height: 1.85;
   }
 
   /* Comparison table */
@@ -252,7 +266,20 @@ export function renderReport({ client, artists, market, reportDate }) {
       <span class="t-val" style="color:${timingColor};">▶ ${a.timing.label}</span>
     </div>
 
-    <div class="brand-note">${a.brandNote}</div>
+    <div class="narrative-block">
+      <div class="n-row">
+        <div class="n-label">現状</div>
+        <div class="n-text">${a.narrative.situation}</div>
+      </div>
+      <div class="n-row">
+        <div class="n-label">ブランドメリット</div>
+        <div class="n-text">${a.narrative.brandValue}</div>
+      </div>
+      <div class="n-row" style="border-bottom:none;">
+        <div class="n-label" style="color:${timingColor};">今推奨する理由</div>
+        <div class="n-text" style="color:#bbb;">${a.narrative.timingReason}</div>
+      </div>
+    </div>
   </div>`;
   }).join('')}
 

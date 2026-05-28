@@ -141,19 +141,28 @@ export async function getRisingArtistSignals(bq, industry = 'beverage') {
     const rankArr = (r.rank_history || []).map(Number);
     const sparkline = buildSparkline(rankArr);
 
+    const growth      = growthSignal(growthPct);
+    const engagement  = engagementSignal(engRate);
+    const rankMovement = rankSignal(Number(r.rank), r.prev_rank ? Number(r.prev_rank) : null);
+    const platform    = platformSignal(r.sp_rank, r.am_rank);
+    const timing      = timingSignal(growthPct, rankDelta, isNew);
+    const narrative   = buildNarrative(
+      growth.level, engagement.level, rankMovement.direction,
+      rankDelta, isNew, platform.platforms.length, industry,
+    );
+
     return {
-      pickLabel:   ['#1 PICK', '#2 PICK', '#3 PICK'][i],
-      artist:      r.artist,
-      rank:        `TOP ${r.rank}`,
-      releaseAge:  age != null ? `リリースから${age}日` : '最新リリース',
-      growth:      growthSignal(growthPct),
-      engagement:  engagementSignal(engRate),
-      rankMovement: rankSignal(Number(r.rank), r.prev_rank ? Number(r.prev_rank) : null),
-      platform:    platformSignal(r.sp_rank, r.am_rank),
-      timing:      timingSignal(growthPct, rankDelta, isNew),
+      pickLabel:    ['#1 PICK', '#2 PICK', '#3 PICK'][i],
+      artist:       r.artist,
+      rank:         `TOP ${r.rank}`,
+      releaseAge:   age != null ? `リリースから${age}日` : '最新リリース',
+      growth,
+      engagement,
+      rankMovement,
+      platform,
+      timing,
       sparklineSvg: sparkline,
-      // 業種別コメント
-      brandNote:   brandNote(industry, engRate, growthPct, rankDelta),
+      narrative,
     };
   });
 }
@@ -179,14 +188,59 @@ function buildSparkline(ranks) {
 </svg>`;
 }
 
-/** 業種別のブランドコメント生成 */
-function brandNote(industry, engRate, growthPct, rankDelta) {
-  if (industry === 'beverage') {
-    if (engRate >= 3) return 'ファンの熱量が高く、ブランドキャンペーンへの反応率が期待できます。';
-    if (growthPct !== null && growthPct >= 100) return '急速な認知拡大フェーズ。今の契約で最大の露出効果が見込めます。';
-    return '安定した支持層を持つアーティスト。長期パートナーシップに適しています。';
+/**
+ * シグナルの組み合わせからビジネス論拠のナラティブを生成する。
+ * growthLevel, engLevel, rankDir, rankDelta, isNew, platformCount, industry を受け取り、
+ * 3つのセクション（状況・ブランド旨味・タイミング根拠）を返す。
+ */
+function buildNarrative(growthLevel, engLevel, rankDir, rankDelta, isNew, platformCount, industry) {
+  // ── 現状の説明 ──
+  let situation;
+  if (isNew) {
+    situation = 'チャートに新規参入したばかりのアーティストです。知名度がゼロから立ち上がるフェーズは最も短期間で認知を獲得できる局面であり、コストも最小です。';
+  } else if (growthLevel === 'hot' && rankDir === 'up') {
+    situation = `過去30日間で視聴数が急増し、チャートランキングも${rankDelta}ポジション上昇しています。認知がまだ広がり切っていないこの段階は、ブランドが"一緒に浮上できる"最後の窓です。`;
+  } else if (growthLevel === 'hot') {
+    situation = '視聴数が急速に伸びており、カンボジアの若年層を中心に認知が爆発的に拡大しています。チャート順位の安定と相まって、短期ではなく持続的な注目が続く可能性が高い状態です。';
+  } else if (growthLevel === 'rising' && rankDir === 'up') {
+    situation = `視聴数・チャート順位がともに上昇トレンドにあります。ランクは30日前より${rankDelta}ポジション改善しており、ファン層が着実に広がっているフェーズです。`;
+  } else if (growthLevel === 'rising') {
+    situation = '視聴数が継続的に増加しており、固定ファンを超えた新規リスナーへの浸透が始まっています。認知拡大のモメンタムが維持されている安定した成長期です。';
+  } else if (rankDir === 'up' && rankDelta && rankDelta >= 5) {
+    situation = `視聴数の伸びは緩やかですが、チャートランキングが${rankDelta}ポジション急上昇しています。競合アーティストの脱落とリスナーの再配分が起きており、相対的な存在感が急浮上しています。`;
+  } else {
+    situation = 'チャート上位に安定してランクインしており、一定の固定ファン層が形成されています。認知の爆発力よりも信頼感・継続性を重視したパートナーシップに適したアーティストです。';
   }
-  return 'カンボジア音楽市場で注目度が高まっているアーティストです。';
+
+  // ── ブランドへの旨味 ──
+  let brandValue;
+  if (engLevel === 'ultra' && platformCount >= 2) {
+    brandValue = 'エンゲージメント率が業界平均を大幅に上回っており、ファンが実際に行動する層であることを示しています。またSpotify・Apple Musicにも展開済みのため、SNS・ストリーミング・動画の3チャネル同時展開が可能です。';
+  } else if (engLevel === 'ultra') {
+    brandValue = 'コメント・いいね数の比率がカンボジア音楽市場の平均をはるかに超えています。これはファンがパッシブな視聴者ではなく、能動的に反応・拡散する層であることを意味します。キャンペーン投稿の有機的な広がりが期待できます。';
+  } else if (engLevel === 'high' && platformCount >= 2) {
+    brandValue = 'エンゲージメント率が高く、複数プラットフォームで存在感があります。YouTube・音楽ストリーミングを通じてリーチできる層が広く、ブランド露出の効率が高い状態です。';
+  } else if (engLevel === 'high') {
+    brandValue = 'ファンの反応率が高く、ブランドとのタイアップに対してもポジティブな反応が得られやすいオーディエンス構成です。';
+  } else if (platformCount >= 2) {
+    brandValue = 'YouTube・Spotify・Apple Musicの全プラットフォームに楽曲が展開されており、デジタル音楽消費のすべてのタッチポイントでブランドとの接触機会を作れます。';
+  } else {
+    brandValue = 'YouTube中心に視聴者を持ち、カンボジア国内での動画広告・ブランド連動コンテンツとの相性が高いアーティストです。';
+  }
+
+  // ── タイミングの根拠 ──
+  let timingReason;
+  if (isNew) {
+    timingReason = '新規エントリー直後は、ファンとアーティストの関係が最も新鮮な時期です。ブランドが今ここで接触することで「このアーティストを最初から支えていたブランド」というポジショニングを獲得できます。';
+  } else if (growthLevel === 'hot' || (rankDelta !== null && rankDelta >= 8)) {
+    timingReason = '現在のモメンタムはいつ鈍化してもおかしくない急加速フェーズです。ピーク前に入ることで、認知拡大の波に乗りながら最も低いコストで最大のリーチを得られます。ピーク後の契約は単価が跳ね上がります。';
+  } else if (growthLevel === 'rising') {
+    timingReason = '成長が確認されているが、まだ市場に広く知られていない段階です。認知が広まるほど競合ブランドが参入してきます。今が"独占的に接触できる最後のタイミング"である可能性が高いです。';
+  } else {
+    timingReason = '安定したランキングと継続的な視聴は、長期キャンペーンの土台として機能します。一時的なバズではなく、持続的なブランド露出を狙う場合に適した契約時期です。';
+  }
+
+  return { situation, brandValue, timingReason };
 }
 
 /** マーケット概況シグナルを返す */
