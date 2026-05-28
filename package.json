@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google-cloud/bigquery": "^8.1.1",
+    "@google-cloud/storage": "^7.19.0",
     "@google-cloud/vertexai": "^1.10.4",
     "@google/generative-ai": "^0.24.1",
     "@mediapipe/tasks-vision": "^0.10.32",

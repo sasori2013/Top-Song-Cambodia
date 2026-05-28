@@ -1,0 +1,33 @@
+name: Generate B2B Reports (Daily)
+
+on:
+  schedule:
+    # 17:00 UTC = 00:00 KHT — platform-rankings完了後に実行
+    - cron: '0 17 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: generate-reports
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Generate HTML reports → upload to GCS
+        env:
+          GCP_PROJECT_ID:             ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          REPORT_GCS_BUCKET:          ${{ secrets.REPORT_GCS_BUCKET }}
+        run: node scripts/reports/generate-reports.mjs

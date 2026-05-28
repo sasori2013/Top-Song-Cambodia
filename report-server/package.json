@@ -1,0 +1,14 @@
+{
+  "name": "heat-report-server",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.mjs",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "@google-cloud/bigquery": "^7.9.1",
+    "@google-cloud/storage": "^7.11.0",
+    "express": "^4.21.2"
+  }
+}
