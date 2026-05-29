@@ -150,14 +150,14 @@ export function renderReport({ client, artists, market, reportDate }) {
   .timing-bar .t-val   { font-size: 13px; font-weight: 700; }
 
   /* Velocity 200 */
-  .velocity-bar { display:flex; justify-content:space-between; align-items:center; border:1px solid; border-radius:8px; padding:12px 18px; margin-bottom:18px; }
-  .vel-left  { display:flex; align-items:center; gap:10px; }
-  .vel-tag   { font-size:9px; font-weight:800; letter-spacing:.18em; }
-  .vel-label { font-size:13px; font-weight:700; }
-  .vel-right { display:flex; align-items:baseline; gap:6px; }
-  .vel-score { font-size:28px; font-weight:900; line-height:1; }
-  .vel-unit  { font-size:14px; font-weight:700; }
-  .vel-note  { font-size:10px; color:#bbb; margin-left:8px; }
+  .velocity-bar { display:flex; justify-content:space-between; align-items:center; border:2px solid; border-radius:10px; padding:14px 20px; margin-bottom:18px; }
+  .vel-left  { display:flex; align-items:center; gap:12px; }
+  .vel-tag   { font-size:9px; font-weight:900; letter-spacing:.2em; background:#111; color:#fff; padding:3px 8px; border-radius:4px; }
+  .vel-label { font-size:15px; font-weight:800; }
+  .vel-right { display:flex; align-items:baseline; gap:4px; }
+  .vel-score { font-size:36px; font-weight:900; line-height:1; }
+  .vel-unit  { font-size:16px; font-weight:700; }
+  .vel-note  { font-size:10px; color:#bbb; margin-left:10px; align-self:flex-end; padding-bottom:4px; }
 
   /* Platform analysis */
   .plat-section { margin-bottom: 16px; border: 1px solid #e8e8e8; border-radius: 8px; overflow: hidden; }
@@ -294,8 +294,8 @@ export function renderReport({ client, artists, market, reportDate }) {
 
   ${artists.map((a, i) => {
     const accentColor   = ['#1A6EBD', '#1A7A4A', '#B7770D'][i];
-    const velColor      = { rocket: '#5B21B6', hot: '#C0392B', rising: '#1A6EBD', flat: '#888', falling: '#C0392B', none: '#ccc' }[a.velocity.level] || '#888';
-    const velBg         = { rocket: '#F5F3FF', hot: '#FFF5F5', rising: '#EEF4FF', flat: '#F8F8F8', falling: '#FFF5F5', none: '#F8F8F8' }[a.velocity.level] || '#F8F8F8';
+    const velColor      = { rocket: '#5B21B6', hot: '#C0392B', rising: '#1A6EBD', flat: '#555', falling: '#C0392B', none: '#aaa' }[a.velocity.level] || '#555';
+    const velBg         = { rocket: '#EDE9FE', hot: '#FDECEA', rising: '#DBEAFE', flat: '#F0F0EE', falling: '#FDECEA', none: '#F5F5F5' }[a.velocity.level] || '#F0F0EE';
     const timingColor = TIMING_COLOR[a.timing.urgency] || '#888';
     const growthColor = GROWTH_COLOR[a.growth.level]  || '#888';
     const dirColor    = DIR_COLOR[a.rankMovement.direction] || '#888';
