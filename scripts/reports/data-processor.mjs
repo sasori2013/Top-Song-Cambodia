@@ -46,6 +46,16 @@ function platformSignal(spotify, appleMusic) {
   return              { label: 'YouTube中心',              platforms: ['YouTube'] };
 }
 
+function velocitySignal(score) {
+  if (score == null) return { label: 'データ不足', level: 'none',    score: null };
+  const s = Math.round(score);
+  if (s >= 200) return { label: 'ロケット加速', level: 'rocket',  score: s };
+  if (s >= 80)  return { label: '急加速',       level: 'hot',     score: s };
+  if (s >= 20)  return { label: '加速中',        level: 'rising',  score: s };
+  if (s >= -20) return { label: '横ばい',        level: 'flat',    score: s };
+  return           { label: '失速中',           level: 'falling', score: s };
+}
+
 function timingSignal(growth, rankDelta, isNew) {
   if (isNew && growth === null)             return { label: '今すぐ', urgency: 'now' };
   if (growth !== null && growth >= 150)     return { label: '今すぐ', urgency: 'now' };
@@ -90,6 +100,27 @@ export async function getRisingArtistSignals(bq, industry = 'beverage') {
         WHERE rh.type="DAILY"
           AND rh.date >= DATE_SUB((SELECT MAX(date) FROM \`${DS}.rank_history\` WHERE type="DAILY"), INTERVAL 14 DAY)
         GROUP BY videoId
+      ),
+      -- ── Velocity 200: クロスプラットフォーム加速度（現在はYT likes+comments） ──
+      vel AS (
+        SELECT
+          videoId,
+          -- e0: 最新日の日次増分
+          COALESCE(SUM(IF(date=d0, likes+comments, 0)),0) -
+          COALESCE(SUM(IF(date=DATE_SUB(d0, INTERVAL 1 DAY), likes+comments, 0)),0) AS e0,
+          -- e1: 前日の日次増分
+          COALESCE(SUM(IF(date=DATE_SUB(d0, INTERVAL 1 DAY), likes+comments, 0)),0) -
+          COALESCE(SUM(IF(date=DATE_SUB(d0, INTERVAL 2 DAY), likes+comments, 0)),0) AS e1,
+          -- e_bar: 過去7日間の日次平均（累積差分 / 7の望遠鏡公式）
+          (COALESCE(SUM(IF(date=DATE_SUB(d0, INTERVAL 1 DAY), likes+comments, 0)),0) -
+           COALESCE(SUM(IF(date=DATE_SUB(d0, INTERVAL 8 DAY), likes+comments, 0)),0)) / 7.0 AS e_bar
+        FROM \`${DS}.snapshots\`,
+             (SELECT MAX(date) AS d0 FROM \`${DS}.snapshots\`) AS latest
+        WHERE date IN (d0,
+                       DATE_SUB(d0, INTERVAL 1 DAY),
+                       DATE_SUB(d0, INTERVAL 2 DAY),
+                       DATE_SUB(d0, INTERVAL 8 DAY))
+        GROUP BY videoId
       )
     SELECT
       r.rank,
@@ -104,7 +135,12 @@ export async function getRisingArtistSignals(bq, industry = 'beverage') {
       r.videoId,
       hist.ranks            as rank_history,
       MAX(IF(p.platform="spotify",     p.best_rank, NULL)) as sp_rank,
-      MAX(IF(p.platform="apple_music", p.best_rank, NULL)) as am_rank
+      MAX(IF(p.platform="apple_music", p.best_rank, NULL)) as am_rank,
+      -- Velocity 200スコア（生数値は変換後に破棄）
+      SAFE_DIVIDE(
+        vel.e0 - vel.e1,
+        GREATEST(ABS(vel.e1), 0.05 * (vel.e_bar + 50))
+      ) * 100 AS velocity_200
     FROM lr, ls, ps, pr
     JOIN \`${DS}.rank_history\` r       ON r.date=lr.d AND r.type="DAILY"
     JOIN \`${DS}.songs_master\` s        ON r.videoId=s.videoId
@@ -114,10 +150,12 @@ export async function getRisingArtistSignals(bq, industry = 'beverage') {
     LEFT JOIN \`${DS}.heat_artists\` ha  ON LOWER(ha.name)=LOWER(s.artist)
     LEFT JOIN plat p                     ON LOWER(p.artist)=LOWER(s.artist)
     LEFT JOIN hist                        ON hist.videoId=r.videoId
+    LEFT JOIN vel                         ON vel.videoId=r.videoId
     WHERE r.rank BETWEEN 10 AND 40
       AND (ha.career_tier IS NULL OR ha.career_tier NOT IN ("legend","established"))
     GROUP BY r.rank, s.artist, r.heatScore, snap.views, snap.likes, snap.comments,
-             prev_snap.views, prev_r.rank, s.publishedAt, r.videoId, hist.ranks
+             prev_snap.views, prev_r.rank, s.publishedAt, r.videoId, hist.ranks,
+             vel.e0, vel.e1, vel.e_bar
     ORDER BY
       (CASE WHEN prev_r.rank IS NOT NULL THEN prev_r.rank - r.rank ELSE -1 END) DESC,
       r.heatScore DESC
@@ -141,11 +179,13 @@ export async function getRisingArtistSignals(bq, industry = 'beverage') {
     const rankArr = (r.rank_history || []).map(Number);
     const sparkline = buildSparkline(rankArr);
 
+    const rawVelocity    = r.velocity_200 != null ? Number(r.velocity_200) : null;
     const growth         = growthSignal(growthPct);
     const engagement     = engagementSignal(engRate);
     const rankMovement   = rankSignal(Number(r.rank), r.prev_rank ? Number(r.prev_rank) : null);
     const platform       = platformSignal(r.sp_rank, r.am_rank);
     const timing         = timingSignal(growthPct, rankDelta, isNew);
+    const velocity       = velocitySignal(rawVelocity);
     const narrative      = buildNarrative(
       growth.level, engagement.level, rankMovement.direction,
       rankDelta, isNew, platform.platforms.length, industry,
@@ -167,6 +207,7 @@ export async function getRisingArtistSignals(bq, industry = 'beverage') {
       rankMovement,
       platform,
       timing,
+      velocity,
       sparklineSvg: sparkline,
       narrative,
       platformProfile,

@@ -149,6 +149,16 @@ export function renderReport({ client, artists, market, reportDate }) {
   .timing-bar .t-label { font-size: 11px; color: #999; }
   .timing-bar .t-val   { font-size: 13px; font-weight: 700; }
 
+  /* Velocity 200 */
+  .velocity-bar { display:flex; justify-content:space-between; align-items:center; border:1px solid; border-radius:8px; padding:12px 18px; margin-bottom:18px; }
+  .vel-left  { display:flex; align-items:center; gap:10px; }
+  .vel-tag   { font-size:9px; font-weight:800; letter-spacing:.18em; }
+  .vel-label { font-size:13px; font-weight:700; }
+  .vel-right { display:flex; align-items:baseline; gap:6px; }
+  .vel-score { font-size:28px; font-weight:900; line-height:1; }
+  .vel-unit  { font-size:14px; font-weight:700; }
+  .vel-note  { font-size:10px; color:#bbb; margin-left:8px; }
+
   /* Platform analysis */
   .plat-section { margin-bottom: 16px; border: 1px solid #e8e8e8; border-radius: 8px; overflow: hidden; }
   .plat-section-head { padding: 9px 16px; background: #F8F8F6; font-size: 9px; font-weight: 700; letter-spacing: .14em; color: #aaa; text-transform: uppercase; border-bottom: 1px solid #efefef; }
@@ -283,7 +293,9 @@ export function renderReport({ client, artists, market, reportDate }) {
   <div class="section-label">Recommended Artists for Partnership</div>
 
   ${artists.map((a, i) => {
-    const accentColor = ['#1A6EBD', '#1A7A4A', '#B7770D'][i];
+    const accentColor   = ['#1A6EBD', '#1A7A4A', '#B7770D'][i];
+    const velColor      = { rocket: '#5B21B6', hot: '#C0392B', rising: '#1A6EBD', flat: '#888', falling: '#C0392B', none: '#ccc' }[a.velocity.level] || '#888';
+    const velBg         = { rocket: '#F5F3FF', hot: '#FFF5F5', rising: '#EEF4FF', flat: '#F8F8F8', falling: '#FFF5F5', none: '#F8F8F8' }[a.velocity.level] || '#F8F8F8';
     const timingColor = TIMING_COLOR[a.timing.urgency] || '#888';
     const growthColor = GROWTH_COLOR[a.growth.level]  || '#888';
     const dirColor    = DIR_COLOR[a.rankMovement.direction] || '#888';
@@ -296,6 +308,20 @@ export function renderReport({ client, artists, market, reportDate }) {
       <span class="card-name">${a.artist}</span>
     </div>
     <div class="card-age">${a.releaseAge}</div>
+
+    <!-- Velocity 200 banner -->
+    <div class="velocity-bar" style="background:${velBg};border-color:${velColor}33;">
+      <div class="vel-left">
+        <span class="vel-tag" style="color:${velColor};">VELOCITY 200</span>
+        <span class="vel-label" style="color:${velColor};">${a.velocity.label}</span>
+      </div>
+      <div class="vel-right">
+        ${a.velocity.score !== null
+          ? `<span class="vel-score" style="color:${velColor};">${a.velocity.score > 0 ? '+' : ''}${a.velocity.score}</span><span class="vel-unit" style="color:${velColor}88;">%</span>`
+          : `<span class="vel-score" style="color:#bbb;">—</span>`}
+        <span class="vel-note">YouTube エンゲージメント加速度 ／ FB・TikTok統合後に更新</span>
+      </div>
+    </div>
 
     <div class="metrics-row">
       <div class="metric-box hl" style="border-color:${accentColor}33;background:${accentColor}08;">
