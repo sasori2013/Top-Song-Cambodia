@@ -69,69 +69,43 @@ async function runRankingNode() {
 
   let latestDate, baseDate;
   
-  // 1. Get dates from BQ and check for stability
+  // 1. Get the two most recent snapshot dates
   const [dateRows] = await bq.query(`
     SELECT date, COUNT(videoId) as count
     FROM \`${DATASET_ID}.${TABLE_SNAPSHOTS}\`
     GROUP BY date ORDER BY date DESC LIMIT 7
   `);
 
-  // Stability threshold: 80% of the average record count across fetched dates
-  const avgCount = dateRows.reduce((sum, r) => sum + Number(r.count), 0) / dateRows.length;
-  const stabilityThreshold = Math.round(avgCount * 0.8);
-  console.log(`Stability threshold: ${stabilityThreshold} (80% of avg ${Math.round(avgCount)})`);
-
-  const stableDates = dateRows
-    .filter(r => Number(r.count) >= stabilityThreshold)
-    .map(r => r.date.value);
   const allDates = dateRows.map(r => r.date.value);
 
-  if (stableDates.length === 0) {
-    throw new Error(`No stable snapshot dates found (>=${stabilityThreshold} records) in the last 7 days.`);
+  if (allDates.length < 2) {
+    throw new Error('Not enough snapshot dates found (need at least 2).');
   }
 
   if (forcedDate) {
     latestDate = forcedDate;
   } else {
-    // Use latest date only if it's stable. If today's snapshot is incomplete (quota hit etc.),
-    // fall back to the most recent stable date to avoid a broken ranking.
-    const absoluteLatest = allDates[0];
-    const absoluteLatestCount = Number(dateRows.find(r => r.date.value === absoluteLatest)?.count || 0);
-    if (absoluteLatestCount >= stabilityThreshold) {
-      latestDate = absoluteLatest;
-    } else {
-      latestDate = stableDates[0]; // fallback to latest stable date
-      const pct = Math.round(absoluteLatestCount / (dateRows[1]?.count || 1) * 100);
-      console.warn(`⚠️ Latest date ${absoluteLatest} is unstable (${absoluteLatestCount} records, ~${pct}% of baseline). Falling back to ${latestDate}.`);
-      await sendTelegramNotification(
-        `⚠️ <b>ランキング生成: データ不足フォールバック</b>\n` +
-        `${absoluteLatest} のスナップショットが不完全 (${absoluteLatestCount}件, 約${pct}%) のため、\n` +
-        `代わりに <b>${latestDate}</b> のデータでランキングを生成します。`
-      );
-    }
+    latestDate = allDates[0];
   }
 
   if (forcedBase) {
     baseDate = forcedBase;
   } else {
-    // Find the newest stable date that is older than latestDate
-    baseDate = stableDates.find(d => d < latestDate);
-
-    if (!baseDate) {
-      // Emergency fallback to the absolute next date if no stable dates found below
-      const idx = allDates.indexOf(latestDate);
-      baseDate = allDates[idx + 1] || allDates[1];
-    }
+    baseDate = allDates.find(d => d < latestDate) || allDates[1];
   }
 
-  console.log(`Analyzing: ${latestDate} (Latest) vs ${baseDate} (Base)`);
-
-  // Validation: Check stability of selected dates
   const latestCount = Number(dateRows.find(r => r.date.value === latestDate)?.count || 0);
-  const baseCount = Number(dateRows.find(r => r.date.value === baseDate)?.count || 0);
+  const baseCount   = Number(dateRows.find(r => r.date.value === baseDate)?.count   || 0);
+  console.log(`Analyzing: ${latestDate} (${latestCount} records) vs ${baseDate} (${baseCount} records)`);
 
-  if (latestCount < stabilityThreshold) console.warn(`⚠️ Warning: Latest date ${latestDate} is unstable (${latestCount} records).`);
-  if (baseCount < stabilityThreshold) console.warn(`⚠️ Warning: Base date ${baseDate} is unstable (${baseCount} records).`);
+  // Alert if count is suspiciously low (possible full API failure)
+  if (latestCount < 50) {
+    await sendTelegramNotification(
+      `🚨 <b>スナップショット異常</b>\n` +
+      `${latestDate} のレコード数が ${latestCount} 件と極端に少ないです。APIエラーの可能性があります。`
+    );
+    throw new Error(`Snapshot for ${latestDate} has only ${latestCount} records — aborting.`);
+  }
 
   // Day normalization: if base is 2+ days ago, divide increments by elapsed days
   const daysBetween = Math.max(1, Math.round(

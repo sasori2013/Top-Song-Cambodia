@@ -29,19 +29,25 @@ async function runWeeklyMaintenance() {
   console.log('--- Weekly Maintenance Started ---');
   const today = new Date().toISOString().split('T')[0];
 
-  // 1. Find songs that haven't been updated in the last 7 days
-  // We check both songs_master.last_updated_at and the latest entry in snapshots
+  // 1. Find active songs (snapshotted within last 14 days) that haven't been
+  //    updated in the last 7 days. Retired songs fall out of the 14-day window
+  //    naturally and are never re-snapshotted here.
   const query = `
     WITH latest_snapshots AS (
       SELECT videoId, MAX(date) as last_snap_date
       FROM \`${DATASET_ID}.snapshots\`
       GROUP BY videoId
+    ),
+    recently_active AS (
+      SELECT DISTINCT videoId
+      FROM \`${DATASET_ID}.snapshots\`
+      WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
     )
     SELECT m.videoId, m.title, ls.last_snap_date
     FROM \`${DATASET_ID}.songs_master\` m
+    JOIN recently_active ra ON m.videoId = ra.videoId
     LEFT JOIN latest_snapshots ls ON m.videoId = ls.videoId
-    WHERE ls.last_snap_date IS NULL 
-       OR ls.last_snap_date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+    WHERE ls.last_snap_date < DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
     LIMIT 1000
   `;
 
