@@ -43,6 +43,8 @@ const HARD_REJECT_ARTISTS = new Set([
   'jennie','rosé','lisa','jisoo','j-hope','rm','suga','jin','jimin','v',
   // Others
   'wizkid',
+  // Confirmed non-Khmer (manually reviewed)
+  'cortis',
 ]);
 
 // Split "Artist A & Artist B, feat. C" → ['artist a', 'artist b', 'c']
@@ -202,7 +204,6 @@ Answer NO if the artist is from any other country, even if their music is popula
 
 CORRECT examples:
 - VannDa → YES (Cambodian rapper, born in Cambodia)
-- CORTIS → YES (Cambodian-British, Cambodian ethnicity)
 - Meezy24k → YES (Cambodian-American)
 - Bruno Mars → NO (American, Filipino/Puerto Rican descent)
 - Katy Perry → NO (American)

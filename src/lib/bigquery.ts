@@ -1,6 +1,92 @@
 import { BigQuery } from '@google-cloud/bigquery';
+import { RankingResponse, RankingItem } from './types';
+import { google } from 'googleapis';
 
 const PROJECT_ID = process.env.GCP_PROJECT_ID;
+const SHEET_ID = process.env.NEXT_PUBLIC_SHEET_ID;
+
+const PROVINCE_NAME_TO_ID: Record<string, string> = {
+  "Banteay Meanchey": "banteay_meanchey",
+  "Battambang": "battambang",
+  "Kampong Cham": "kampong_cham",
+  "Kampong Chhnang": "kampong_chhnang",
+  "Kampong Speu": "kampong_speu",
+  "Kampong Thom": "kampong_thom",
+  "Kampot": "kampot",
+  "Kandal": "kandal",
+  "Koh Kong": "koh_kong",
+  "Kratie": "kratie",
+  "Mondulkiri": "mondulkiri",
+  "Phnom Penh": "phnom_penh",
+  "Preah Vihear": "preah_vihear",
+  "Prey Veng": "prey_veng",
+  "Pursat": "pursat",
+  "Ratanakiri": "ratanakiri",
+  "Siem Reap": "siem_reap",
+  "Preah Sihanouk": "preah_sihanouk",
+  "Stung Treng": "stung_treng",
+  "Svay Rieng": "svay_rieng",
+  "Takeo": "takeo",
+  "Oddar Meanchey": "oddar_meanchey",
+  "Kep": "kep",
+  "Pailin": "pailin",
+  "Tbong Khmum": "tbong_khmum",
+};
+
+async function getRegionalDataFromSheet() {
+  if (!SHEET_ID) return [];
+  
+  try {
+    const rawJson = (process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}').trim();
+    const cleanJson = rawJson.replace(/^['"]|['"]$/g, '');
+    const credentials = JSON.parse(cleanJson);
+    
+    if (credentials.private_key) {
+      credentials.private_key = credentials.private_key.replace(/\\n/g, '\n');
+    }
+
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: '📊 州別ランキング【最新】!A:ZZ',
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length < 5) return [];
+
+    const regionalData: { id: string; value: number }[] = [];
+
+    // The sheet usually has some metadata rows. 
+    // Based on actual output, the data rows start after a few metadata rows.
+    // We look for rows where the first column is a known province name.
+    for (const row of rows) {
+      if (!row || row.length < 3) continue;
+
+      const provinceName = row[0];
+      const provinceId = PROVINCE_NAME_TO_ID[provinceName];
+      if (!provinceId) continue;
+
+      // Sum all numeric scores in the row (Rank 1 score, Rank 2 score, etc.)
+      let totalHeat = 0;
+      for (let j = 2; j < row.length; j += 2) {
+        const val = parseInt(row[j]);
+        if (!isNaN(val)) totalHeat += val;
+      }
+
+      regionalData.push({ id: provinceId, value: totalHeat });
+    }
+
+    return regionalData;
+  } catch (error) {
+    console.error('Error fetching regional data from sheet:', error);
+    return [];
+  }
+}
 
 export function getBigQueryClient() {
   const rawJson = (process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '{}').trim();
@@ -128,7 +214,6 @@ export async function searchSongsByVector(queryText: string, limit: number = 5):
 }
 
 
-import { RankingResponse, RankingItem } from './types';
 
 export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
   const bq = getBigQueryClient();
@@ -244,7 +329,8 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
       SELECT
         COALESCE(SUM(CASE WHEN s1.views    > s2.views    THEN s1.views    - s2.views    ELSE 0 END), 0) AS inc_views,
         COALESCE(SUM(CASE WHEN s1.likes    > s2.likes    THEN s1.likes    - s2.likes    ELSE 0 END), 0) AS inc_likes,
-        COALESCE(SUM(CASE WHEN s1.comments > s2.comments THEN s1.comments - s2.comments ELSE 0 END), 0) AS inc_comments
+        COALESCE(SUM(CASE WHEN s1.comments > s2.comments THEN s1.comments - s2.comments ELSE 0 END), 0) AS inc_comments,
+        COALESCE(SUM(s1.views + s1.likes + s1.comments), 0) AS total_actions_volume
       FROM \`${DATASET_ID}.snapshots\` s1
       JOIN \`${DATASET_ID}.snapshots\` s2 ON s1.videoId = s2.videoId
       WHERE CAST(s1.date AS STRING) = '${latestDate}'
@@ -254,6 +340,7 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
       views:    Number(actionRows[0]?.inc_views    || 0),
       likes:    Number(actionRows[0]?.inc_likes    || 0),
       comments: Number(actionRows[0]?.inc_comments || 0),
+      totalActionsVolume: Number(actionRows[0]?.total_actions_volume || 0),
     };
 
     // 5. Format Response
@@ -279,9 +366,33 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
       });
     }
     
+    // 6. Fetch Province Data (Prefer Google Sheet for latest regional heat)
+    let regionalData = await getRegionalDataFromSheet();
+    
+    // Fallback to BigQuery if sheet fetch fails or is empty
+    if (regionalData.length === 0) {
+      const [provinceRows] = await bq.query(`
+        SELECT province_id as id, SUM(score) as value
+        FROM \`${DATASET_ID}.trends_score_matrix\`
+        WHERE run_date = (SELECT MAX(run_date) FROM \`${DATASET_ID}.trends_score_matrix\`)
+        GROUP BY province_id
+      `);
+      regionalData = provinceRows.map(r => ({ id: r.id, value: Number(r.value || 0) }));
+    }
+    
     // Growth from SQL results (all rows have same GS values)
     const thisWeekSum = trendRows[0]?.this_week || 0;
     const prevWeekSum = trendRows[0]?.last_week || 0;
+
+    // Scale regionalData to match actual Weekly Total Volume (thisWeekSum)
+    const totalScoresSum = regionalData.reduce((acc, curr) => acc + curr.value, 0);
+    if (thisWeekSum > 0 && totalScoresSum > 0) {
+      const scalingFactor = thisWeekSum / totalScoresSum;
+      regionalData = regionalData.map(d => ({
+        ...d,
+        value: Math.round(d.value * scalingFactor)
+      }));
+    }
     
     const heatGrowth = prevWeekSum > 0 ? ((thisWeekSum - prevWeekSum) / prevWeekSum) * 100 : 0;
     
@@ -325,7 +436,8 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
         heatTrend: trendValues,
         dailyActions
       },
-      ranking: ranking
+      ranking: ranking,
+      regionalData: regionalData
     } as RankingResponse;
 
   } catch (error) {

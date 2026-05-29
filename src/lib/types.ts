@@ -34,4 +34,5 @@ export interface RankingResponse {
     updatedAt: string;
     stats?: RankingStats;
     ranking: RankingItem[];
+    regionalData?: { id: string; value: number }[];
 }

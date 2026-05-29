@@ -49,7 +49,10 @@ async function main() {
   try {
     console.log('--- Apple Music ---');
     rawApple = await fetchAppleMusicRanking();
-    results.appleMusic = await filterKhmerSongs(rawApple, khmerArtists);
+    const amFiltered = await filterKhmerSongs(rawApple, khmerArtists);
+    results.appleMusic = amFiltered
+      .sort((a, b) => a.rank - b.rank)
+      .map((s, i) => ({ ...s, rank: i + 1 }));
     console.log(`Apple Music: ${rawApple.length} total → ${results.appleMusic.length} Khmer songs kept`);
     if (results.appleMusic.length < AM_KHMER_MIN) {
       errors.push(`[Apple Music] Khmer曲が少なすぎます (${results.appleMusic.length}曲、期待値: ${AM_KHMER_MIN}曲以上)`);
@@ -64,7 +67,10 @@ async function main() {
   try {
     console.log('\n--- Spotify ---');
     rawSpotify = await fetchSpotifyRanking();
-    results.spotify = await filterKhmerSongs(rawSpotify, khmerArtists);
+    const spFiltered = await filterKhmerSongs(rawSpotify, khmerArtists);
+    results.spotify = spFiltered
+      .sort((a, b) => a.rank - b.rank)
+      .map((s, i) => ({ ...s, rank: i + 1 }));
     console.log(`Spotify: ${rawSpotify.length} total → ${results.spotify.length} Khmer songs kept`);
     if (results.spotify.length < SP_KHMER_MIN) {
       errors.push(`[Spotify] Khmer曲が少なすぎます (${results.spotify.length}曲、期待値: ${SP_KHMER_MIN}曲以上)`);
@@ -97,8 +103,9 @@ async function main() {
   try {
     await writeToBigQuery(results);
   } catch (e) {
-    errors.push(`[BigQuery] ${e.message}`);
-    console.error('BigQuery write failed:', e.message);
+    const detail = e.message || (e.errors ? JSON.stringify(e.errors.slice(0, 2)) : String(e));
+    errors.push(`[BigQuery] ${detail}`);
+    console.error('BigQuery write failed:', detail);
   }
 
   // 5b. Save raw full rankings to BigQuery (all songs, is_khmer marks inclusion) (B)

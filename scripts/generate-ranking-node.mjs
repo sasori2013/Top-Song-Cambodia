@@ -176,7 +176,7 @@ async function runRankingNode() {
     LEFT JOIN base b ON l.videoId = b.videoId
     LEFT JOIN history h ON l.videoId = h.videoId
     JOIN songs_master_dedup s ON l.videoId = s.videoId
-    WHERE s.publishedAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 60 DAY)
+    WHERE s.publishedAt >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 90 DAY)
   `;
   const [rows] = await bq.query(sql);
   console.log(`Fetched ${rows.length} records.`);
@@ -192,26 +192,44 @@ async function runRankingNode() {
   });
 
   await updateProcessStatus('Ranking: Calculating Scores', 20, 100);
-  const rankedList = rows.map(row => {
+
+  // 総再生数が少なすぎる動画を除外（ベースが浅くて成長率が爆発するケースを防ぐ）
+  const MIN_TOTAL_VIEWS = 10000;
+  // この再生数以上のbaseでlikes=0はAPIエラーによる欠損と判定
+  const MIN_RELIABLE_BASE_VIEWS = 5000;
+
+  const eligibleRows = rows.filter(row => {
+    if (parseInt(row.totalV) < MIN_TOTAL_VIEWS) {
+      console.log(`[MinViews] Skip ${row.videoId}: totalV=${row.totalV}`);
+      return false;
+    }
+    return true;
+  });
+  console.log(`MinViews filter: ${rows.length} → ${eligibleRows.length} songs`);
+
+  const rankedList = eligibleRows.map(row => {
     const totalV = parseInt(row.totalV);
     const totalL = parseInt(row.totalL);
     const totalC = parseInt(row.totalC);
-    
-    // Safety check for growth: 
-    // If we have yesterday's data, use it.
-    // If not, only treat it as "new growth" if the song was published in the last 48 hours.
-    const baseV = row.baseV ? parseInt(row.baseV) : null;
-    const baseL = row.baseL ? parseInt(row.baseL) : 0;
-    const baseC = row.baseC ? parseInt(row.baseC) : 0;
 
-    // If we have base data, calculate the actual increase normalized to per-day.
-    // Dividing by daysBetween ensures fair comparison when base is 2+ days ago.
-    // If not (song just discovered today), set growth to 0 for safety.
+    const baseV = (row.baseV != null) ? parseInt(row.baseV) : null;
+    const baseL_raw = (row.baseL != null) ? parseInt(row.baseL) : 0;
+    const baseC_raw = (row.baseC != null) ? parseInt(row.baseC) : 0;
+
+    // ベーススナップショットのlikes/comments欠損検知:
+    // 再生数が十分ある楽曲でbaseL=0はAPIエラーの可能性が高いのでdl/dcを0に抑制
+    const corruptedBase = baseV !== null && baseV >= MIN_RELIABLE_BASE_VIEWS && baseL_raw === 0;
+    if (corruptedBase) {
+      console.warn(`[CorruptedBase] ${row.videoId}: baseV=${baseV}, baseL=0 → dl/dc suppressed`);
+    }
+    const baseL = corruptedBase ? totalL : baseL_raw;
+    const baseC = corruptedBase ? totalC : baseC_raw;
+
     const rawDv = baseV !== null ? Math.max(0, totalV - baseV) : 0;
     const dv = rawDv / daysBetween;
     const dl = Math.max(0, totalL - baseL) / daysBetween;
     const dc = Math.max(0, totalC - baseC) / daysBetween;
-    const growthRate = (baseV && baseV > 0) ? dv / baseV : (dv > 0 ? 1.0 : 0);
+    const growthRate = (baseV !== null && baseV > 0) ? dv / baseV : (dv > 0 ? 1.0 : 0);
     const engagement = totalV > 0 ? (totalL + totalC) / totalV : 0;
     const qFactor = row.qualityScore || 1.0;
     
@@ -363,6 +381,186 @@ async function runRankingNode() {
       requestBody: { values: sheetHistoryRows },
     });
     console.log(`Appended ${sheetHistoryRows.length} rows to RANK_HISTORY sheet.`);
+  }
+
+  // ── HEAT POINT RANKING (cross-platform) ──────────────────────────────────────
+  console.log('\n--- HEAT POINT RANKING (cross-platform) ---');
+  await updateProcessStatus('Ranking: Cross-Platform', 85, 100);
+
+  try {
+    // 9a. Fetch Apple Music & Spotify ranks from sheets (always up-to-date)
+    // Columns: Rank(0), Title(1), Artist(2), URL(3), Artwork(4), Album(5), Genre(6), Date(7), YouTube VideoID(8)
+    const [amSheet, spSheet] = await Promise.all([
+      sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'AM_RANKING!A2:I' }),
+      sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'SP_RANKING!A2:I' }),
+    ]);
+
+    const amRankMap = new Map();
+    const spRankMap = new Map();
+    const AM_CHART_SIZE = 100;
+    const SP_CHART_SIZE = 50;
+
+    for (const row of (amSheet.data.values || [])) {
+      const vid = (row[8] || '').trim();
+      const rank = parseInt(row[0]);
+      if (vid && rank) amRankMap.set(vid, rank);
+    }
+    for (const row of (spSheet.data.values || [])) {
+      const vid = (row[8] || '').trim();
+      const rank = parseInt(row[0]);
+      if (vid && rank) spRankMap.set(vid, rank);
+    }
+    console.log(`Platform data (from sheets): AM ${amRankMap.size} linked, SP ${spRankMap.size} linked`);
+
+    // 9b. Fetch FB engagement per song (last 14 days) — skip gracefully if table missing
+    const fbMap = new Map();
+    try {
+      const [fbRows] = await bq.query(`
+        SELECT
+          song_id AS videoId,
+          SUM(COALESCE(reactions, 0)) AS reactions,
+          SUM(COALESCE(comments,  0)) AS comments,
+          SUM(COALESCE(shares,    0)) AS shares
+        FROM \`${DATASET_ID}.fb_posts\`
+        WHERE song_id IS NOT NULL
+          AND DATE(scraped_at) >= DATE_SUB('${latestDate}', INTERVAL 14 DAY)
+          AND ai_category IN ('new_release', 'yt_share', 'promo')
+        GROUP BY song_id
+      `);
+      for (const r of fbRows) {
+        fbMap.set(r.videoId, {
+          reactions: Number(r.reactions),
+          comments:  Number(r.comments),
+          shares:    Number(r.shares),
+        });
+      }
+      console.log(`FB data: ${fbMap.size} songs with engagement`);
+    } catch (fbErr) {
+      console.warn(`[HEAT POINT] FB query skipped: ${fbErr.message.split('\n')[0]}`);
+    }
+
+    // 9c. Apply platform bonuses to all validated songs and re-rank
+    const AM_WEIGHT = 25;
+    const SP_WEIGHT = 20;
+    const FB_WEIGHT = 2.5;
+
+    // YT Rank = position in pure YouTube daily ranking (before platform bonuses)
+    const ytRankMap = new Map();
+    validated.forEach((x, i) => ytRankMap.set(x.videoId, i + 1));
+
+    const heatRanked = validated.map(x => {
+      const amRank = amRankMap.get(x.videoId) ?? null;
+      const spRank = spRankMap.get(x.videoId) ?? null;
+      const fb     = fbMap.get(x.videoId) ?? null;
+
+      const amBonus = amRank != null ? (1 - amRank / (AM_CHART_SIZE + 1)) * AM_WEIGHT : 0;
+      const spBonus = spRank != null ? (1 - spRank / (SP_CHART_SIZE + 1)) * SP_WEIGHT : 0;
+      const fbBonus = fb
+        ? Math.log(fb.reactions + fb.comments * 2 + fb.shares * 3 + 1) * FB_WEIGHT
+        : 0;
+
+      const heatPoint = x.heat + amBonus + spBonus + fbBonus;
+      const ytRank = ytRankMap.get(x.videoId) ?? null;
+      return { ...x, heatPoint, ytRank, amRank, spRank, amBonus, spBonus, fbBonus };
+    });
+
+    heatRanked.sort((a, b) => b.heatPoint - a.heatPoint);
+    const top40Heat = heatRanked.slice(0, 40);
+
+    // 9d. Write to HEAT_POINT_RANKING sheet
+    const HEAT_SHEET = 'HEAT_POINT_RANKING';
+    const HEAT_HEADERS = [
+      'Date', 'Rank', 'Artist', 'Title',
+      'HEAT Score', 'YT Score', 'YT Rank', 'AM Rank', 'AM Bonus', 'SP Rank', 'SP Bonus', 'FB Bonus',
+      'YouTube URL', 'VideoID',
+    ];
+
+    const sheetsMeta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID });
+    const existingTab = sheetsMeta.data.sheets.find(s => s.properties.title === HEAT_SHEET);
+    if (!existingTab) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SHEET_ID,
+        requestBody: { requests: [{ addSheet: { properties: { title: HEAT_SHEET } } }] },
+      });
+      console.log(`[Sheets] Created tab: ${HEAT_SHEET}`);
+    }
+    // Always sync header row to keep it consistent with code
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `'${HEAT_SHEET}'!A1`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [HEAT_HEADERS] },
+    });
+
+    const heatOutput = top40Heat.map((x, i) => [
+      latestDate,
+      i + 1,
+      x.artist,
+      x.title,
+      Math.round(x.heatPoint * 100) / 100,
+      Math.round(x.heat     * 100) / 100,
+      x.ytRank  ?? '-',
+      x.amRank  ?? '-',
+      Math.round(x.amBonus  * 100) / 100,
+      x.spRank  ?? '-',
+      Math.round(x.spBonus  * 100) / 100,
+      Math.round(x.fbBonus  * 100) / 100,
+      `https://youtu.be/${x.videoId}`,
+      x.videoId,
+    ]);
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `'${HEAT_SHEET}'!A2:N41`,
+      valueInputOption: 'RAW',
+      requestBody: { values: Array(40).fill(Array(14).fill('')) },
+    });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `'${HEAT_SHEET}'!A2:N${heatOutput.length + 1}`,
+      valueInputOption: 'RAW',
+      requestBody: { values: heatOutput },
+    });
+    console.log(`Updated ${HEAT_SHEET} with ${heatOutput.length} items.`);
+
+    // 9e. Record in rank_history (type = 'HEAT')
+    await bq.query(`DELETE FROM \`${DATASET_ID}.${TABLE_HISTORY}\` WHERE date = '${latestDate}' AND type = 'HEAT'`);
+
+    const heatHistoryRows = top40Heat.map((x, i) => ({
+      date: latestDate,
+      videoId: x.videoId,
+      type: 'HEAT',
+      rank: i + 1,
+      heatScore: Math.round(x.heatPoint * 100) / 100,
+    }));
+
+    const heatTempPath = join(os.tmpdir(), `heat_history_${latestDate}_${Date.now()}.json`);
+    fs.writeFileSync(heatTempPath, heatHistoryRows.map(r => JSON.stringify(r)).join('\n'));
+    await bq.dataset(DATASET_ID).table(TABLE_HISTORY).load(heatTempPath, {
+      sourceFormat: 'NEWLINE_DELIMITED_JSON',
+      writeDisposition: 'WRITE_APPEND',
+    });
+    fs.unlinkSync(heatTempPath);
+
+    const heatSheetHistoryRows = heatHistoryRows.map(h => [h.date, h.videoId, h.type, h.rank, h.heatScore]);
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SHEET_ID,
+      range: 'RANK_HISTORY!A:E',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: heatSheetHistoryRows },
+    });
+    console.log(`Appended ${heatSheetHistoryRows.length} HEAT rows to RANK_HISTORY.`);
+
+    const amCount = top40Heat.filter(x => x.amRank != null).length;
+    const spCount = top40Heat.filter(x => x.spRank != null).length;
+    const fbCount = top40Heat.filter(x => x.fbBonus > 0).length;
+    await sendTelegramNotification(
+      `🏆 <b>HEAT POINT RANKING 生成完了</b>\n` +
+      `Top 40 | AM加算: ${amCount}曲 / SP加算: ${spCount}曲 / FB加算: ${fbCount}曲`
+    );
+  } catch (e) {
+    console.error('[HEAT POINT] Failed:', e.message);
+    await sendTelegramNotification(`⚠️ <b>HEAT POINT RANKING エラー</b>\n<code>${e.message}</code>`);
   }
 
   console.log('--- Ranking Generation (Node.js) Completed ---');

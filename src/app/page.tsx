@@ -17,14 +17,18 @@ export default async function Home() {
       <Header />
       <PageHeader stats={data?.stats} />
 
+      <CambodiaHeatmap 
+        data={data?.regionalData} 
+        stats={data?.stats} 
+        top3={data?.ranking?.slice(0, 3)}
+      />
+
       <RankingList
         items={ranking}
         stats={data?.stats}
       >
         <ArtistRegistration />
       </RankingList>
-
-      <CambodiaHeatmap />
 
       <Footer />
     </main>

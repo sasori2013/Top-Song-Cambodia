@@ -60,9 +60,12 @@ export async function linkToYouTube(songs) {
   let rows;
   try {
     [rows] = await bq.query(`
-      SELECT videoId, cleanTitle, title, artist, publishedAt
+      SELECT videoId, cleanTitle, title, artist, publishedAt, category
       FROM \`heat_ranking.songs_master\`
       WHERE videoId IS NOT NULL AND title IS NOT NULL
+      ORDER BY
+        CASE WHEN category = 'Original MV' THEN 1 ELSE 0 END ASC,
+        publishedAt ASC
     `);
   } catch (e) {
     console.warn('[YouTube Linker] songs_master query failed:', e.message);
@@ -110,6 +113,14 @@ export async function linkToYouTube(songs) {
     if (latinOnly && latinOnly !== normTitle) {
       addToMap(byTitle, byTitleAmbiguous, latinOnly, row.videoId);
       if (normArtist) byTitleArtist.set(`${latinOnly}||${normArtist}`, row.videoId);
+    }
+
+    // クメール語部分のみ抽出 ("មេតំបន់/MAY DOMBON" → "មេតំបន់")
+    // Spotifyタイトルがクメール語のみで登録されている場合に対応
+    const khmerOnly = normTitle.replace(/[a-z0-9]/g, '').replace(/\s+/g, ' ').trim();
+    if (khmerOnly && khmerOnly !== normTitle) {
+      addToMap(byTitle, byTitleAmbiguous, khmerOnly, row.videoId);
+      if (normArtist) byTitleArtist.set(`${khmerOnly}||${normArtist}`, row.videoId);
     }
 
     // 改善A: Latin副題セグメントインデックス

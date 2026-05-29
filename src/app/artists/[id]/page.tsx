@@ -154,6 +154,22 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   };
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────────
+
+function fmtViews(v: number): string {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
+  return v.toLocaleString();
+}
+
+function rankColor(rank: number | null): string {
+  if (rank == null) return 'rgba(255,255,255,0.15)';
+  if (rank === 1)   return '#FFD700';
+  if (rank <= 3)    return CYAN;
+  if (rank <= 10)   return 'rgba(0,229,255,0.6)';
+  return 'rgba(255,255,255,0.45)';
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────────
 
 export default async function ArtistPage({ params }: { params: Promise<{ id: string }> }) {
@@ -165,195 +181,224 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
 
   const { artist, songs } = data;
 
-  const totalViews = songs.reduce((sum, s) => sum + (s.views ?? 0), 0);
-  const rankedSongs = songs.filter(s => s.rank != null);
-  const genreList = artist.genres?.split(',').map(g => g.trim()).filter(Boolean) ?? [];
+  const totalViews   = songs.reduce((sum, s) => sum + (s.views ?? 0), 0);
+  const rankedSongs  = songs.filter(s => s.rank != null);
+  const bestRank     = rankedSongs.length ? Math.min(...rankedSongs.map(s => s.rank!)) : null;
+  const genreList    = artist.genres?.split(',').map(g => g.trim()).filter(Boolean) ?? [];
+  const maxViews     = Math.max(...songs.map(s => s.views ?? 0), 1);
+  const maxHeat      = Math.max(...songs.map(s => s.heatScore ?? 0), 1);
+  const initial      = (artist.name || '?')[0].toUpperCase();
+
+  const platformIds = [
+    { label: 'HEAT Artist ID',    value: artist.heat_artist_id },
+    { label: 'YouTube Channel',   value: artist.youtube_channel_id },
+    { label: 'Spotify Artist',    value: artist.spotify_artist_id },
+    { label: 'Apple Music Artist',value: artist.apple_music_artist_id },
+  ];
 
   const socialLinks: { label: string; href: string }[] = [
-    artist.youtube_channel_id
-      ? { label: 'YouTube', href: `https://youtube.com/channel/${artist.youtube_channel_id}` }
-      : null,
-    artist.facebook_url ? { label: 'Facebook', href: artist.facebook_url } : null,
-    artist.instagram_url ? { label: 'Instagram', href: artist.instagram_url } : null,
-    artist.tiktok_url ? { label: 'TikTok', href: artist.tiktok_url } : null,
-    artist.website_url ? { label: 'Website', href: artist.website_url } : null,
+    artist.youtube_channel_id ? { label: 'YouTube',   href: `https://youtube.com/channel/${artist.youtube_channel_id}` } : null,
+    artist.facebook_url       ? { label: 'Facebook',  href: artist.facebook_url  } : null,
+    artist.instagram_url      ? { label: 'Instagram', href: artist.instagram_url } : null,
+    artist.tiktok_url         ? { label: 'TikTok',    href: artist.tiktok_url    } : null,
+    artist.website_url        ? { label: 'Website',   href: artist.website_url   } : null,
   ].filter(Boolean) as { label: string; href: string }[];
 
-  const initial = (artist.name || '?')[0].toUpperCase();
-
   return (
-    <main className="relative bg-black min-h-screen overflow-hidden">
-      <AuraR3F color="rgba(0, 229, 255, 0.06)" fullscreen progress={0} hideCluster />
+    <main className="relative bg-black min-h-screen">
+      <AuraR3F color="rgba(0, 229, 255, 0.04)" fullscreen progress={0} hideCluster />
       <Header />
 
-      {/* ── Hero ── */}
-      <section className="relative z-10 pt-40 pb-20 px-6 border-b border-white/5">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-start md:items-end gap-10">
+      {/* ── Hero Banner ─────────────────────────────────────────────────────── */}
+      <section className="relative z-10 pt-28 pb-6 px-6 border-b border-white/[0.06]">
+        <div className="max-w-6xl mx-auto">
 
-          {/* Avatar */}
-          <div className="flex-shrink-0">
-            {artist.profile_image_url ? (
-              <img
-                src={artist.profile_image_url}
-                alt={artist.name}
-                className="w-28 h-28 md:w-36 md:h-36 rounded-full object-cover border border-white/10"
-              />
-            ) : (
-              <div
-                className="w-28 h-28 md:w-36 md:h-36 rounded-full flex items-center justify-center border border-white/10"
-                style={{ background: 'radial-gradient(circle at 40% 40%, rgba(0,229,255,0.12), rgba(0,0,0,0.8))' }}
-              >
-                <span className="text-5xl md:text-6xl font-extralight text-white/70 select-none">
-                  {initial}
-                </span>
-              </div>
-            )}
+          {/* Top strip: system label */}
+          <div className="flex items-center gap-3 mb-5">
+            <div className="h-px flex-1 bg-white/[0.06]" />
+            <span className="text-[9px] font-black tracking-[0.4em] text-white/20 uppercase">Artist Profile</span>
+            <div className="h-px flex-1 bg-white/[0.06]" />
           </div>
 
-          {/* Info */}
-          <div className="flex-1">
-            {/* Labels */}
-            <div className="flex items-center gap-3 mb-3">
-              {artist.is_cambodian !== false && (
-                <span
-                  className="text-[9px] font-black tracking-[0.25em] uppercase px-2.5 py-1"
+          <div className="flex items-start gap-8">
+            {/* Avatar */}
+            <div className="flex-shrink-0 relative">
+              {artist.profile_image_url ? (
+                <img
+                  src={artist.profile_image_url}
+                  alt={artist.name}
+                  className="w-24 h-24 rounded-full object-cover"
+                  style={{ border: `1px solid ${CYAN}30` }}
+                />
+              ) : (
+                <div
+                  className="w-24 h-24 rounded-full flex items-center justify-center"
                   style={{
-                    color: CYAN,
-                    border: `1px solid ${CYAN}40`,
-                    background: `${CYAN}10`,
-                    clipPath: 'polygon(6px 0%, 100% 0%, calc(100% - 6px) 100%, 0% 100%)',
+                    background: 'radial-gradient(circle at 40% 40%, rgba(0,229,255,0.1), rgba(0,0,0,0.9))',
+                    border: `1px solid ${CYAN}30`,
                   }}
                 >
-                  Cambodian Artist
-                </span>
+                  <span className="text-4xl font-extralight text-white/60 select-none">{initial}</span>
+                </div>
               )}
-              {artist.country && artist.country !== 'KH' && (
-                <span className="text-[9px] font-black tracking-[0.25em] uppercase px-2.5 py-1 border border-white/20 text-white/50">
-                  {artist.country}
-                </span>
-              )}
+              {/* online dot */}
+              <span
+                className="absolute bottom-1 right-1 w-3 h-3 rounded-full border-2 border-black"
+                style={{ background: CYAN }}
+              />
             </div>
 
-            {/* Name */}
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-extralight tracking-tighter text-white leading-none mb-2">
-              {artist.name}
-            </h1>
-            {artist.name_khmer && (
-              <p className="text-xl md:text-2xl font-light text-white/40 tracking-wider mb-4">
-                {artist.name_khmer}
-              </p>
-            )}
-
-            {/* Genre tags */}
-            {genreList.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-6">
+            {/* Name block */}
+            <div className="flex-1 min-w-0 pt-1">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                {artist.is_cambodian !== false && (
+                  <span
+                    className="text-[8px] font-black tracking-[0.3em] uppercase px-2 py-0.5"
+                    style={{ color: CYAN, border: `1px solid ${CYAN}40`, background: `${CYAN}0f` }}
+                  >
+                    Cambodian
+                  </span>
+                )}
+                {artist.country && artist.country !== 'KH' && (
+                  <span className="text-[8px] font-black tracking-[0.3em] uppercase px-2 py-0.5 border border-white/15 text-white/40">
+                    {artist.country}
+                  </span>
+                )}
                 {genreList.map(g => (
-                  <span key={g} className="text-[10px] font-medium tracking-[0.15em] uppercase text-white/40 border border-white/10 px-2 py-0.5 rounded-sm">
+                  <span key={g} className="text-[8px] tracking-[0.2em] uppercase text-white/30 border border-white/8 px-2 py-0.5">
                     {g}
                   </span>
                 ))}
               </div>
-            )}
 
-            {/* Social links */}
-            {socialLinks.length > 0 && (
-              <div className="flex flex-wrap gap-2">
+              <h1 className="text-3xl md:text-5xl font-extralight tracking-tighter text-white leading-none mb-1">
+                {artist.name}
+              </h1>
+              {artist.name_khmer && (
+                <p className="text-base font-light text-white/30 tracking-wider">{artist.name_khmer}</p>
+              )}
+            </div>
+
+            {/* Key stats — top-right */}
+            <div className="hidden md:grid grid-cols-4 gap-px bg-white/[0.06] flex-shrink-0 border border-white/[0.06]">
+              <KpiCell label="Songs" value={songs.length.toString()} />
+              <KpiCell label="Chart Entries" value={rankedSongs.length.toString()} />
+              <KpiCell label="Best Rank" value={bestRank != null ? `#${bestRank}` : '—'} accent={bestRank != null && bestRank <= 3} />
+              <KpiCell label="Total Views" value={fmtViews(totalViews)} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Dashboard Body ──────────────────────────────────────────────────── */}
+      <div className="relative z-10 max-w-6xl mx-auto px-6 py-8 flex flex-col md:flex-row gap-6">
+
+        {/* ── Left Sidebar ── */}
+        <aside className="md:w-64 flex-shrink-0 space-y-4">
+
+          {/* Mobile KPIs */}
+          <div className="md:hidden grid grid-cols-2 gap-px bg-white/[0.06] border border-white/[0.06]">
+            <KpiCell label="Songs"        value={songs.length.toString()} />
+            <KpiCell label="Chart"        value={rankedSongs.length.toString()} />
+            <KpiCell label="Best Rank"    value={bestRank != null ? `#${bestRank}` : '—'} accent={bestRank != null && bestRank <= 3} />
+            <KpiCell label="Total Views"  value={fmtViews(totalViews)} />
+          </div>
+
+          {/* Bio card */}
+          {(artist.bio || artist.bio_khmer) && (
+            <Panel label="About">
+              <div className="space-y-2">
+                {artist.bio && (
+                  <p className="text-white/55 leading-relaxed text-xs">{artist.bio}</p>
+                )}
+                {artist.bio_khmer && (
+                  <p className="text-white/30 leading-relaxed text-xs">{artist.bio_khmer}</p>
+                )}
+              </div>
+            </Panel>
+          )}
+
+          {/* Social links */}
+          {socialLinks.length > 0 && (
+            <Panel label="Links">
+              <div className="flex flex-col gap-1.5">
                 {socialLinks.map(link => (
                   <a
                     key={link.label}
                     href={link.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-[10px] font-black tracking-[0.2em] uppercase px-3 py-1.5 border border-white/20 text-white/50 hover:text-white hover:border-white/50 transition-colors"
+                    className="flex items-center justify-between text-[10px] font-bold tracking-[0.15em] uppercase px-3 py-2 border border-white/8 text-white/40 hover:text-white hover:border-white/30 transition-colors"
                   >
-                    {link.label}
+                    <span>{link.label}</span>
+                    <span className="text-white/20">↗</span>
                   </a>
                 ))}
               </div>
-            )}
-          </div>
-        </div>
+            </Panel>
+          )}
 
-        {/* Stats row */}
-        <div className="max-w-5xl mx-auto mt-12">
-          <div className="flex items-stretch border border-white/5 divide-x divide-white/5 w-fit">
-            <StatCell label="Indexed Songs" value={songs.length.toLocaleString()} />
-            <StatCell label="Chart Entries" value={rankedSongs.length.toLocaleString()} />
-            <StatCell
-              label="Total YouTube Views"
-              value={totalViews >= 1_000_000
-                ? `${(totalViews / 1_000_000).toFixed(1)}M`
-                : totalViews >= 1_000
-                ? `${(totalViews / 1_000).toFixed(0)}K`
-                : totalViews.toLocaleString()}
-            />
-            <StatCell label="HEAT ID" value={artist.heat_artist_id} mono dim />
-          </div>
-        </div>
-      </section>
-
-      {/* ── Bio ── */}
-      {(artist.bio || artist.bio_khmer) && (
-        <section className="relative z-10 py-16 px-6 border-b border-white/5">
-          <div className="max-w-5xl mx-auto">
-            <SectionLabel>About</SectionLabel>
-            <div className="max-w-2xl space-y-3 mt-4">
-              {artist.bio && (
-                <p className="text-white/60 leading-relaxed text-sm md:text-base">{artist.bio}</p>
-              )}
-              {artist.bio_khmer && (
-                <p className="text-white/40 leading-relaxed text-sm">{artist.bio_khmer}</p>
-              )}
+          {/* Platform IDs */}
+          <Panel label="Platform IDs">
+            <div className="space-y-3">
+              {platformIds.map(({ label, value }) => (
+                <div key={label}>
+                  <p className="text-[8px] font-black tracking-[0.25em] text-white/25 uppercase mb-0.5">{label}</p>
+                  {value ? (
+                    <p className="text-[10px] font-mono text-white/50 break-all leading-snug">{value}</p>
+                  ) : (
+                    <p className="text-[10px] font-mono text-white/15">—</p>
+                  )}
+                </div>
+              ))}
             </div>
-          </div>
-        </section>
-      )}
+          </Panel>
+        </aside>
 
-      {/* ── Discography ── */}
-      <section className="relative z-10 py-16 px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-baseline justify-between mb-8">
-            <SectionLabel>Discography</SectionLabel>
-            <span className="text-[10px] font-medium tracking-[0.15em] text-white/20 uppercase">
-              {songs.length} songs indexed
-            </span>
+        {/* ── Main: Discography Table ── */}
+        <div className="flex-1 min-w-0">
+          {/* Table header bar */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <p className="text-[9px] font-black tracking-[0.5em] text-white/50 uppercase">Discography</p>
+              <span className="text-[9px] font-mono text-white/20">{songs.length} songs</span>
+            </div>
+            <p className="text-[8px] tracking-[0.2em] text-white/20 uppercase">Sorted by views</p>
           </div>
 
+          {/* Column headers */}
+          <div
+            className="hidden md:grid gap-3 px-3 py-2 mb-px text-[8px] font-black tracking-[0.3em] text-white/25 uppercase border border-white/[0.06] bg-white/[0.02]"
+            style={{ gridTemplateColumns: '44px 36px 1fr 130px 90px 64px' }}
+          >
+            <span>Rank</span>
+            <span />
+            <span>Title</span>
+            <span>Views</span>
+            <span>Heat</span>
+            <span>Play</span>
+          </div>
+
+          {/* Rows */}
           {songs.length === 0 ? (
-            <p className="text-white/30 text-sm">No songs indexed yet.</p>
+            <div className="border border-white/[0.06] px-6 py-12 text-center text-white/25 text-sm">
+              No songs indexed yet.
+            </div>
           ) : (
-            <div className="divide-y divide-white/5">
+            <div className="border border-white/[0.06] divide-y divide-white/[0.04]">
               {songs.map((song, i) => (
-                <SongRow key={song.heat_id} song={song} index={i} />
+                <SongRow
+                  key={song.heat_id}
+                  song={song}
+                  index={i}
+                  maxViews={maxViews}
+                  maxHeat={maxHeat}
+                />
               ))}
             </div>
           )}
         </div>
-      </section>
-
-      {/* ── Platform identifiers ── */}
-      <section className="relative z-10 pb-24 px-6">
-        <div className="max-w-5xl mx-auto">
-          <SectionLabel>Platform Identifiers</SectionLabel>
-          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-px bg-white/5">
-            {[
-              { label: 'HEAT Artist ID', value: artist.heat_artist_id },
-              { label: 'YouTube Channel', value: artist.youtube_channel_id },
-              { label: 'Spotify Artist', value: artist.spotify_artist_id },
-              { label: 'Apple Music Artist', value: artist.apple_music_artist_id },
-            ].map(({ label, value }) => (
-              <div key={label} className="bg-black px-4 py-4">
-                <p className="text-[9px] font-black tracking-[0.25em] text-white/30 uppercase mb-1.5">{label}</p>
-                {value ? (
-                  <p className="text-[11px] font-mono text-white/60 break-all">{value}</p>
-                ) : (
-                  <p className="text-[11px] font-mono text-white/15">—</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      </div>
 
       <Footer />
     </main>
@@ -362,27 +407,24 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function Panel({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <p className="text-[10px] md:text-[11px] font-black tracking-[0.8em] text-white uppercase pl-[0.8em]">
-      {children}
-    </p>
+    <div className="border border-white/[0.06] bg-white/[0.015]">
+      <div className="px-4 py-2.5 border-b border-white/[0.06] bg-white/[0.02]">
+        <p className="text-[8px] font-black tracking-[0.4em] text-white/35 uppercase">{label}</p>
+      </div>
+      <div className="px-4 py-3">{children}</div>
+    </div>
   );
 }
 
-function StatCell({
-  label, value, mono, dim,
-}: {
-  label: string;
-  value: string | number;
-  mono?: boolean;
-  dim?: boolean;
-}) {
+function KpiCell({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="flex flex-col items-start px-6 py-4">
-      <span className="text-[9px] font-black tracking-[0.4em] text-white/30 uppercase mb-2">{label}</span>
+    <div className="flex flex-col items-start px-4 py-3 bg-black">
+      <span className="text-[7px] font-black tracking-[0.35em] text-white/25 uppercase mb-1.5">{label}</span>
       <span
-        className={`tabular-nums ${mono ? 'font-mono text-sm' : 'text-2xl md:text-3xl font-extralight'} ${dim ? 'text-white/30' : 'text-white/90'}`}
+        className="text-xl md:text-2xl font-extralight tabular-nums"
+        style={{ color: accent ? CYAN : 'rgba(255,255,255,0.85)' }}
       >
         {value}
       </span>
@@ -390,20 +432,33 @@ function StatCell({
   );
 }
 
-function SongRow({ song, index }: { song: Song; index: number }) {
+function SongRow({
+  song,
+  index,
+  maxViews,
+  maxHeat,
+}: {
+  song: Song;
+  index: number;
+  maxViews: number;
+  maxHeat: number;
+}) {
   const isRanked = song.rank != null;
-  const isTop10 = song.rank != null && song.rank <= 10;
+  const isTop3   = isRanked && song.rank! <= 3;
+  const isTop10  = isRanked && song.rank! <= 10;
+  const color    = rankColor(song.rank);
+  const viewsPct = song.views != null ? (song.views / maxViews) * 100 : 0;
+  const heatPct  = song.heatScore != null ? (song.heatScore / maxHeat) * 100 : 0;
 
   return (
-    <div className="group flex items-center gap-4 py-3 hover:bg-white/[0.02] transition-colors">
-
-      {/* Index / Rank */}
-      <div className="w-10 text-right flex-shrink-0">
+    <div
+      className="group flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.03] transition-colors"
+      style={isTop3 ? { borderLeft: `2px solid ${color}` } : { borderLeft: '2px solid transparent' }}
+    >
+      {/* Rank */}
+      <div className="w-11 flex-shrink-0 text-right">
         {isRanked ? (
-          <span
-            className="text-[11px] font-black"
-            style={{ color: isTop10 ? '#00E5FF' : 'rgba(255,255,255,0.5)' }}
-          >
+          <span className="text-sm font-black tabular-nums" style={{ color }}>
             #{song.rank}
           </span>
         ) : (
@@ -412,7 +467,7 @@ function SongRow({ song, index }: { song: Song; index: number }) {
       </div>
 
       {/* Artwork */}
-      <div className="flex-shrink-0 w-10 h-10 bg-white/5 border border-white/5 overflow-hidden">
+      <div className="flex-shrink-0 w-9 h-9 overflow-hidden bg-white/5" style={{ border: '1px solid rgba(255,255,255,0.05)' }}>
         {song.artwork_url ? (
           <img src={song.artwork_url} alt="" className="w-full h-full object-cover" />
         ) : (
@@ -420,65 +475,82 @@ function SongRow({ song, index }: { song: Song; index: number }) {
         )}
       </div>
 
-      {/* Title + HEAT ID */}
+      {/* Title + meta */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white/90 truncate group-hover:text-white transition-colors">
+        <p className="text-sm font-medium text-white/80 truncate group-hover:text-white transition-colors leading-snug">
           {song.title || '—'}
         </p>
-        <div className="flex items-center gap-3 mt-0.5">
-          <span className="text-[9px] font-mono text-white/20">{song.heat_id}</span>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[8px] font-mono text-white/18">{song.heat_id}</span>
           {song.isrc && (
-            <span className="text-[9px] font-mono text-white/30">ISRC: {song.isrc}</span>
+            <span className="text-[8px] font-mono text-white/25">· {song.isrc}</span>
           )}
         </div>
       </div>
 
-      {/* Views */}
-      {song.views != null && (
-        <div className="hidden md:block text-right flex-shrink-0 w-20">
-          <span className="text-[11px] font-mono text-white/40">
-            {song.views >= 1_000_000
-              ? `${(song.views / 1_000_000).toFixed(1)}M`
-              : `${(song.views / 1_000).toFixed(0)}K`}
-          </span>
-          <p className="text-[8px] tracking-[0.2em] text-white/20 uppercase">views</p>
-        </div>
-      )}
+      {/* Views + bar */}
+      <div className="hidden md:block w-32 flex-shrink-0">
+        {song.views != null ? (
+          <>
+            <div className="flex items-center justify-end mb-1">
+              <span className="text-[11px] font-mono text-white/50">{fmtViews(song.views)}</span>
+            </div>
+            <div className="h-px bg-white/8 relative overflow-hidden">
+              <div
+                className="absolute inset-y-0 left-0 bg-white/30"
+                style={{ width: `${viewsPct}%` }}
+              />
+            </div>
+          </>
+        ) : (
+          <span className="text-[10px] font-mono text-white/15">—</span>
+        )}
+      </div>
 
-      {/* Heat Score */}
-      {song.heatScore != null && (
-        <div className="hidden md:block text-right flex-shrink-0 w-16">
-          <span
-            className="text-[13px] font-extralight tabular-nums"
-            style={{ color: isTop10 ? '#00E5FF' : 'rgba(255,255,255,0.5)' }}
-          >
-            {Math.round(song.heatScore).toLocaleString()}
-          </span>
-          <p className="text-[8px] tracking-[0.2em] text-white/20 uppercase">heat</p>
-        </div>
-      )}
+      {/* Heat score + bar */}
+      <div className="hidden md:block w-[88px] flex-shrink-0">
+        {song.heatScore != null ? (
+          <>
+            <div className="flex items-center justify-end mb-1">
+              <span
+                className="text-[11px] font-mono tabular-nums"
+                style={{ color: isTop10 ? color : 'rgba(255,255,255,0.35)' }}
+              >
+                {Math.round(song.heatScore).toLocaleString()}
+              </span>
+            </div>
+            <div className="h-px bg-white/8 relative overflow-hidden">
+              <div
+                className="absolute inset-y-0 left-0"
+                style={{
+                  width: `${heatPct}%`,
+                  background: isTop3 ? color : 'rgba(255,255,255,0.25)',
+                }}
+              />
+            </div>
+          </>
+        ) : (
+          <span className="text-[10px] font-mono text-white/15">—</span>
+        )}
+      </div>
 
       {/* Platform links */}
-      <div className="flex items-center gap-2 flex-shrink-0">
+      <div className="flex items-center gap-1.5 flex-shrink-0 w-16 justify-end">
         {song.youtube_video_id && (
           <a
             href={`https://youtube.com/watch?v=${song.youtube_video_id}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[9px] font-black tracking-[0.15em] uppercase px-2 py-1 border border-white/10 text-white/30 hover:text-white/70 hover:border-white/30 transition-colors"
+            className="text-[8px] font-black tracking-[0.1em] uppercase px-2 py-1 border border-white/10 text-white/30 hover:text-white/80 hover:border-white/35 transition-colors"
           >
             YT
           </a>
         )}
         {song.apple_music_id && (
-          <span className="text-[9px] font-black tracking-[0.15em] uppercase px-2 py-1 border border-white/10 text-white/20">
-            AM
-          </span>
+          <span className="text-[8px] font-black tracking-[0.1em] uppercase px-2 py-1 border border-white/8 text-white/18">AM</span>
         )}
         {song.spotify_id && (
-          <span className="text-[9px] font-black tracking-[0.15em] uppercase px-2 py-1 border border-white/10 text-white/20">
-            SP
-          </span>
+          <span className="text-[8px] font-black tracking-[0.1em] uppercase px-2 py-1 border border-white/8 text-white/18">SP</span>
         )}
       </div>
     </div>

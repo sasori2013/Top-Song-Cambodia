@@ -62,7 +62,7 @@ for (const client of clients) {
     const artistsWithInsights = await Promise.all(
       artists.map(async a => ({
         ...a,
-        insights: await fetchArtistInsights(bq, a.videoId, a.artist).catch(err => {
+        insights: await fetchArtistInsights(bq, a.videoId, a.artist, credentials, PROJECT_ID).catch(err => {
           console.warn(`    insights エラー (${a.artist}): ${err.message}`);
           return null;
         }),
