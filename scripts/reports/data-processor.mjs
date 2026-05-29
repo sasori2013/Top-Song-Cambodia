@@ -101,26 +101,27 @@ export async function getRisingArtistSignals(bq, industry = 'beverage') {
           AND rh.date >= DATE_SUB((SELECT MAX(date) FROM \`${DS}.rank_history\` WHERE type="DAILY"), INTERVAL 14 DAY)
         GROUP BY videoId
       ),
-      -- ── Velocity 200: クロスプラットフォーム加速度（現在はYT likes+comments） ──
+      -- ── Velocity 200: アーティスト全楽曲合算のエンゲージメント加速度 ──
       vel AS (
         SELECT
-          videoId,
-          -- e0: 最新日の日次増分
-          COALESCE(SUM(IF(date=d0, likes+comments, 0)),0) -
-          COALESCE(SUM(IF(date=DATE_SUB(d0, INTERVAL 1 DAY), likes+comments, 0)),0) AS e0,
+          sm.artist,
+          -- e0: アーティスト全楽曲の今日の日次増分
+          COALESCE(SUM(IF(sn.date=d0,                              sn.likes+sn.comments, 0)),0) -
+          COALESCE(SUM(IF(sn.date=DATE_SUB(d0, INTERVAL 1 DAY),   sn.likes+sn.comments, 0)),0) AS e0,
           -- e1: 前日の日次増分
-          COALESCE(SUM(IF(date=DATE_SUB(d0, INTERVAL 1 DAY), likes+comments, 0)),0) -
-          COALESCE(SUM(IF(date=DATE_SUB(d0, INTERVAL 2 DAY), likes+comments, 0)),0) AS e1,
-          -- e_bar: 過去7日間の日次平均（累積差分 / 7の望遠鏡公式）
-          (COALESCE(SUM(IF(date=DATE_SUB(d0, INTERVAL 1 DAY), likes+comments, 0)),0) -
-           COALESCE(SUM(IF(date=DATE_SUB(d0, INTERVAL 8 DAY), likes+comments, 0)),0)) / 7.0 AS e_bar
-        FROM \`${DS}.snapshots\`,
-             (SELECT MAX(date) AS d0 FROM \`${DS}.snapshots\`) AS latest
-        WHERE date IN (d0,
-                       DATE_SUB(d0, INTERVAL 1 DAY),
-                       DATE_SUB(d0, INTERVAL 2 DAY),
-                       DATE_SUB(d0, INTERVAL 8 DAY))
-        GROUP BY videoId
+          COALESCE(SUM(IF(sn.date=DATE_SUB(d0, INTERVAL 1 DAY),   sn.likes+sn.comments, 0)),0) -
+          COALESCE(SUM(IF(sn.date=DATE_SUB(d0, INTERVAL 2 DAY),   sn.likes+sn.comments, 0)),0) AS e1,
+          -- e_bar: 過去7日間の日次平均（望遠鏡公式）
+          (COALESCE(SUM(IF(sn.date=DATE_SUB(d0, INTERVAL 1 DAY),  sn.likes+sn.comments, 0)),0) -
+           COALESCE(SUM(IF(sn.date=DATE_SUB(d0, INTERVAL 8 DAY),  sn.likes+sn.comments, 0)),0)) / 7.0 AS e_bar
+        FROM \`${DS}.snapshots\` sn
+        JOIN \`${DS}.songs_master\` sm ON sn.videoId = sm.videoId
+        CROSS JOIN (SELECT MAX(date) AS d0 FROM \`${DS}.snapshots\`) AS latest
+        WHERE sn.date IN (d0,
+                          DATE_SUB(d0, INTERVAL 1 DAY),
+                          DATE_SUB(d0, INTERVAL 2 DAY),
+                          DATE_SUB(d0, INTERVAL 8 DAY))
+        GROUP BY sm.artist
       )
     SELECT
       r.rank,
@@ -150,7 +151,7 @@ export async function getRisingArtistSignals(bq, industry = 'beverage') {
     LEFT JOIN \`${DS}.heat_artists\` ha  ON LOWER(ha.name)=LOWER(s.artist)
     LEFT JOIN plat p                     ON LOWER(p.artist)=LOWER(s.artist)
     LEFT JOIN hist                        ON hist.videoId=r.videoId
-    LEFT JOIN vel                         ON vel.videoId=r.videoId
+    LEFT JOIN vel                         ON LOWER(vel.artist)=LOWER(s.artist)
     WHERE r.rank BETWEEN 10 AND 40
       AND (ha.career_tier IS NULL OR ha.career_tier NOT IN ("legend","established"))
     GROUP BY r.rank, s.artist, r.heatScore, snap.views, snap.likes, snap.comments,
