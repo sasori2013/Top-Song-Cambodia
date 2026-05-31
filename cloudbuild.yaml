@@ -3,13 +3,13 @@ steps:
     args:
       - 'build'
       - '-t'
-      - 'asia-northeast1-docker.pkg.dev/kxolab-486112/heat/heat-app:$COMMIT_SHA'
+      - 'asia-northeast1-docker.pkg.dev/heat-494308/heat/heat-app:$COMMIT_SHA'
       - '.'
 
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
-      - 'asia-northeast1-docker.pkg.dev/kxolab-486112/heat/heat-app:$COMMIT_SHA'
+      - 'asia-northeast1-docker.pkg.dev/heat-494308/heat/heat-app:$COMMIT_SHA'
 
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
@@ -17,15 +17,15 @@ steps:
       - 'run'
       - 'deploy'
       - 'heat-app'
-      - '--image=asia-northeast1-docker.pkg.dev/kxolab-486112/heat/heat-app:$COMMIT_SHA'
+      - '--image=asia-northeast1-docker.pkg.dev/heat-494308/heat/heat-app:$COMMIT_SHA'
       - '--region=asia-northeast1'
       - '--platform=managed'
       - '--allow-unauthenticated'
-      - '--service-account=heat-sync-service@kxolab-486112.iam.gserviceaccount.com'
+      - '--service-account=heat-sync-service@heat-494308.iam.gserviceaccount.com'
       - '--set-secrets=GOOGLE_SERVICE_ACCOUNT_JSON=GOOGLE_SERVICE_ACCOUNT_JSON:latest,YOUTUBE_API_KEY=YOUTUBE_API_KEY:latest,FB_ACCESS_TOKEN=FB_ACCESS_TOKEN:latest,SITE_PASSWORD=SITE_PASSWORD:latest,NEXT_PUBLIC_SHEET_ID=NEXT_PUBLIC_SHEET_ID:latest,GCP_PROJECT_ID=GCP_PROJECT_ID:latest'
 
 images:
-  - 'asia-northeast1-docker.pkg.dev/kxolab-486112/heat/heat-app:$COMMIT_SHA'
+  - 'asia-northeast1-docker.pkg.dev/heat-494308/heat/heat-app:$COMMIT_SHA'
 
 options:
   logging: CLOUD_LOGGING_ONLY
