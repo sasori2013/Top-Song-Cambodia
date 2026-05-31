@@ -29,7 +29,7 @@ function formatNumber(num: number) {
 }
 
 // ── MAIN COMPONENT ──────────────────────────────────────────────────────────
-export function CambodiaHeatmap({ data }: { data?: any[] }) {
+export function CambodiaHeatmap({ data, stats: _stats, top3: _top3 }: { data?: any[]; stats?: any; top3?: any[] }) {
   const [highlightIdx, setHighlightIdx] = useState(0);
 
   const processedProvinces = useMemo(() => {

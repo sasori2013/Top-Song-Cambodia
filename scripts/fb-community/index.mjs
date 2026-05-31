@@ -42,14 +42,44 @@ async function main() {
   }
 
   if (newSongs.length > 0) {
-    // Deduplicate FB pages (multiple songs from same artist → one page scan)
-    const pageMap = new Map(); // fb_page_url → [song meta]
+    // Normalize FB URL: strip protocol, www, trailing slash, query params
+    const normUrl = url => (url || '').toLowerCase()
+      .replace(/^https?:\/\/(www\.)?/, '')
+      .replace(/\/$/, '')
+      .split('?')[0];
+
+    // Extract FB page slug (e.g. "sulyphengofficial") — returns null for reel/watch/etc.
+    const NON_PAGE = new Set(['reel','watch','video','groups','events','pages','share','photo','story']);
+    const fbSlug = url => {
+      const m = (url || '').match(/facebook\.com\/([^/?#\s]+)/i);
+      if (!m) return null;
+      const s = m[1].toLowerCase();
+      return NON_PAGE.has(s) ? null : s;
+    };
+
+    // Deduplicate FB pages. pageMap is keyed by BOTH normalized URL and slug
+    // so we can match even when APIFY returns a redirected URL.
+    const pageMap = new Map(); // key → [song meta]
+    const originalUrls = new Map(); // normalized key → original fb_page_url (for APIFY)
     for (const song of newSongs) {
-      if (!pageMap.has(song.fb_page_url)) pageMap.set(song.fb_page_url, []);
-      pageMap.get(song.fb_page_url).push(song);
+      if (!song.fb_page_url) continue;
+      const norm = normUrl(song.fb_page_url);
+      const slug = fbSlug(song.fb_page_url);
+      for (const key of [norm, slug]) {
+        if (!key) continue;
+        if (!pageMap.has(key)) { pageMap.set(key, []); originalUrls.set(key, song.fb_page_url); }
+        pageMap.get(key).push(song);
+      }
     }
 
-    const fbPageUrls = [...pageMap.keys()];
+    // Use original URLs for APIFY scraping (deduplicated by normalized URL key)
+    const seenNorm = new Set();
+    const fbPageUrls = [];
+    for (const song of newSongs) {
+      if (!song.fb_page_url) continue;
+      const norm = normUrl(song.fb_page_url);
+      if (!seenNorm.has(norm)) { seenNorm.add(norm); fbPageUrls.push(song.fb_page_url); }
+    }
     console.log(`\n--- Phase 0: ${newSongs.length} new songs, ${fbPageUrls.length} unique FB pages ---`);
 
     let rawPosts = [];
@@ -61,10 +91,15 @@ async function main() {
     }
 
     if (rawPosts.length > 0) {
-      // Attach song/artist metadata: match post's pageUrl back to the song
+      // Attach song/artist metadata: match post back to song
+      // Priority: pageUrl (APIFY page field) → slug from post_url → YouTube link match
       const normalized = rawPosts.map(raw => {
         const pageUrl = raw.pageUrl || raw.pageDetails?.url || '';
-        const songs = pageMap.get(pageUrl) || pageMap.get(pageUrl + '/') || [];
+        const postUrl = raw.url || '';
+        const songs = pageMap.get(normUrl(pageUrl))
+                   || pageMap.get(fbSlug(pageUrl))
+                   || pageMap.get(fbSlug(postUrl))  // fallback: slug from post URL
+                   || [];
         const youtubeLinks = extractYouTubeLinks(raw);
         // YT-link: exact match by video ID
         // Single release: unambiguous song_id
@@ -81,7 +116,7 @@ async function main() {
           song_id:       song.video_id   || null,
           release_id:    releaseId,
           album_name:    albumName,
-          fb_page_url:   pageUrl         || null,
+          fb_page_url:   pageUrl || songs[0]?.fb_page_url || null,
           fb_video_url:  raw.videoUrl    || null,
           post_text:     raw.text        || null,
           post_date:     raw.time        || null,

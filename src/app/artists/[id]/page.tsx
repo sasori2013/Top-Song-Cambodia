@@ -5,10 +5,12 @@ import { Footer } from '@/components/Footer';
 import { AuraR3F } from '@/components/AuraR3F';
 import { getBigQueryClient } from '@/lib/bigquery';
 import { isArtistId } from '@/lib/heat-ids';
+import { ArtistTabs } from './ArtistTabs';
+import type { Analytics, Song, Release } from './ArtistTabs';
 
 export const dynamic = 'force-dynamic';
 
-const DS = 'heat_ranking';
+const DS   = 'heat_ranking';
 const CYAN = '#00E5FF';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -32,23 +34,17 @@ type Artist = {
   website_url: string | null;
 };
 
-type Song = {
-  heat_id: string;
-  title: string | null;
-  youtube_video_id: string | null;
-  apple_music_id: string | null;
-  spotify_id: string | null;
-  isrc: string | null;
-  artwork_url: string | null;
-  genres: string | null;
-  views: number | null;
-  rank: number | null;
-  heatScore: number | null;
-};
-
 // ── Data fetching ──────────────────────────────────────────────────────────────
 
-async function getArtistData(id: string): Promise<{ artist: Artist; songs: Song[] } | null> {
+async function getArtistData(id: string): Promise<{
+  artist: Artist;
+  songs: Song[];
+  releases: Release[];
+  fbData: { fb_views: number; fb_reactions: number };
+  cambodiaRank: number | null;
+  totalArtists: number;
+  avgPeakRank: number | null;
+} | null> {
   const bq = getBigQueryClient();
   if (!bq) return null;
 
@@ -60,22 +56,22 @@ async function getArtistData(id: string): Promise<{ artist: Artist; songs: Song[
     if (!raw) return null;
 
     const artist: Artist = {
-      heat_artist_id:       String(raw.heat_artist_id ?? ''),
-      name:                 String(raw.name ?? ''),
-      name_khmer:           raw.name_khmer ?? null,
-      youtube_channel_id:   raw.youtube_channel_id ?? null,
-      spotify_artist_id:    raw.spotify_artist_id ?? null,
+      heat_artist_id:        String(raw.heat_artist_id ?? ''),
+      name:                  String(raw.name ?? ''),
+      name_khmer:            raw.name_khmer ?? null,
+      youtube_channel_id:    raw.youtube_channel_id ?? null,
+      spotify_artist_id:     raw.spotify_artist_id ?? null,
       apple_music_artist_id: raw.apple_music_artist_id ?? null,
-      bio:                  raw.bio ?? null,
-      bio_khmer:            raw.bio_khmer ?? null,
-      country:              raw.country ?? null,
-      is_cambodian:         raw.is_cambodian ?? null,
-      genres:               raw.genres ?? null,
-      profile_image_url:    raw.profile_image_url ?? null,
-      facebook_url:         raw.facebook_url ?? null,
-      instagram_url:        raw.instagram_url ?? null,
-      tiktok_url:           raw.tiktok_url ?? null,
-      website_url:          raw.website_url ?? null,
+      bio:                   raw.bio ?? null,
+      bio_khmer:             raw.bio_khmer ?? null,
+      country:               raw.country ?? null,
+      is_cambodian:          raw.is_cambodian ?? null,
+      genres:                raw.genres ?? null,
+      profile_image_url:     raw.profile_image_url ?? null,
+      facebook_url:          raw.facebook_url ?? null,
+      instagram_url:         raw.instagram_url ?? null,
+      tiktok_url:            raw.tiktok_url ?? null,
+      website_url:           raw.website_url ?? null,
     };
 
     const [rawSongs] = await bq.query({
@@ -100,8 +96,8 @@ async function getArtistData(id: string): Promise<{ artist: Artist; songs: Song[
           hs.isrc,
           hs.artwork_url,
           hs.genres,
-          CAST(snap.views AS INT64)  AS views,
-          CAST(rh.rank   AS INT64)   AS rank,
+          CAST(snap.views AS INT64) AS views,
+          CAST(rh.rank   AS INT64) AS rank,
           rh.heatScore
         FROM \`${DS}.heat_songs\` hs
         CROSS JOIN latest
@@ -133,7 +129,109 @@ async function getArtistData(id: string): Promise<{ artist: Artist; songs: Song[
       heatScore:        r.heatScore != null ? Number(r.heatScore) : null,
     }));
 
-    return { artist, songs };
+    const [rawReleases] = await bq.query({
+      query: `
+        SELECT
+          r.release_id,
+          r.album_name,
+          r.release_type,
+          r.track_count,
+          CAST(r.first_release_date AS STRING) AS first_release_date,
+          r.apple_music_url
+        FROM \`${DS}.heat_releases\` r
+        JOIN \`${DS}.artists_master\` a  ON r.artist_id = a.channelId
+        JOIN \`${DS}.heat_artists\` ha   ON ha.youtube_channel_id = a.channelId
+        WHERE ha.heat_artist_id = @id
+          AND r.track_count >= 3
+        ORDER BY r.first_release_date DESC NULLS LAST
+      `,
+      params: { id },
+    });
+
+    const releases: Release[] = rawReleases.map((r: any) => ({
+      release_id:         String(r.release_id ?? ''),
+      album_name:         String(r.album_name ?? ''),
+      release_type:       String(r.release_type ?? 'album'),
+      track_count:        Number(r.track_count ?? 0),
+      first_release_date: r.first_release_date ?? null,
+      apple_music_url:    r.apple_music_url ?? null,
+    }));
+
+    const [fbRows] = await bq.query({
+      query: `
+        SELECT
+          COALESCE(SUM(views), 0)     AS fb_views,
+          COALESCE(SUM(reactions), 0) AS fb_reactions
+        FROM \`${DS}.fb_posts\`
+        WHERE artist_id = @channelId
+          AND ai_category != 'unrelated'
+      `,
+      params: { channelId: artist.youtube_channel_id ?? '' },
+    });
+    const fbData = fbRows[0] ?? { fb_views: 0, fb_reactions: 0 };
+
+    // Cambodia rank + avg peak rank (parallel, non-fatal)
+    let cambodiaRank: number | null = null;
+    let totalArtists = 0;
+    let avgPeakRank: number | null = null;
+    try {
+      const [[rankRows], [cntRows], [peakRows]] = await Promise.all([
+        // Cambodia rank among artists with YouTube data
+        bq.query({
+          query: `
+            WITH totals AS (
+              SELECT hs.canonical_artist, COALESCE(SUM(snap.views), 0) AS v
+              FROM \`${DS}.heat_songs\` hs
+              LEFT JOIN \`${DS}.snapshots\` snap
+                ON snap.videoId = hs.youtube_video_id
+               AND snap.date = (SELECT MAX(date) FROM \`${DS}.snapshots\`)
+              GROUP BY hs.canonical_artist
+            )
+            SELECT
+              (SELECT COUNT(*) FROM totals
+               WHERE v > (SELECT v FROM totals WHERE LOWER(canonical_artist) = LOWER(@name) LIMIT 1)
+              ) + 1 AS cambodia_rank
+            FROM totals LIMIT 1
+          `,
+          params: { name: artist.name },
+        }),
+        // Total artists: heat_songs UNION label_roster (deduplicated)
+        bq.query({
+          query: `
+            SELECT COUNT(DISTINCT artist) AS total_artists
+            FROM (
+              SELECT LOWER(TRIM(canonical_artist)) AS artist FROM \`${DS}.heat_songs\`
+              UNION DISTINCT
+              SELECT LOWER(TRIM(targetArtist))     AS artist FROM \`${DS}.label_roster\`
+              WHERE targetArtist IS NOT NULL AND TRIM(targetArtist) != ''
+            )
+          `,
+        }),
+        // Avg peak rank per charted song
+        bq.query({
+          query: `
+            SELECT ROUND(AVG(best_rank), 1) AS avg_peak_rank
+            FROM (
+              SELECT videoId, MIN(rank) AS best_rank
+              FROM \`${DS}.rank_history\`
+              WHERE type = 'DAILY'
+                AND videoId IN (
+                  SELECT youtube_video_id FROM \`${DS}.heat_songs\`
+                  WHERE LOWER(canonical_artist) = LOWER(@name)
+                    AND youtube_video_id IS NOT NULL
+                )
+              GROUP BY videoId
+            )
+          `,
+          params: { name: artist.name },
+        }),
+      ]);
+      cambodiaRank = rankRows[0]?.cambodia_rank != null ? Number(rankRows[0].cambodia_rank) : null;
+      totalArtists = cntRows[0]?.total_artists  != null ? Number(cntRows[0].total_artists)  : 0;
+      avgPeakRank  = peakRows[0]?.avg_peak_rank  != null ? Number(peakRows[0].avg_peak_rank)  : null;
+    } catch { /* non-fatal */ }
+
+    return { artist, songs, releases, fbData, cambodiaRank, totalArtists, avgPeakRank };
   } catch (e: any) {
     console.error('[ArtistPage]', e.message);
     return null;
@@ -158,16 +256,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 function fmtViews(v: number): string {
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
+  if (v >= 1_000)     return `${(v / 1_000).toFixed(0)}K`;
   return v.toLocaleString();
-}
-
-function rankColor(rank: number | null): string {
-  if (rank == null) return 'rgba(255,255,255,0.15)';
-  if (rank === 1)   return '#FFD700';
-  if (rank <= 3)    return CYAN;
-  if (rank <= 10)   return 'rgba(0,229,255,0.6)';
-  return 'rgba(255,255,255,0.45)';
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────────
@@ -179,29 +269,64 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
   const data = await getArtistData(id);
   if (!data) notFound();
 
-  const { artist, songs } = data;
+  const { artist, songs, releases, fbData, cambodiaRank, totalArtists, avgPeakRank } = data;
 
-  const totalViews   = songs.reduce((sum, s) => sum + (s.views ?? 0), 0);
-  const rankedSongs  = songs.filter(s => s.rank != null);
-  const bestRank     = rankedSongs.length ? Math.min(...rankedSongs.map(s => s.rank!)) : null;
-  const genreList    = artist.genres?.split(',').map(g => g.trim()).filter(Boolean) ?? [];
-  const maxViews     = Math.max(...songs.map(s => s.views ?? 0), 1);
-  const maxHeat      = Math.max(...songs.map(s => s.heatScore ?? 0), 1);
-  const initial      = (artist.name || '?')[0].toUpperCase();
+  // Derived stats
+  const totalViews  = songs.reduce((sum, s) => sum + (s.views ?? 0), 0);
+  const rankedSongs = songs.filter(s => s.rank != null);
+  const bestRank    = rankedSongs.length ? Math.min(...rankedSongs.map(s => s.rank!)) : null;
+  const genreList   = artist.genres?.split(',').map(g => g.trim()).filter(Boolean) ?? [];
+  const maxViews    = Math.max(...songs.map(s => s.views ?? 0), 1);
+  const maxHeat     = Math.max(...songs.map(s => s.heatScore ?? 0), 1);
+  const initial     = (artist.name || '?')[0].toUpperCase();
+  // Analytics (computed server-side, passed to client)
+  const songsWithViews = songs.filter(s => s.views != null);
+  const songsWithHeat  = songs.filter(s => s.heatScore != null);
+  const megaHits       = songsWithViews.filter(s => s.views! >= 3_000_000);
 
-  const platformIds = [
-    { label: 'HEAT Artist ID',    value: artist.heat_artist_id },
-    { label: 'YouTube Channel',   value: artist.youtube_channel_id },
-    { label: 'Spotify Artist',    value: artist.spotify_artist_id },
-    { label: 'Apple Music Artist',value: artist.apple_music_artist_id },
-  ];
+  const analytics: Analytics = {
+    totalSongs:   songs.length,
+    megaHits:     megaHits.length,
+    megaHitRate:  songsWithViews.length > 0 ? megaHits.length / songsWithViews.length : 0,
+    avgViews:     songsWithViews.length > 0
+      ? Math.round(songsWithViews.reduce((sum, s) => sum + s.views!, 0) / songsWithViews.length)
+      : 0,
+    avgHeat:      songsWithHeat.length > 0
+      ? Math.round(songsWithHeat.reduce((sum, s) => sum + s.heatScore!, 0) / songsWithHeat.length)
+      : 0,
+    chartRate:    songs.length > 0 ? rankedSongs.length / songs.length : 0,
+    chartSongs:   rankedSongs.length,
+    youtubeCount:   songs.filter(s => s.youtube_video_id).length,
+    appleCount:     songs.filter(s => s.apple_music_id).length,
+    spotifyCount:   songs.filter(s => s.spotify_id).length,
+    facebookLinked: !!artist.facebook_url,
+    tiktokLinked:   !!artist.tiktok_url,
+    ytTotalViews:   totalViews,
+    fbEngagement:   Number(fbData.fb_views ?? 0) + Number(fbData.fb_reactions ?? 0),
+    top3Count:    songs.filter(s => s.rank != null && s.rank <= 3).length,
+    top10Count:   songs.filter(s => s.rank != null && s.rank <= 10).length,
+    viewBuckets: [
+      { label: '> 100M', count: songsWithViews.filter(s => s.views! >= 100_000_000).length },
+      { label: '> 10M',  count: songsWithViews.filter(s => s.views! >= 10_000_000 && s.views! < 100_000_000).length },
+      { label: '> 1M',   count: songsWithViews.filter(s => s.views! >= 1_000_000  && s.views! < 10_000_000).length },
+      { label: '> 100K', count: songsWithViews.filter(s => s.views! >= 100_000    && s.views! < 1_000_000).length },
+      { label: '< 100K', count: songsWithViews.filter(s => s.views! < 100_000).length },
+    ],
+    cambodiaRank,
+    totalArtists,
+    avgPeakRank,
+    fbReactionRate: Number(fbData.fb_views) > 0
+      ? Number(fbData.fb_reactions) / Number(fbData.fb_views)
+      : null,
+    releaseCount: releases.length,
+  };
 
   const socialLinks: { label: string; href: string }[] = [
-    artist.youtube_channel_id ? { label: 'YouTube',   href: `https://youtube.com/channel/${artist.youtube_channel_id}` } : null,
-    artist.facebook_url       ? { label: 'Facebook',  href: artist.facebook_url  } : null,
-    artist.instagram_url      ? { label: 'Instagram', href: artist.instagram_url } : null,
-    artist.tiktok_url         ? { label: 'TikTok',    href: artist.tiktok_url    } : null,
-    artist.website_url        ? { label: 'Website',   href: artist.website_url   } : null,
+    artist.youtube_channel_id ? { label: 'YouTube',    href: `https://youtube.com/channel/${artist.youtube_channel_id}` } : null,
+    artist.facebook_url       ? { label: 'Facebook',   href: artist.facebook_url  } : null,
+    artist.instagram_url      ? { label: 'Instagram',  href: artist.instagram_url } : null,
+    artist.tiktok_url         ? { label: 'TikTok',     href: artist.tiktok_url    } : null,
+    artist.website_url        ? { label: 'Website',    href: artist.website_url   } : null,
   ].filter(Boolean) as { label: string; href: string }[];
 
   return (
@@ -209,14 +334,13 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
       <AuraR3F color="rgba(0, 229, 255, 0.04)" fullscreen progress={0} hideCluster />
       <Header />
 
-      {/* ── Hero Banner ─────────────────────────────────────────────────────── */}
+      {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <section className="relative z-10 pt-28 pb-6 px-6 border-b border-white/[0.06]">
         <div className="max-w-6xl mx-auto">
 
-          {/* Top strip: system label */}
           <div className="flex items-center gap-3 mb-5">
             <div className="h-px flex-1 bg-white/[0.06]" />
-            <span className="text-[9px] font-black tracking-[0.4em] text-white/20 uppercase">Artist Profile</span>
+            <span className="text-[10px] font-black tracking-[0.35em] text-white/20 uppercase">Artist Profile</span>
             <div className="h-px flex-1 bg-white/[0.06]" />
           </div>
 
@@ -241,36 +365,34 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
                   <span className="text-4xl font-extralight text-white/60 select-none">{initial}</span>
                 </div>
               )}
-              {/* online dot */}
               <span
                 className="absolute bottom-1 right-1 w-3 h-3 rounded-full border-2 border-black"
                 style={{ background: CYAN }}
               />
             </div>
 
-            {/* Name block */}
+            {/* Name */}
             <div className="flex-1 min-w-0 pt-1">
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 {artist.is_cambodian !== false && (
                   <span
-                    className="text-[8px] font-black tracking-[0.3em] uppercase px-2 py-0.5"
+                    className="text-[10px] font-black tracking-[0.25em] uppercase px-2 py-0.5"
                     style={{ color: CYAN, border: `1px solid ${CYAN}40`, background: `${CYAN}0f` }}
                   >
                     Cambodian
                   </span>
                 )}
                 {artist.country && artist.country !== 'KH' && (
-                  <span className="text-[8px] font-black tracking-[0.3em] uppercase px-2 py-0.5 border border-white/15 text-white/40">
+                  <span className="text-[10px] font-black tracking-[0.25em] uppercase px-2 py-0.5 border border-white/15 text-white/40">
                     {artist.country}
                   </span>
                 )}
                 {genreList.map(g => (
-                  <span key={g} className="text-[8px] tracking-[0.2em] uppercase text-white/30 border border-white/8 px-2 py-0.5">
+                  <span key={g} className="text-[10px] tracking-[0.15em] uppercase text-white/30 border border-white/8 px-2 py-0.5">
                     {g}
                   </span>
                 ))}
               </div>
-
               <h1 className="text-3xl md:text-5xl font-extralight tracking-tighter text-white leading-none mb-1">
                 {artist.name}
               </h1>
@@ -279,32 +401,32 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
               )}
             </div>
 
-            {/* Key stats — top-right */}
+            {/* KPIs */}
             <div className="hidden md:grid grid-cols-4 gap-px bg-white/[0.06] flex-shrink-0 border border-white/[0.06]">
-              <KpiCell label="Songs" value={songs.length.toString()} />
-              <KpiCell label="Chart Entries" value={rankedSongs.length.toString()} />
-              <KpiCell label="Best Rank" value={bestRank != null ? `#${bestRank}` : '—'} accent={bestRank != null && bestRank <= 3} />
-              <KpiCell label="Total Views" value={fmtViews(totalViews)} />
+              <KpiCell label="Songs"         value={songs.length.toString()} />
+              <KpiCell label="Best Rank"     value={bestRank != null ? `#${bestRank}` : '—'} accent={bestRank != null && bestRank <= 3} />
+              <KpiCell label="Total Views"   value={fmtViews(totalViews)} />
+              <KpiCell label="Chart Entries" value={rankedSongs.length.toString()} accent={rankedSongs.length > 0} />
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── Dashboard Body ──────────────────────────────────────────────────── */}
+      {/* ── Body ──────────────────────────────────────────────────────────── */}
       <div className="relative z-10 max-w-6xl mx-auto px-6 py-8 flex flex-col md:flex-row gap-6">
 
-        {/* ── Left Sidebar ── */}
-        <aside className="md:w-64 flex-shrink-0 space-y-4">
+        {/* Sidebar */}
+        <aside className="md:w-56 flex-shrink-0 space-y-4">
 
           {/* Mobile KPIs */}
           <div className="md:hidden grid grid-cols-2 gap-px bg-white/[0.06] border border-white/[0.06]">
-            <KpiCell label="Songs"        value={songs.length.toString()} />
-            <KpiCell label="Chart"        value={rankedSongs.length.toString()} />
-            <KpiCell label="Best Rank"    value={bestRank != null ? `#${bestRank}` : '—'} accent={bestRank != null && bestRank <= 3} />
-            <KpiCell label="Total Views"  value={fmtViews(totalViews)} />
+            <KpiCell label="Songs"         value={songs.length.toString()} />
+            <KpiCell label="Best Rank"     value={bestRank != null ? `#${bestRank}` : '—'} accent={bestRank != null && bestRank <= 3} />
+            <KpiCell label="Total Views"   value={fmtViews(totalViews)} />
+            <KpiCell label="Chart Entries" value={rankedSongs.length.toString()} accent={rankedSongs.length > 0} />
           </div>
 
-          {/* Bio card */}
+          {/* Bio */}
           {(artist.bio || artist.bio_khmer) && (
             <Panel label="About">
               <div className="space-y-2">
@@ -318,7 +440,7 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
             </Panel>
           )}
 
-          {/* Social links */}
+          {/* Links */}
           {socialLinks.length > 0 && (
             <Panel label="Links">
               <div className="flex flex-col gap-1.5">
@@ -338,16 +460,21 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
             </Panel>
           )}
 
-          {/* Platform IDs */}
-          <Panel label="Platform IDs">
+          {/* IDs */}
+          <Panel label="System IDs">
             <div className="space-y-3">
-              {platformIds.map(({ label, value }) => (
+              {[
+                { label: 'HEAT Artist ID',     value: artist.heat_artist_id },
+                { label: 'YouTube Channel',    value: artist.youtube_channel_id },
+                { label: 'Spotify Artist',     value: artist.spotify_artist_id },
+                { label: 'Apple Music Artist', value: artist.apple_music_artist_id },
+              ].map(({ label, value }) => (
                 <div key={label}>
-                  <p className="text-[8px] font-black tracking-[0.25em] text-white/25 uppercase mb-0.5">{label}</p>
+                  <p className="text-[10px] font-black tracking-[0.2em] text-white/30 uppercase mb-0.5">{label}</p>
                   {value ? (
-                    <p className="text-[10px] font-mono text-white/50 break-all leading-snug">{value}</p>
+                    <p className="text-xs font-mono text-white/50 break-all leading-snug">{value}</p>
                   ) : (
-                    <p className="text-[10px] font-mono text-white/15">—</p>
+                    <p className="text-xs font-mono text-white/15">—</p>
                   )}
                 </div>
               ))}
@@ -355,48 +482,15 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
           </Panel>
         </aside>
 
-        {/* ── Main: Discography Table ── */}
+        {/* Main: Tabs */}
         <div className="flex-1 min-w-0">
-          {/* Table header bar */}
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <p className="text-[9px] font-black tracking-[0.5em] text-white/50 uppercase">Discography</p>
-              <span className="text-[9px] font-mono text-white/20">{songs.length} songs</span>
-            </div>
-            <p className="text-[8px] tracking-[0.2em] text-white/20 uppercase">Sorted by views</p>
-          </div>
-
-          {/* Column headers */}
-          <div
-            className="hidden md:grid gap-3 px-3 py-2 mb-px text-[8px] font-black tracking-[0.3em] text-white/25 uppercase border border-white/[0.06] bg-white/[0.02]"
-            style={{ gridTemplateColumns: '44px 36px 1fr 130px 90px 64px' }}
-          >
-            <span>Rank</span>
-            <span />
-            <span>Title</span>
-            <span>Views</span>
-            <span>Heat</span>
-            <span>Play</span>
-          </div>
-
-          {/* Rows */}
-          {songs.length === 0 ? (
-            <div className="border border-white/[0.06] px-6 py-12 text-center text-white/25 text-sm">
-              No songs indexed yet.
-            </div>
-          ) : (
-            <div className="border border-white/[0.06] divide-y divide-white/[0.04]">
-              {songs.map((song, i) => (
-                <SongRow
-                  key={song.heat_id}
-                  song={song}
-                  index={i}
-                  maxViews={maxViews}
-                  maxHeat={maxHeat}
-                />
-              ))}
-            </div>
-          )}
+          <ArtistTabs
+            songs={songs}
+            releases={releases}
+            analytics={analytics}
+            maxViews={maxViews}
+            maxHeat={maxHeat}
+          />
         </div>
       </div>
 
@@ -410,8 +504,8 @@ export default async function ArtistPage({ params }: { params: Promise<{ id: str
 function Panel({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="border border-white/[0.06] bg-white/[0.015]">
-      <div className="px-4 py-2.5 border-b border-white/[0.06] bg-white/[0.02]">
-        <p className="text-[8px] font-black tracking-[0.4em] text-white/35 uppercase">{label}</p>
+      <div className="px-4 py-3 border-b border-white/[0.06] bg-white/[0.02]">
+        <p className="text-[10px] font-black tracking-[0.3em] text-white/40 uppercase">{label}</p>
       </div>
       <div className="px-4 py-3">{children}</div>
     </div>
@@ -421,138 +515,13 @@ function Panel({ label, children }: { label: string; children: React.ReactNode }
 function KpiCell({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="flex flex-col items-start px-4 py-3 bg-black">
-      <span className="text-[7px] font-black tracking-[0.35em] text-white/25 uppercase mb-1.5">{label}</span>
+      <span className="text-[10px] font-black tracking-[0.2em] text-white/30 uppercase mb-1.5">{label}</span>
       <span
         className="text-xl md:text-2xl font-extralight tabular-nums"
         style={{ color: accent ? CYAN : 'rgba(255,255,255,0.85)' }}
       >
         {value}
       </span>
-    </div>
-  );
-}
-
-function SongRow({
-  song,
-  index,
-  maxViews,
-  maxHeat,
-}: {
-  song: Song;
-  index: number;
-  maxViews: number;
-  maxHeat: number;
-}) {
-  const isRanked = song.rank != null;
-  const isTop3   = isRanked && song.rank! <= 3;
-  const isTop10  = isRanked && song.rank! <= 10;
-  const color    = rankColor(song.rank);
-  const viewsPct = song.views != null ? (song.views / maxViews) * 100 : 0;
-  const heatPct  = song.heatScore != null ? (song.heatScore / maxHeat) * 100 : 0;
-
-  return (
-    <div
-      className="group flex items-center gap-3 px-3 py-2.5 hover:bg-white/[0.03] transition-colors"
-      style={isTop3 ? { borderLeft: `2px solid ${color}` } : { borderLeft: '2px solid transparent' }}
-    >
-      {/* Rank */}
-      <div className="w-11 flex-shrink-0 text-right">
-        {isRanked ? (
-          <span className="text-sm font-black tabular-nums" style={{ color }}>
-            #{song.rank}
-          </span>
-        ) : (
-          <span className="text-[11px] font-mono text-white/15">{index + 1}</span>
-        )}
-      </div>
-
-      {/* Artwork */}
-      <div className="flex-shrink-0 w-9 h-9 overflow-hidden bg-white/5" style={{ border: '1px solid rgba(255,255,255,0.05)' }}>
-        {song.artwork_url ? (
-          <img src={song.artwork_url} alt="" className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full" />
-        )}
-      </div>
-
-      {/* Title + meta */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white/80 truncate group-hover:text-white transition-colors leading-snug">
-          {song.title || '—'}
-        </p>
-        <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-[8px] font-mono text-white/18">{song.heat_id}</span>
-          {song.isrc && (
-            <span className="text-[8px] font-mono text-white/25">· {song.isrc}</span>
-          )}
-        </div>
-      </div>
-
-      {/* Views + bar */}
-      <div className="hidden md:block w-32 flex-shrink-0">
-        {song.views != null ? (
-          <>
-            <div className="flex items-center justify-end mb-1">
-              <span className="text-[11px] font-mono text-white/50">{fmtViews(song.views)}</span>
-            </div>
-            <div className="h-px bg-white/8 relative overflow-hidden">
-              <div
-                className="absolute inset-y-0 left-0 bg-white/30"
-                style={{ width: `${viewsPct}%` }}
-              />
-            </div>
-          </>
-        ) : (
-          <span className="text-[10px] font-mono text-white/15">—</span>
-        )}
-      </div>
-
-      {/* Heat score + bar */}
-      <div className="hidden md:block w-[88px] flex-shrink-0">
-        {song.heatScore != null ? (
-          <>
-            <div className="flex items-center justify-end mb-1">
-              <span
-                className="text-[11px] font-mono tabular-nums"
-                style={{ color: isTop10 ? color : 'rgba(255,255,255,0.35)' }}
-              >
-                {Math.round(song.heatScore).toLocaleString()}
-              </span>
-            </div>
-            <div className="h-px bg-white/8 relative overflow-hidden">
-              <div
-                className="absolute inset-y-0 left-0"
-                style={{
-                  width: `${heatPct}%`,
-                  background: isTop3 ? color : 'rgba(255,255,255,0.25)',
-                }}
-              />
-            </div>
-          </>
-        ) : (
-          <span className="text-[10px] font-mono text-white/15">—</span>
-        )}
-      </div>
-
-      {/* Platform links */}
-      <div className="flex items-center gap-1.5 flex-shrink-0 w-16 justify-end">
-        {song.youtube_video_id && (
-          <a
-            href={`https://youtube.com/watch?v=${song.youtube_video_id}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[8px] font-black tracking-[0.1em] uppercase px-2 py-1 border border-white/10 text-white/30 hover:text-white/80 hover:border-white/35 transition-colors"
-          >
-            YT
-          </a>
-        )}
-        {song.apple_music_id && (
-          <span className="text-[8px] font-black tracking-[0.1em] uppercase px-2 py-1 border border-white/8 text-white/18">AM</span>
-        )}
-        {song.spotify_id && (
-          <span className="text-[8px] font-black tracking-[0.1em] uppercase px-2 py-1 border border-white/8 text-white/18">SP</span>
-        )}
-      </div>
     </div>
   );
 }
