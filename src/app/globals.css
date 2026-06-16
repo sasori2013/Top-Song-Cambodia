@@ -14,6 +14,11 @@
   --color-muted: var(--muted);
 }
 
+html {
+  background-color: #000000;
+  overscroll-behavior-y: none;
+}
+
 body {
   background-color: #000000 !important;
   background: #000000 !important;
@@ -21,6 +26,7 @@ body {
   min-height: 100vh;
   vertical-align: middle;
   overflow-x: hidden;
+  overscroll-behavior-y: none;
   font-family: var(--font-exo), var(--font-inter), sans-serif;
   -webkit-font-smoothing: antialiased;
 }

@@ -118,8 +118,81 @@ function getMockData(): RankingResponse {
             totalSongs: 233,
             heatGrowth: 12.5,
             heatTrend: [12000, 15000, 14000, 18000, 22000, 21000, 25000, 24000, 28000, 27000, 31000, 30000, 35000, 34000],
-            dailyActions: { views: 1600000, likes: 9500, comments: 158 }
+            weeklyGenreViews: [
+                { genre: 'Hip-hop & Rap',     views: 3678633 },
+                { genre: 'Pop',               views: 2398188 },
+                { genre: 'Ballad',            views: 1777956 },
+                { genre: 'Traditional Khmer', views: 1307822 },
+                { genre: 'Dance & EDM',       views:  390083 },
+                { genre: 'R&B & Soul',        views:   93843 },
+            ],
+            dailyActions: {
+                views: 1600000, likes: 9500, comments: 158,
+                prev: { views: 1420000, likes: 8800, comments: 141 },
+                sentiment: { positive: 76, neutral: 17, negative: 7, songs: 227 },
+                genreViews: [
+                    { genre: 'Hip-hop & Rap',     views: 484036 },
+                    { genre: 'Pop',               views: 324710 },
+                    { genre: 'Ballad',            views: 240837 },
+                    { genre: 'Traditional Khmer', views: 178532 },
+                    { genre: 'Dance & EDM',       views:  56665 },
+                    { genre: 'R&B & Soul',        views:   3728 },
+                ],
+                topSongs: [
+                    { title: 'មេតំបន់/MAY DOMBON', artist: 'Tep Piseth',  genre: 'Hip-hop & Rap',     views: 154693, likes: 908 },
+                    { title: 'Way You Are',        artist: 'Jady',         genre: 'Pop',               views: 133571, likes: 576 },
+                    { title: 'TRAPPIN',            artist: '4LEN',         genre: 'Hip-hop & Rap',     views: 101865, likes: 815 },
+                    { title: 'SORA',               artist: 'YUUHAI',       genre: 'Hip-hop & Rap',     views:  79443, likes: 208 },
+                    { title: 'ស្ទាវកង់ស្ព័រ',        artist: 'VAN CHESDA',  genre: 'Traditional Khmer', views:  57553, likes: 209 },
+                ],
+            }
         },
-        ranking: mockRanking
+        ranking: mockRanking,
+        genreTrend: {
+            months: ['2025-07','2025-08','2025-09','2025-10','2025-11','2025-12','2026-01','2026-02','2026-03','2026-04','2026-05','2026-06'],
+            series: [
+                { genre: 'Pop',             values: [8, 10, 9, 12, 11, 14, 10, 9,  13, 18, 16, 20] },
+                { genre: 'Hip-hop & Rap',   values: [14, 16, 18, 15, 17, 13, 16, 19, 14, 12, 15, 14] },
+                { genre: 'R&B & Soul',      values: [5,  4,  6,  5,  4,  6,  5,  7,  6,  5,  6,  7] },
+                { genre: 'Ballad',          values: [6,  7,  5,  8,  9,  10, 8,  6,  7,  6,  5,  6] },
+                { genre: 'Traditional Khmer', values:[2,  2,  3,  2,  2,  4,  2,  2,  3, 10, 8,  3] },
+                { genre: 'Dance & EDM',     values: [3,  4,  3,  4,  3,  4,  3,  4,  4,  4,  5,  4] },
+                { genre: 'Rock',            values: [2,  2,  2,  3,  2,  2,  3,  2,  2,  2,  2,  3] },
+            ],
+        },
+        genreTrendViews: {
+            months: ['2025-07','2025-08','2025-09','2025-10','2025-11','2025-12','2026-01','2026-02','2026-03','2026-04','2026-05','2026-06'],
+            series: [
+                { genre: 'Pop',             values: [120000, 150000, 130000, 180000, 160000, 200000, 140000, 120000, 190000, 260000, 220000, 300000] },
+                { genre: 'Hip-hop & Rap',   values: [210000, 240000, 270000, 220000, 250000, 190000, 230000, 280000, 200000, 170000, 210000, 200000] },
+                { genre: 'R&B & Soul',      values: [60000,  50000,  80000,  70000,  55000,  90000,  65000,  90000,  80000,  70000,  80000,  90000] },
+                { genre: 'Ballad',          values: [80000,  95000,  70000, 110000, 130000, 150000, 110000,  80000,  95000,  85000,  70000,  85000] },
+                { genre: 'Traditional Khmer', values:[25000,  28000,  40000,  30000,  28000,  55000,  28000,  28000,  45000, 450000, 120000,  40000] },
+                { genre: 'Dance & EDM',     values: [40000,  55000,  40000,  55000,  40000,  55000,  40000,  55000,  55000,  55000,  70000,  55000] },
+                { genre: 'Rock',            values: [20000,  20000,  20000,  30000,  20000,  20000,  30000,  20000,  20000,  20000,  20000,  30000] },
+            ],
+        },
+        releaseActivity: {
+            weekly: [
+                { label: '3W AGO', count: 8,  isCurrent: false },
+                { label: '2W AGO', count: 11, isCurrent: false },
+                { label: 'LAST WK', count: 9, isCurrent: false },
+                { label: 'THIS WK', count: 14, isCurrent: true },
+            ],
+            monthly: [
+                { label: 'JUL', count: 22, isCurrent: false },
+                { label: 'AUG', count: 18, isCurrent: false },
+                { label: 'SEP', count: 25, isCurrent: false },
+                { label: 'OCT', count: 31, isCurrent: false },
+                { label: 'NOV', count: 28, isCurrent: false },
+                { label: 'DEC', count: 19, isCurrent: false },
+                { label: 'JAN', count: 24, isCurrent: false },
+                { label: 'FEB', count: 33, isCurrent: false },
+                { label: 'MAR', count: 29, isCurrent: false },
+                { label: 'APR', count: 27, isCurrent: false },
+                { label: 'MAY', count: 35, isCurrent: false },
+                { label: 'JUN', count: 41, isCurrent: true },
+            ],
+        },
     };
 }

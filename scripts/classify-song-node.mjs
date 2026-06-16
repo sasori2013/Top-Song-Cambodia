@@ -80,6 +80,7 @@ ${commentsText}
 
 INSTRUCTIONS:
 Determine the following fields:
+0. isMusic: Is this a music content? true if it is a Song, Official MV, Lyric Video, Audio Track, Live Performance, Concert, Dance Motion, Cover Song, or Audition Performance. false if it is a Vlog, Daily Life, Food/Eating Review, Gaming, Interview (without singing), News, Reaction Video, or Behind-the-Scenes without music focus.
 1. eventTag: Identify if this is for a specific event like "Khmer New Year 2026", "Cambodian Idol S4", "The Voice Cambodia", or "None". (English)
 2. category: Categorize as "Original MV", "Audition Performance", "Live Concert", "Dance Motion", or "Other". (English)
 3. genre: Classify the PRIMARY music genre of this specific song (not just the artist's usual style). Choose exactly one:
@@ -89,6 +90,7 @@ ${artistTask}
 
 Output only a valid JSON object:
 {
+  "isMusic": true or false,
   "eventTag": "...",
   "category": "...",
   "genre": "...",
@@ -121,12 +123,13 @@ Output only a valid JSON object:
     text = text.replace(/```json|```/g, '').trim();
     
     const classification = JSON.parse(text);
-    console.log(`  Result: ${classification.category} | ${classification.eventTag}`);
+    if (typeof classification.isMusic !== 'boolean') classification.isMusic = true;
+    console.log(`  Result: ${classification.isMusic ? 'MUSIC' : 'NON-MUSIC'} | ${classification.category} | ${classification.eventTag}`);
     return { ...classification, topComments: commentsText };
 
   } catch (error) {
     console.error(`  Classification error for ${videoId}:`, error.message);
-    return { eventTag: "None", category: "Other", reason: "Error: " + error.message, topComments: "Error fetching" };
+    return { isMusic: true, eventTag: "None", category: "Other", reason: "Error: " + error.message, topComments: "Error fetching" };
   }
 }
 

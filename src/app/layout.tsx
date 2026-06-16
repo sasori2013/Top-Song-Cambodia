@@ -1,17 +1,18 @@
 import { Exo, Inter } from "next/font/google";
 import "./globals.css";
-import ChatWidget from "../components/ChatWidget";
 import VortexWrapper from "../components/VortexWrapper";
 
 const exo = Exo({
   variable: "--font-exo",
   subsets: ["latin"],
   weight: ["200", "400", "700", "900"],
+  preload: false,
 });
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+  preload: false,
 });
 
 import type { Metadata } from "next";
@@ -33,7 +34,6 @@ export default function RootLayout({
       >
         <VortexWrapper />
         {children}
-        <ChatWidget />
       </body>
     </html>
   );

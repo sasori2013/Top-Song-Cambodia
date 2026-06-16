@@ -4,33 +4,34 @@ import { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import PROVINCES_DATA from '../data/provinces.json';
 
-// ── CONSTANTS ──────────────────────────────────────────────────────────────
 const SVG_W = 1000;
 const SVG_H = 834;
-const ACCENT_COLOR = '#AEEFFF'; // Matching HeatIndexMetrics
+const DOT_STEP = 16;
+const DOT_R = 4.5;
 
-// ── HELPERS ──────────────────────────────────────────────────────────────────
+interface DotPoint {
+  x: number;
+  y: number;
+  provinceId: string;
+  views: number;
+  phase: number; // 0–1, stable per-dot offset for continuous animation
+}
+
 function parseSvgD(d: string): [number, number][] {
   const pts: [number, number][] = [];
   const coords = d.match(/-?[\d.]+/g);
   if (coords) {
     for (let i = 0; i < coords.length; i += 2) {
-      if (coords[i+1]) pts.push([+coords[i], +coords[i+1]]);
+      if (coords[i + 1]) pts.push([+coords[i], +coords[i + 1]]);
     }
   }
   return pts;
 }
 
-function formatNumber(num: number) {
-  if (!num || num === 0) return '-';
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-  return Math.round(num).toLocaleString();
-}
 
-// ── MAIN COMPONENT ──────────────────────────────────────────────────────────
 export function CambodiaHeatmap({ data, stats: _stats, top3: _top3 }: { data?: any[]; stats?: any; top3?: any[] }) {
   const [highlightIdx, setHighlightIdx] = useState(0);
+  const [dotGrid, setDotGrid] = useState<DotPoint[]>([]);
 
   const processedProvinces = useMemo(() => {
     return PROVINCES_DATA.map((p) => {
@@ -38,22 +39,52 @@ export function CambodiaHeatmap({ data, stats: _stats, top3: _top3 }: { data?: a
       let cx = 0, cy = 0;
       if (pts.length > 0) {
         pts.forEach(([x, y]) => { cx += x; cy += y; });
-        cx /= pts.length; 
-        cy /= pts.length;
-      } else {
-        cx = 500; cy = 400;
-      }
+        cx /= pts.length; cy /= pts.length;
+      } else { cx = 500; cy = 400; }
       const d = data?.find(item => item.id === p.id);
-      return { ...p, cx, cy, views: d ? d.value : p.defaultValue };
+      const rawScore = d ? d.value : p.defaultValue;
+      // 人口ウェイト: 全国平均人口(688,886)を基準に補正
+      const popWeight = (p as any).population ? (p as any).population / 688886 : 1;
+      const views = Math.round(rawScore * popWeight);
+      return { ...p, cx, cy, views, rawScore };
     });
   }, [data]);
 
-  const ranking = useMemo(() => {
-    return [...processedProvinces].sort((a, b) => b.views - a.views);
+  const ranking = useMemo(() => [...processedProvinces].sort((a, b) => b.views - a.views), [processedProvinces]);
+  const currentProv = useMemo(() => ranking[highlightIdx] || ranking[0], [highlightIdx, ranking]);
+  const totalViews = useMemo(() => processedProvinces.reduce((s, p) => s + p.views, 0), [processedProvinces]);
+
+  const formatPct = (views: number) => {
+    if (!totalViews) return '-';
+    return (views / totalViews * 100).toFixed(1) + '%';
+  };
+
+  // Build dot grid via Canvas hit-testing (client-side only, runs once)
+  useEffect(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = SVG_W;
+    canvas.height = SVG_H;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dots: DotPoint[] = [];
+    // Pre-build Path2D objects once
+    const paths = processedProvinces.map(p => ({ province: p, path2d: new Path2D(p.path) }));
+
+    for (let x = DOT_STEP / 2; x < SVG_W; x += DOT_STEP) {
+      for (let y = DOT_STEP / 2; y < SVG_H; y += DOT_STEP) {
+        for (const { province, path2d } of paths) {
+          if (ctx.isPointInPath(path2d, x, y)) {
+            dots.push({ x, y, provinceId: province.id, views: province.views, phase: ((x * 17 + y * 31) % 100) / 100 });
+            break;
+          }
+        }
+      }
+    }
+    setDotGrid(dots);
   }, [processedProvinces]);
 
-  const currentProv = useMemo(() => ranking[highlightIdx] || ranking[0], [highlightIdx, ranking]);
-
+  // Auto-advance highlight
   useEffect(() => {
     const interval = setInterval(() => {
       setHighlightIdx((prev) => (prev + 1) % PROVINCES_DATA.length);
@@ -61,199 +92,188 @@ export function CambodiaHeatmap({ data, stats: _stats, top3: _top3 }: { data?: a
     return () => clearInterval(interval);
   }, []);
 
+  const maxViews = useMemo(() => Math.max(...processedProvinces.map(p => p.views || 0), 1), [processedProvinces]);
+
   return (
-    <section className="relative w-full max-w-7xl mx-auto px-4 py-12 font-['Outfit']">
-      {/* Title / Header Section - Aligned with HeatIndexMetrics */}
-      <div className="flex flex-col items-center mb-16 text-center text-white">
-        <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.8em] uppercase pl-[0.8em] mb-4">
-          PROVINCIAL HEATMAP
-        </h2>
-        <div className="w-12 h-px bg-white/10" />
+    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6 w-full font-['Outfit']">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/5">
+        <div>
+          <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.8em] text-white/60 uppercase pl-[0.8em]">
+            PROVINCIAL HEATMAP
+          </h2>
+          <p className="mt-2 text-[8px] md:text-[9px] font-medium tracking-[0.2em] text-white/20 uppercase pl-[1em]">
+            Cambodia Music Heat by Region — Updated Daily
+          </p>
+        </div>
+        <span className="text-[9px] font-mono font-bold text-white/20 uppercase tracking-widest">Live Region</span>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-10 items-stretch">
-        {/* Left Column: Map */}
-        <div className="flex-[2] w-full bg-white/5 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden relative flex items-center justify-center p-12 group min-h-[500px] lg:h-[700px]">
-          
-          {/* Background Decor */}
-          <div className="absolute inset-0 opacity-[0.02] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
-
+      <div className="flex flex-col lg:flex-row gap-6 items-stretch">
+        {/* Map panel */}
+        <div className="flex-[2] w-full bg-white/[0.03] border border-white/10 rounded-lg overflow-hidden relative flex items-center justify-center p-6 min-h-[380px]">
           <div className="relative w-full h-full">
-            <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full h-full drop-shadow-[0_0_50px_rgba(174,239,255,0.1)]">
-              <defs>
-                <filter id="lineGlow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="2" result="blur" />
-                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                </filter>
-                <filter id="activeGlow" x="-50%" y="-50%" width="200%" height="200%">
-                  <feGaussianBlur stdDeviation="8" result="blur" />
-                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                </filter>
-              </defs>
-
-              {/* Province Paths */}
-              {processedProvinces.map((p) => {
-                const isActive = p.id === currentProv.id;
+            <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className="w-full h-full">
+              {dotGrid.map((dot, i) => {
+                const isActive = dot.provinceId === currentProv.id;
+                const intensity = Math.sqrt(dot.views / maxViews);
+                const inactiveOpacity = 0.08 + intensity * 0.2;
+                const targetOpacity = isActive ? 0.85 : inactiveOpacity;
                 return (
-                  <motion.path
-                    key={p.id}
-                    d={p.path}
-                    initial={false}
-                    animate={{
-                      fill: isActive ? ACCENT_COLOR : 'rgba(255,255,255,0.03)',
-                      stroke: isActive ? ACCENT_COLOR : 'rgba(174,239,255,0.3)',
-                      strokeWidth: isActive ? 2 : 0.8,
-                      fillOpacity: isActive ? 0.2 : 0.4,
-                    }}
-                    transition={{ duration: 0.6 }}
+                  <motion.circle
+                    key={i}
+                    cx={dot.x}
+                    cy={dot.y}
+                    r={DOT_R}
+                    fill="#ffffff"
+                    animate={{ opacity: targetOpacity }}
+                    transition={{ duration: 1.2, ease: 'easeInOut' }}
                     onClick={() => {
-                      const idx = ranking.findIndex(r => r.id === p.id);
+                      const idx = ranking.findIndex(r => r.id === dot.provinceId);
                       if (idx !== -1) setHighlightIdx(idx);
                     }}
-                    className="cursor-pointer"
-                    style={{ 
-                      filter: isActive ? 'url(#activeGlow)' : 'url(#lineGlow)',
-                      strokeLinejoin: 'round',
-                      strokeLinecap: 'round'
-                    }}
+                    style={{ cursor: 'pointer' }}
                   />
                 );
               })}
 
-              {/* Map Labels */}
-              {ranking.map((p) => {
-                const isActive = p.id === currentProv.id;
-                if (p.views === 0) return null;
-                return (
-                  <g key={`label-${p.id}`} className="pointer-events-none">
-                    <motion.text
-                      x={p.cx}
-                      y={p.cy - 5}
-                      textAnchor="middle"
-                      animate={{
-                        opacity: isActive ? 1 : 0.1,
-                        scale: isActive ? 1.2 : 0.7,
-                      }}
-                      transition={{ duration: 0.6 }}
-                      style={{ fontSize: isActive ? '24px' : '16px', fontWeight: 900, fill: '#fff' }}
-                    >
-                      {formatNumber(p.views)}
-                    </motion.text>
-                    <motion.text
-                      x={p.cx}
-                      y={p.cy + 12}
-                      textAnchor="middle"
-                      animate={{ opacity: isActive ? 0.6 : 0 }}
-                      transition={{ duration: 0.6 }}
-                      style={{ fontSize: '8px', fontWeight: 700, fill: '#fff', textTransform: 'uppercase', letterSpacing: '0.1em' }}
-                    >
-                      {p.name}
-                    </motion.text>
-                  </g>
-                );
-              })}
+              {/* Active province label */}
+              <text
+                x={currentProv.cx}
+                y={currentProv.cy - 16}
+                textAnchor="middle"
+                style={{ fontSize: '13px', fontWeight: 900, fill: '#ffffff', pointerEvents: 'none' }}
+              >
+                {formatPct(currentProv.views)}
+              </text>
             </svg>
           </div>
 
-          {/* Bottom Legend */}
-          <div className="absolute bottom-8 left-10 flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: ACCENT_COLOR }} />
-              <span className="text-[8px] uppercase tracking-[0.3em] font-black text-white/40">Focused</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-white/10" />
-              <span className="text-[8px] uppercase tracking-[0.3em] font-black text-white/20">Inactive</span>
+          {/* REGION FOCUS overlay */}
+          <div className="absolute bottom-0 left-0 right-0 p-4">
+            <div className="bg-black/50 backdrop-blur-md border border-white/10 rounded-lg px-4 py-3 relative overflow-hidden">
+              <div className="absolute -top-8 -right-8 w-32 h-32 blur-[60px] rounded-full pointer-events-none" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }} />
+              <div className="flex items-center justify-between relative z-10">
+                <div>
+                  <span className="text-[7px] font-bold text-white/30 uppercase tracking-[0.4em] block mb-1">REGION FOCUS</span>
+                  <AnimatePresence mode="wait">
+                    <motion.h3
+                      key={currentProv.id}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.3 }}
+                      className="text-lg font-black text-white tracking-tight leading-none"
+                    >
+                      {currentProv.name}
+                    </motion.h3>
+                  </AnimatePresence>
+                </div>
+                <div className="text-right">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={currentProv.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="text-2xl font-extralight tracking-tighter tabular-nums text-white"
+                    >
+                      {formatPct(currentProv.views)}
+                    </motion.div>
+                  </AnimatePresence>
+                  <p className="text-[7px] font-black text-white/30 uppercase tracking-[0.2em]">HEAT VOLUME</p>
+                </div>
+                <div className="flex items-center gap-1.5 ml-4">
+                  <div className="w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" />
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Right Column: Info & Ranking */}
-        <div className="flex-1 w-full flex flex-col gap-6 lg:max-w-md">
-          
-          {/* Detailed Info Card - Aligned with HeatIndexMetrics typography */}
-          <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-8 relative overflow-hidden flex flex-col justify-between">
-            <div className="relative z-10">
-              <header className="mb-8">
-                <span className="text-[10px] md:text-[11px] font-bold text-white/40 uppercase tracking-[0.5em] block mb-2">
-                  REGION FOCUS
-                </span>
-                <h3 className="text-4xl font-black text-white tracking-tighter leading-none">{currentProv.name}</h3>
-              </header>
-              
-              <div className="flex flex-col items-start text-white">
-                <div className="text-6xl md:text-8xl font-extralight tracking-tighter leading-none tabular-nums">
-                  <span className="text-3xl md:text-4xl text-white/20 mr-1">#</span>
-                  {formatNumber(currentProv.views)}
-                </div>
-                <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.3em] mt-6">
-                   CUMULATIVE HEAT VOLUME
-                </p>
-              </div>
-            </div>
-            
-            {/* Pulse Dot Accent */}
-            <div className="mt-8 flex items-center gap-2 border-t border-white/5 pt-6">
-              <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: ACCENT_COLOR }} />
-              <span className="text-[8px] text-white/20 font-bold uppercase tracking-widest">Pulse-check active</span>
-            </div>
+        {/* Right panel: Donut chart + Ranking */}
+        <div className="lg:w-52 w-full flex flex-col gap-4">
 
-            {/* Background Glow */}
-            <div className="absolute -top-12 -right-12 w-48 h-48 blur-[80px] rounded-full" style={{ backgroundColor: `${ACCENT_COLOR}15` }} />
+          {/* Donut Chart */}
+          <div className="bg-white/[0.03] border border-white/10 rounded-lg p-4 flex flex-col items-center">
+            {(() => {
+              const CX = 80, CY = 80, OR = 68, IR = 44;
+              let angle = -Math.PI / 2;
+              return (
+                <svg width="160" height="160" viewBox="0 0 160 160">
+                  {ranking.map((p) => {
+                    const pct = totalViews ? p.views / totalViews : 0;
+                    if (pct < 0.001) return null;
+                    const startAngle = angle;
+                    const endAngle = angle + pct * 2 * Math.PI;
+                    angle = endAngle;
+                    const large = pct > 0.5 ? 1 : 0;
+                    const ox1 = CX + OR * Math.cos(startAngle);
+                    const oy1 = CY + OR * Math.sin(startAngle);
+                    const ox2 = CX + OR * Math.cos(endAngle);
+                    const oy2 = CY + OR * Math.sin(endAngle);
+                    const ix1 = CX + IR * Math.cos(startAngle);
+                    const iy1 = CY + IR * Math.sin(startAngle);
+                    const ix2 = CX + IR * Math.cos(endAngle);
+                    const iy2 = CY + IR * Math.sin(endAngle);
+                    const d = `M ${ox1.toFixed(2)} ${oy1.toFixed(2)} A ${OR} ${OR} 0 ${large} 1 ${ox2.toFixed(2)} ${oy2.toFixed(2)} L ${ix2.toFixed(2)} ${iy2.toFixed(2)} A ${IR} ${IR} 0 ${large} 0 ${ix1.toFixed(2)} ${iy1.toFixed(2)} Z`;
+                    const isActive = p.id === currentProv.id;
+                    return (
+                      <motion.path
+                        key={p.id}
+                        d={d}
+                        animate={{ opacity: isActive ? 1 : 0.15, scale: isActive ? 1.04 : 1 }}
+                        transition={{ duration: 0.8, ease: 'easeInOut' }}
+                        fill="#ffffff"
+                        stroke="#000"
+                        strokeWidth="0.8"
+                        style={{ transformOrigin: `${CX}px ${CY}px`, cursor: 'pointer' }}
+                        onClick={() => setHighlightIdx(ranking.findIndex(r => r.id === p.id))}
+                      />
+                    );
+                  })}
+                  {/* Center text */}
+                  <text x={CX} y={CY - 6} textAnchor="middle" style={{ fontSize: '18px', fontWeight: 900, fill: '#fff' }}>
+                    {formatPct(currentProv.views)}
+                  </text>
+                  <text x={CX} y={CY + 10} textAnchor="middle" style={{ fontSize: '7px', fontWeight: 700, fill: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {currentProv.name}
+                  </text>
+                </svg>
+              );
+            })()}
           </div>
 
-          {/* Ranking List */}
-          <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-8 flex-1 overflow-hidden">
-            <div className="flex justify-between items-center mb-8">
-              <h4 className="text-[10px] font-black text-white/30 uppercase tracking-[0.4em]">RANKING</h4>
-              <span className="text-[8px] font-mono font-bold text-white/10 uppercase">Top 100</span>
+          {/* Ranking */}
+          <div className="bg-white/[0.03] border border-white/10 rounded-lg p-4 flex flex-col flex-1">
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="text-[9px] font-black text-white/30 uppercase tracking-[0.4em]">RANKING</h4>
+              <span className="text-[7px] font-mono font-bold text-white/10 uppercase">Top 6</span>
             </div>
-            
-            <div className="space-y-1.5 max-h-[350px] overflow-y-auto custom-scrollbar pr-2">
-              {ranking.slice(0, 15).map((p, i) => (
+            <div className="space-y-1">
+              {ranking.slice(0, 6).map((p, i) => (
                 <motion.div
                   key={p.id}
                   onClick={() => setHighlightIdx(ranking.findIndex(r => r.id === p.id))}
-                  whileHover={{ x: 4, backgroundColor: 'rgba(255,255,255,0.02)' }}
-                  animate={{
-                    backgroundColor: p.id === currentProv.id ? 'rgba(174,239,255,0.08)' : 'transparent',
-                    borderColor: p.id === currentProv.id ? 'rgba(174,239,255,0.2)' : 'transparent',
-                  }}
-                  className="flex justify-between items-center p-3 rounded-lg border border-transparent cursor-pointer transition-all"
+                  animate={{ backgroundColor: p.id === currentProv.id ? 'rgba(255,255,255,0.08)' : 'transparent' }}
+                  className="flex justify-between items-center px-2 py-2 rounded cursor-pointer border border-transparent hover:border-white/10"
                 >
-                  <div className="flex items-center gap-4">
-                    <span className="text-[9px] font-mono font-bold text-white/10" style={{ color: p.id === currentProv.id ? ACCENT_COLOR : undefined }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[8px] font-mono font-bold w-4" style={{ color: p.id === currentProv.id ? '#ffffff' : 'rgba(255,255,255,0.15)' }}>
                       {(i + 1).toString().padStart(2, '0')}
                     </span>
-                    <span className={`text-[13px] font-bold transition-colors ${p.id === currentProv.id ? 'text-white' : 'text-white/40'}`}>
+                    <span className={`text-[12px] font-bold truncate ${p.id === currentProv.id ? 'text-white' : 'text-white/30'}`}>
                       {p.name}
                     </span>
                   </div>
-                  <span className="text-[12px] font-black tabular-nums transition-colors" style={{ color: p.id === currentProv.id ? ACCENT_COLOR : 'rgba(255,255,255,0.15)' }}>
-                    {formatNumber(p.views)}
-                  </span>
                 </motion.div>
               ))}
             </div>
           </div>
+
         </div>
       </div>
-
-      <style jsx>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 2px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.05);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: ${ACCENT_COLOR}30;
-        }
-      `}</style>
-    </section>
+    </div>
   );
 }

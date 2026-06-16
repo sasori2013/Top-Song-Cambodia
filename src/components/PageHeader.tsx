@@ -97,7 +97,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ stats }) => {
     }, []);
 
     return (
-        <section className="relative flex min-h-[90vh] flex-col items-center justify-center pt-32 pb-32 text-center overflow-hidden">
+        <section className="relative z-10 flex min-h-[90vh] flex-col items-center justify-center pt-32 pb-32 text-center overflow-hidden">
             <AuraR3F color="rgba(255, 255, 255, 0.2)" fullscreen progress={syncProgress} />
 
             {/* Title & Subtitle - Delayed Entrance */}
@@ -127,8 +127,8 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ stats }) => {
                     transition={{ duration: 1, delay: 0.2 }}
                     className="mb-6"
                 >
-                    <div className="inline-block px-4 py-1.5 border border-white/20 bg-gradient-to-r from-white/10 via-white/5 to-white/10 backdrop-blur-md rounded-full">
-                        <span className="text-[10px] font-normal tracking-[0.3em] text-transparent bg-clip-text bg-gradient-to-r from-white via-gray-400 to-white font-mono">
+                    <div className="inline-block px-4 py-1.5 border border-white/10 bg-white/5 backdrop-blur-md rounded-full">
+                        <span className="text-[10px] font-normal tracking-[0.3em] text-white/40 font-mono">
                             {dateString || '2026 00 00 00:00:00'}
                         </span>
                     </div>
@@ -140,24 +140,24 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ stats }) => {
                     transition={{ delay: 0.4, duration: 1 }}
                     className="flex justify-center items-center py-4 px-6 border border-white/10 bg-white/5 backdrop-blur-md rounded-xl"
                 >
-                    <div className="flex flex-col items-center px-6 md:px-12 border-r border-white/10 last:border-r-0">
-                        <div className="text-[9px] md:text-[11px] font-black tracking-[0.4em] text-white/90 uppercase mb-2 drop-shadow-md">
+                    <div className="flex flex-col items-center px-6 md:px-12 border-r border-white/5 last:border-r-0">
+                        <div className="text-[9px] md:text-[11px] font-black tracking-[0.4em] text-white/30 uppercase mb-2">
                             ARTISTS
                         </div>
                         <div className="text-2xl md:text-4xl font-normal text-white tabular-nums tracking-tighter">
                             {Math.floor(syncProgress * displayStats.totalArtists).toLocaleString()}
                         </div>
                     </div>
-                    <div className="flex flex-col items-center px-6 md:px-12 border-r border-white/10 last:border-r-0">
-                        <div className="text-[9px] md:text-[11px] font-black tracking-[0.4em] text-white/90 uppercase mb-2 drop-shadow-md">
+                    <div className="flex flex-col items-center px-6 md:px-12 border-r border-white/5 last:border-r-0">
+                        <div className="text-[9px] md:text-[11px] font-black tracking-[0.4em] text-white/30 uppercase mb-2">
                             LABELS
                         </div>
                         <div className="text-2xl md:text-4xl font-normal text-white tabular-nums tracking-tighter">
                             {Math.floor(syncProgress * displayStats.totalProductions).toLocaleString()}
                         </div>
                     </div>
-                    <div className="flex flex-col items-center px-6 md:px-12 border-r border-white/10 last:border-r-0">
-                        <div className="text-[9px] md:text-[11px] font-black tracking-[0.4em] text-white/90 uppercase mb-2 drop-shadow-md">
+                    <div className="flex flex-col items-center px-6 md:px-12 border-r border-white/5 last:border-r-0">
+                        <div className="text-[9px] md:text-[11px] font-black tracking-[0.4em] text-white/30 uppercase mb-2">
                             SONGS
                         </div>
                         <div className="text-2xl md:text-4xl font-normal text-white tabular-nums tracking-tighter">

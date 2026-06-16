@@ -45,15 +45,15 @@ export const ArtistRegistration: React.FC = () => {
     };
 
     return (
-        <div className="w-full max-w-xl mt-12 mb-0 px-4">
+        <div className="w-full max-w-xl">
             <div className="border border-white/10 bg-white/5 backdrop-blur-md rounded-xl p-6 transition-all hover:bg-white/[0.07]">
                 <h3 className="text-white/80 text-sm font-semibold tracking-wider uppercase mb-2">Request Artist Registration</h3>
                 <p className="text-white/40 text-[11px] mb-4">
                     Submit a YouTube or Facebook link. It will be reviewed before being added to our database.
                 </p>
                 <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 relative">
-                    <input 
-                        type="url" 
+                    <input
+                        type="url"
                         value={url}
                         onChange={(e) => setUrl(e.target.value)}
                         placeholder="https://youtube.com/... or https://facebook.com/..."
@@ -61,8 +61,8 @@ export const ArtistRegistration: React.FC = () => {
                         required
                         disabled={status === 'loading'}
                     />
-                    <button 
-                        type="submit" 
+                    <button
+                        type="submit"
                         disabled={status === 'loading' || !url}
                         className="bg-white/10 hover:bg-white/20 text-white/90 text-sm font-medium px-6 py-2.5 rounded-lg transition-colors border border-white/5 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                     >
@@ -71,10 +71,10 @@ export const ArtistRegistration: React.FC = () => {
                 </form>
 
                 {message && (
-                    <div className={`mt-3 text-xs tracking-wide ${
-                        status === 'success' ? 'text-green-400/90' : 
-                        status === 'existing' ? 'text-orange-400/90' : 
-                        'text-red-400/90'
+                    <div className={`mt-3 text-xs tracking-wide font-bold ${
+                        status === 'success' ? 'text-white' :
+                        status === 'existing' ? 'text-white/60' :
+                        'text-white/40'
                     }`}>
                         {message}
                     </div>

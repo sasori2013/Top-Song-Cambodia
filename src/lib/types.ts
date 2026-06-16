@@ -27,7 +27,30 @@ export interface RankingStats {
     totalSongs: number;
     heatGrowth?: number;
     heatTrend?: number[];
-    dailyActions?: { views: number; likes: number; comments: number };
+    weeklyGenreViews?: { genre: string; views: number }[];
+    dailyActions?: {
+        views: number; likes: number; comments: number;
+        prev?: { views: number; likes: number; comments: number };
+        genreViews?: { genre: string; views: number }[];
+        topSongs?: { title: string; artist: string; genre?: string; views: number; likes: number }[];
+        sentiment?: { positive: number; neutral: number; negative: number; songs: number };
+    };
+}
+
+export interface ReleasePeriod {
+    label: string;
+    count: number;
+    isCurrent: boolean;
+}
+
+export interface GenreTrendData {
+    months: string[];
+    series: { genre: string; values: number[] }[];
+}
+
+export interface ReleaseActivity {
+    weekly: ReleasePeriod[];
+    monthly: ReleasePeriod[];
 }
 
 export interface RankingResponse {
@@ -35,4 +58,7 @@ export interface RankingResponse {
     stats?: RankingStats;
     ranking: RankingItem[];
     regionalData?: { id: string; value: number }[];
+    releaseActivity?: ReleaseActivity;
+    genreTrend?: GenreTrendData;
+    genreTrendViews?: GenreTrendData;
 }

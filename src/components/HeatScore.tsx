@@ -8,15 +8,16 @@ interface HeatScoreProps {
     rank?: number;
     size?: 'sm' | 'lg';
     color?: string;
+    textColor?: string;
     className?: string;
     disableAnimation?: boolean;
 }
 
 export const HeatScore: React.FC<HeatScoreProps> = ({
     score,
-    rank,
     size = 'lg',
-    color = "#60a5fa",
+    color = "#ffffff",
+    textColor,
     className = "",
     disableAnimation = false
 }) => {
@@ -24,7 +25,6 @@ export const HeatScore: React.FC<HeatScoreProps> = ({
     const [displayScore, setDisplayScore] = React.useState(0);
 
     React.useEffect(() => {
-        let start = 0;
         const end = score;
         const duration = 3000;
         const startTime = performance.now();
@@ -79,7 +79,10 @@ export const HeatScore: React.FC<HeatScoreProps> = ({
 
             <div className="relative flex flex-col items-center">
                 <div className="flex items-baseline gap-1">
-                    <span className={`${isLg ? 'text-4xl' : 'text-xl'} font-extralight text-white tracking-tighter tabular-nums`}>
+                    <span
+                        className={`${isLg ? 'text-4xl' : 'text-xl'} font-extralight tracking-tighter tabular-nums`}
+                        style={{ color: textColor || 'white' }}
+                    >
                         {displayScore.toFixed(displayScore > 99 ? 0 : 1)}
                     </span>
                     <span

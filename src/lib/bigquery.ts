@@ -336,14 +336,162 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
       WHERE CAST(s1.date AS STRING) = '${latestDate}'
         AND CAST(s2.date AS STRING) = '${prevSnapDate}'
     `);
-    const dailyActions = {
+    const dailyActionsToday = {
       views:    Number(actionRows[0]?.inc_views    || 0),
       likes:    Number(actionRows[0]?.inc_likes    || 0),
       comments: Number(actionRows[0]?.inc_comments || 0),
       totalActionsVolume: Number(actionRows[0]?.total_actions_volume || 0),
     };
 
-    // 5. Format Response
+    // 4c. Previous day actions: diff between prevSnapDate and the snapshot before it
+    const [prevPrevSnapRows] = await bq.query(`
+      SELECT CAST(date AS STRING) as d
+      FROM \`${DATASET_ID}.snapshots\`
+      WHERE date < DATE '${prevSnapDate}'
+      GROUP BY date HAVING COUNT(*) >= 400
+      ORDER BY date DESC LIMIT 1
+    `);
+    const prevPrevSnapDate = prevPrevSnapRows[0]?.d || null;
+
+    let prevDailyActions = null;
+    if (prevPrevSnapDate) {
+      const [prevActionRows] = await bq.query(`
+        SELECT
+          COALESCE(SUM(CASE WHEN s1.views    > s2.views    THEN s1.views    - s2.views    ELSE 0 END), 0) AS inc_views,
+          COALESCE(SUM(CASE WHEN s1.likes    > s2.likes    THEN s1.likes    - s2.likes    ELSE 0 END), 0) AS inc_likes,
+          COALESCE(SUM(CASE WHEN s1.comments > s2.comments THEN s1.comments - s2.comments ELSE 0 END), 0) AS inc_comments
+        FROM \`${DATASET_ID}.snapshots\` s1
+        JOIN \`${DATASET_ID}.snapshots\` s2 ON s1.videoId = s2.videoId
+        WHERE CAST(s1.date AS STRING) = '${prevSnapDate}'
+          AND CAST(s2.date AS STRING) = '${prevPrevSnapDate}'
+      `);
+      prevDailyActions = {
+        views:    Number(prevActionRows[0]?.inc_views    || 0),
+        likes:    Number(prevActionRows[0]?.inc_likes    || 0),
+        comments: Number(prevActionRows[0]?.inc_comments || 0),
+      };
+    }
+
+    // Daily comment sentiment (aggregate across ranked songs)
+    const [sentimentRows] = await bq.query(`
+      SELECT
+        ROUND(AVG(sm.sentiment_positive)) AS avg_positive,
+        ROUND(AVG(sm.sentiment_negative)) AS avg_negative,
+        ROUND(AVG(sm.sentiment_neutral))  AS avg_neutral,
+        COUNT(*) AS analyzed_songs
+      FROM \`${DATASET_ID}.songs_master\` sm
+      WHERE sm.sentiment_positive IS NOT NULL
+        AND sm.videoId IN (SELECT DISTINCT videoId FROM \`${DATASET_ID}.rank_history\` WHERE type = 'DAILY')
+    `);
+    const sentimentRow = sentimentRows[0];
+    const sentiment = sentimentRow?.analyzed_songs > 0 ? {
+      positive: Number(sentimentRow.avg_positive),
+      neutral:  Number(sentimentRow.avg_neutral),
+      negative: Number(sentimentRow.avg_negative),
+      songs:    Number(sentimentRow.analyzed_songs),
+    } : undefined;
+
+    // Daily genre split
+    const [dailyGenreRows] = await bq.query(`
+      SELECT sm.genre,
+        SUM(curr.views - IFNULL(prev.views, 0)) AS daily_views
+      FROM \`${DATASET_ID}.snapshots\` curr
+      JOIN \`${DATASET_ID}.songs_master\` sm ON curr.videoId = sm.videoId
+      LEFT JOIN \`${DATASET_ID}.snapshots\` prev
+        ON curr.videoId = prev.videoId AND prev.date = DATE_SUB(curr.date, INTERVAL 1 DAY)
+      WHERE curr.date = DATE '${latestDate}'
+        AND sm.genre IS NOT NULL AND sm.genre != ''
+      GROUP BY sm.genre
+      ORDER BY daily_views DESC
+    `);
+
+    // Daily top songs
+    const [dailyTopRows] = await bq.query(`
+      SELECT sm.title, sm.artist, sm.genre,
+        curr.views - IFNULL(prev.views, 0) AS daily_views,
+        curr.likes - IFNULL(prev.likes, 0) AS daily_likes
+      FROM \`${DATASET_ID}.snapshots\` curr
+      JOIN \`${DATASET_ID}.songs_master\` sm ON curr.videoId = sm.videoId
+      LEFT JOIN \`${DATASET_ID}.snapshots\` prev
+        ON curr.videoId = prev.videoId AND prev.date = DATE_SUB(curr.date, INTERVAL 1 DAY)
+      WHERE curr.date = DATE '${latestDate}'
+      ORDER BY daily_views DESC
+      LIMIT 5
+    `);
+
+    const dailyActions = {
+      ...dailyActionsToday,
+      ...(prevDailyActions ? { prev: prevDailyActions } : {}),
+      sentiment,
+      genreViews: dailyGenreRows.map((r: any) => ({ genre: r.genre as string, views: Number(r.daily_views) })),
+      topSongs: dailyTopRows.map((r: any) => ({
+        title: r.title as string,
+        artist: r.artist as string,
+        genre: r.genre as string ?? undefined,
+        views: Number(r.daily_views),
+        likes: Number(r.daily_likes),
+      })),
+    };
+
+    // 5. Release Activity: weekly (past 4 weeks) + monthly (past 12 months)
+    const releaseQuery = `
+      WITH weekly AS (
+        SELECT
+          DATE_DIFF(DATE '${latestDate}', DATE_TRUNC(DATE(publishedAt), WEEK(MONDAY)), WEEK) AS periods_ago,
+          COUNT(*) AS count,
+          'weekly' AS type
+        FROM \`${DATASET_ID}.songs_master\`
+        WHERE publishedAt IS NOT NULL
+          AND DATE(publishedAt) BETWEEN DATE_SUB(DATE '${latestDate}', INTERVAL 4 WEEK) AND DATE '${latestDate}'
+        GROUP BY periods_ago
+        HAVING periods_ago BETWEEN 0 AND 3
+      ),
+      monthly AS (
+        SELECT
+          DATE_DIFF(DATE_TRUNC(DATE '${latestDate}', MONTH), DATE_TRUNC(DATE(publishedAt), MONTH), MONTH) AS periods_ago,
+          COUNT(*) AS count,
+          'monthly' AS type
+        FROM \`${DATASET_ID}.songs_master\`
+        WHERE publishedAt IS NOT NULL
+          AND DATE(publishedAt) BETWEEN DATE_SUB(DATE '${latestDate}', INTERVAL 12 MONTH) AND DATE '${latestDate}'
+        GROUP BY periods_ago
+        HAVING periods_ago BETWEEN 0 AND 11
+      )
+      SELECT * FROM weekly
+      UNION ALL
+      SELECT * FROM monthly
+    `;
+    const [releaseRows] = await bq.query(releaseQuery);
+
+    const weeklyMap = new Map(
+      releaseRows.filter(r => r.type === 'weekly').map(r => [Number(r.periods_ago), Number(r.count)])
+    );
+    const monthlyMap = new Map(
+      releaseRows.filter(r => r.type === 'monthly').map(r => [Number(r.periods_ago), Number(r.count)])
+    );
+
+    const weeklyLabels = ['3W AGO', '2W AGO', 'LAST WK', 'THIS WK'];
+    const weeklyActivity = [3, 2, 1, 0].map((ago, i) => ({
+      label: weeklyLabels[i],
+      count: weeklyMap.get(ago) || 0,
+      isCurrent: ago === 0,
+    }));
+
+    const latestDateObj = new Date(latestDate);
+    const curMonth = latestDateObj.getMonth();
+    const curYear = latestDateObj.getFullYear();
+    const MONTH_NAMES = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+    const monthlyActivity = Array.from({ length: 12 }, (_, i) => {
+      const ago = 11 - i;
+      const d = new Date(curYear, curMonth - ago, 1);
+      return {
+        label: MONTH_NAMES[d.getMonth()],
+        count: monthlyMap.get(ago) || 0,
+        isCurrent: ago === 0,
+      };
+    });
+
+    // 5b. Format Response
     const trendValues = trendRows.map(r => r.weekly_volume);
     
     // 6. Fetch Rank History for Top 40 (for Sparklines)
@@ -426,6 +574,80 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
       } as RankingItem;
     });
 
+    // 6. Genre trend: monthly release counts per genre (past 12 months)
+    const GENRE_ORDER = ['Pop', 'Hip-hop & Rap', 'R&B & Soul', 'Ballad', 'Traditional Khmer', 'Dance & EDM', 'Rock', 'Other'];
+    const [genreRows] = await bq.query(`
+      SELECT FORMAT_DATE('%Y-%m', DATE(publishedAt)) AS month, genre, COUNT(*) AS count
+      FROM \`${DATASET_ID}.songs_master\`
+      WHERE genre IS NOT NULL AND genre != ''
+        AND DATE(publishedAt) BETWEEN DATE_SUB(DATE '${latestDate}', INTERVAL 12 MONTH) AND DATE '${latestDate}'
+      GROUP BY month, genre
+      ORDER BY month ASC
+    `);
+
+    const genreMonths: string[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(curYear, curMonth - i, 1);
+      genreMonths.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    }
+    const genreMap: Record<string, Record<string, number>> = {};
+    genreRows.forEach((r: any) => {
+      if (!genreMap[r.genre]) genreMap[r.genre] = {};
+      genreMap[r.genre][r.month] = Number(r.count);
+    });
+    const genreTrend = {
+      months: genreMonths,
+      series: GENRE_ORDER
+        .map(g => ({ genre: g, values: genreMonths.map(m => genreMap[g]?.[m] || 0) }))
+        .filter(s => s.values.some(v => v > 0)),
+    };
+
+    // 7. Genre trend: views-weighted (latest snapshot views per video)
+    const [genreViewRows] = await bq.query(`
+      SELECT FORMAT_DATE('%Y-%m', DATE(sm.publishedAt)) AS month, sm.genre,
+        SUM(latest.views) AS count
+      FROM \`${DATASET_ID}.songs_master\` sm
+      JOIN (
+        SELECT videoId, MAX(views) AS views
+        FROM \`${DATASET_ID}.snapshots\`
+        GROUP BY videoId
+      ) latest ON sm.videoId = latest.videoId
+      WHERE sm.genre IS NOT NULL AND sm.genre != ''
+        AND DATE(sm.publishedAt) BETWEEN DATE_SUB(DATE '${latestDate}', INTERVAL 12 MONTH) AND DATE '${latestDate}'
+      GROUP BY month, sm.genre
+      ORDER BY month ASC
+    `);
+    const genreViewMap: Record<string, Record<string, number>> = {};
+    genreViewRows.forEach((r: any) => {
+      if (!genreViewMap[r.genre]) genreViewMap[r.genre] = {};
+      genreViewMap[r.genre][r.month] = Number(r.count);
+    });
+    const genreTrendViews = {
+      months: genreMonths,
+      series: GENRE_ORDER
+        .map(g => ({ genre: g, values: genreMonths.map(m => genreViewMap[g]?.[m] || 0) }))
+        .filter(s => s.values.some(v => v > 0)),
+    };
+
+    // 8. Weekly genre view breakdown (incremental views past 7 days)
+    const [weeklyGenreRows] = await bq.query(`
+      WITH maxdate AS (SELECT MAX(date) AS d FROM \`${DATASET_ID}.snapshots\`)
+      SELECT sm.genre,
+        SUM(curr.views - IFNULL(prev.views, 0)) AS week_views
+      FROM \`${DATASET_ID}.snapshots\` curr
+      JOIN \`${DATASET_ID}.songs_master\` sm ON curr.videoId = sm.videoId
+      LEFT JOIN \`${DATASET_ID}.snapshots\` prev
+        ON curr.videoId = prev.videoId AND prev.date = DATE_SUB(curr.date, INTERVAL 1 DAY)
+      WHERE curr.date >= DATE_SUB((SELECT d FROM maxdate), INTERVAL 6 DAY)
+        AND sm.genre IS NOT NULL AND sm.genre != ''
+      GROUP BY sm.genre
+      ORDER BY week_views DESC
+    `);
+    const weeklyGenreViews = weeklyGenreRows.map((r: any) => ({
+      genre: r.genre as string,
+      views: Number(r.week_views),
+    }));
+
     return {
       updatedAt: latestDate,
       stats: {
@@ -434,10 +656,14 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
         totalSongs: countRows[0].totalSongs,
         heatGrowth: Math.round(heatGrowth * 10) / 10,
         heatTrend: trendValues,
+        weeklyGenreViews,
         dailyActions
       },
       ranking: ranking,
-      regionalData: regionalData
+      regionalData: regionalData,
+      releaseActivity: { weekly: weeklyActivity, monthly: monthlyActivity },
+      genreTrend,
+      genreTrendViews,
     } as RankingResponse;
 
   } catch (error) {

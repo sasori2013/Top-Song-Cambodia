@@ -302,7 +302,13 @@ async function runUpdateSongs() {
                 // 4.1 AI Classification (Labels: eventTag, category, detectedArtist)
                 const isLabel = artist.type === 'Label' || artist.type === 'Production' || artist.type === 'P'; // Treat P as Label here just in case
                 const classification = await classifySong(vid.id, vid.snippet.title, vid.snippet.description, isLabel);
-                
+
+                // Gate: skip non-music content
+                if (classification.isMusic === false) {
+                  console.log(`  Skipped (Non-Music): ${vid.snippet.title} — ${classification.reason}`);
+                  continue;
+                }
+
                 // We completely ignore AI artist detection due to excessive noise.
                 classification.detectedArtist = '';
 

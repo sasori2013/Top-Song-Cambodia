@@ -111,9 +111,9 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                 <defs>
                     {/* Rank Horizontal Gradient (Faded at left 20%, White to Light Blue) */}
                     <linearGradient id={rankGradientId} x1="0%" y1="0%" x2="100%" y2="0%" gradientUnits="userSpaceOnUse">
-                        <stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
-                        <stop offset="20%" stopColor="#ffffff" stopOpacity="1" />
-                        <stop offset="60%" stopColor="#ffffff" stopOpacity="1" />
+                        <stop offset="0%" stopColor={color} stopOpacity="0" />
+                        <stop offset="20%" stopColor={color} stopOpacity="1" />
+                        <stop offset="60%" stopColor={color} stopOpacity="1" />
                         <stop offset="100%" stopColor="#00E5FF" stopOpacity="1" />
                     </linearGradient>
 
@@ -215,23 +215,39 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                     const xRatio = p.x / width;
                     const isFaded = xRatio < 0.2;
                     const progress = i / (points.length - 1);
-                    // Match the line gradient: white until 60%, then transition to light blue
-                    const dotColor = progress > 0.6 ? "#00E5FF" : "#ffffff";
-                    
+                    const dotColor = progress > 0.6 ? "#00E5FF" : color;
+                    const labelBelow = p.y < height / 2;
+                    const labelY = labelBelow ? p.y + 14 : p.y - 6;
+
                     return (
-                        <motion.circle
-                            key={i}
-                            cx={p.x}
-                            cy={p.y}
-                            r={isLast ? "2.5" : "1.8"}
-                            fill={dotColor}
-                            initial={{ scale: 0, opacity: 0 }}
-                            animate={{ scale: 1, opacity: isFaded ? 0 : 1 }}
-                            transition={{ 
-                                scale: { delay: 1.5 + (i * 0.1) },
-                                opacity: { delay: 1.5 + (i * 0.1) }
-                            }}
-                        />
+                        <g key={i}>
+                            <motion.circle
+                                cx={p.x}
+                                cy={p.y}
+                                r={isLast ? "2.5" : "1.8"}
+                                fill={dotColor}
+                                initial={{ scale: 0, opacity: 0 }}
+                                animate={{ scale: 1, opacity: isFaded ? 0 : 1 }}
+                                transition={{
+                                    scale: { delay: 1.5 + (i * 0.1) },
+                                    opacity: { delay: 1.5 + (i * 0.1) }
+                                }}
+                            />
+                            <motion.text
+                                x={p.x}
+                                y={labelY}
+                                textAnchor="middle"
+                                fontSize="11"
+                                fill={dotColor}
+                                fontWeight="bold"
+                                fontFamily="monospace"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: isFaded ? 0 : 0.85 }}
+                                transition={{ delay: 1.6 + (i * 0.1) }}
+                            >
+                                {data[i]}
+                            </motion.text>
+                        </g>
                     );
                 })}
 
