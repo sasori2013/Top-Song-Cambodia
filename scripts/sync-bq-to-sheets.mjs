@@ -54,11 +54,12 @@ async function sync() {
       String(r.category || ''),
       String(r.detectedArtist || ''),
       String(r.featuring || ''),
-      `https://www.youtube.com/watch?v=${r.videoId}`
+      `https://www.youtube.com/watch?v=${r.videoId}`,
+      String(r.genre || ''),
     ];
   });
 
-  const header = ['videoId', 'artist', 'title', 'Clean Title', 'publishedAt', 'Event Tag', 'Category', 'DetectedArtist', 'Featuring', 'Link'];
+  const header = ['videoId', 'artist', 'title', 'Clean Title', 'publishedAt', 'Event Tag', 'Category', 'DetectedArtist', 'Featuring', 'Link', 'genre'];
   
   const songsLongData = [header, ...sheetData];
 
@@ -87,7 +88,7 @@ async function sync() {
   // SONGS sheet is managed exclusively by update-songs-node.mjs — do NOT touch it here.
 
   console.log(`  Updating SONGS_LONG sheet (${sheetData.length} rows)...`);
-  await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: 'SONGS_LONG!A:J' });
+  await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: 'SONGS_LONG!A:K' });
   
   const LONG_CHUNK = 1000;
   for (let i = 0; i < songsLongData.length; i += LONG_CHUNK) {

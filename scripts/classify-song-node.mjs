@@ -82,12 +82,16 @@ INSTRUCTIONS:
 Determine the following fields:
 1. eventTag: Identify if this is for a specific event like "Khmer New Year 2026", "Cambodian Idol S4", "The Voice Cambodia", or "None". (English)
 2. category: Categorize as "Original MV", "Audition Performance", "Live Concert", "Dance Motion", or "Other". (English)
+3. genre: Classify the PRIMARY music genre of this specific song (not just the artist's usual style). Choose exactly one:
+   "Pop" / "Hip-hop & Rap" / "R&B & Soul" / "Ballad" / "Traditional Khmer" / "Dance & EDM" / "Rock" / "Other"
+   Note: An artist known for Hip-hop may release a Pop song — judge the SONG, not the artist.
 ${artistTask}
 
 Output only a valid JSON object:
 {
-  "eventTag": "...", 
+  "eventTag": "...",
   "category": "...",
+  "genre": "...",
   "detectedArtist": "...",
   "reason": "Brief explanation in English"
 }

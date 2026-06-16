@@ -26,12 +26,13 @@ const bq = new BigQuery({ projectId: PROJECT_ID, credentials });
 async function syncArtistsMaster() {
   console.log('--- Synchronizing Artists Master (Sheets -> BigQuery) ---');
 
-  // 1. Fetch all data from Artists sheet (Rows A to O)
+  // 1. Fetch all data from Artists sheet (Rows A to S)
   // A:name B:youtubeUrl C:channelId D:subscribers E:facebook F:role G:lastSync
   // H:deepSearch I:bio J:genres K:links L:artistInfo M:type N:detectedArtists O:titleFilter
+  // P:tier Q:tiktokUrl R:appleMusicUrl S:spotifyUrl
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: 'Artists!A2:O',
+    range: 'Artists!A2:S',
   });
   const rows = res.data.values || [];
   console.log(`Fetched ${rows.length} artists from Sheets.`);
@@ -51,6 +52,8 @@ async function syncArtistsMaster() {
       links: r[10] || null,
       artistInfo: r[11] || null,
       titleFilter: r[14] || null,
+      apple_music_url: r[17] || null,
+      spotify_url: r[18] || null,
       lastUpdated: new Date().toISOString()
     };
   }).filter(a => a.name); // Filter out empty rows

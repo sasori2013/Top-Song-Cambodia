@@ -157,7 +157,7 @@ async function runSync() {
       videoId: String(row[0]).trim(),
       artist: String(row[1] || ''),
       title: String(row[2] || ''),
-      publishedAt: toBQTimestamp(row[3]),
+      publishedAt: toBQTimestamp(row[4]),
     };
   });
 

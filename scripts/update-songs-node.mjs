@@ -360,6 +360,7 @@ async function runUpdateSongs() {
                   publishedAt: vid.snippet.publishedAt,
                   eventTag: classification.eventTag || 'None',
                   category: classification.category || 'Other',
+                  genre: classification.genre || '',
                   detectedArtist: classification.detectedArtist || '',
                   featuring: '', // Added field
                   analyzedReason: classification.reason || '',
@@ -418,10 +419,10 @@ async function runUpdateSongs() {
   // 6. Update Sheets and BQ
   if (newSongsData.length > 0) {
     const recentSongs = newSongsData.filter(s => s.isRecent).map(s => [
-      s.videoId, s.artist, s.title, s.cleanTitle, s.publishedAt, s.eventTag, s.category, s.detectedArtist, s.featuring, `https://www.youtube.com/watch?v=${s.videoId}`, heatId(s.videoId)
+      s.videoId, s.artist, s.title, s.cleanTitle, s.publishedAt, s.eventTag, s.category, s.detectedArtist, s.featuring, `https://www.youtube.com/watch?v=${s.videoId}`, heatId(s.videoId), s.genre || ''
     ]);
     const oldSongs = newSongsData.filter(s => !s.isRecent).map(s => [
-      s.videoId, s.artist, s.title, s.cleanTitle, s.publishedAt, s.eventTag, s.category, s.detectedArtist, s.featuring, `https://www.youtube.com/watch?v=${s.videoId}`, heatId(s.videoId)
+      s.videoId, s.artist, s.title, s.cleanTitle, s.publishedAt, s.eventTag, s.category, s.detectedArtist, s.featuring, `https://www.youtube.com/watch?v=${s.videoId}`, heatId(s.videoId), s.genre || ''
     ]);
 
     // Resolve sheet GIDs dynamically by name
@@ -433,7 +434,7 @@ async function runUpdateSongs() {
     if (recentSongs.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: SHEET_ID,
-        range: 'SONGS!A:K',
+        range: 'SONGS!A:L',
         valueInputOption: 'USER_ENTERED',
         requestBody: { values: recentSongs },
       });
@@ -452,7 +453,7 @@ async function runUpdateSongs() {
                   sheetId: songsGid,
                   startRowIndex: 1, // Skip header
                   startColumnIndex: 0,
-                  endColumnIndex: 11
+                  endColumnIndex: 12
                 },
                 sortSpecs: [
                   {
@@ -517,8 +518,9 @@ async function runUpdateSongs() {
       publishedAt: s.publishedAt,
       eventTag: s.eventTag,
       category: s.category,
+      genre: s.genre || '',
       detectedArtist: s.detectedArtist,
-      featuring: s.featuring, // Added field
+      featuring: s.featuring,
       analyzedReason: s.analyzedReason,
       description: s.description,
       topComments: s.topComments,
@@ -538,6 +540,7 @@ async function runUpdateSongs() {
         {name: 'publishedAt', type: 'TIMESTAMP'},
         {name: 'eventTag', type: 'STRING'},
         {name: 'category', type: 'STRING'},
+        {name: 'genre', type: 'STRING'},
         {name: 'detectedArtist', type: 'STRING'},
         {name: 'featuring', type: 'STRING'},
         {name: 'analyzedReason', type: 'STRING'},
@@ -552,16 +555,17 @@ async function runUpdateSongs() {
       USING \`${PROJECT_ID}.${DATASET_ID}.${tempTableId}\` S
       ON T.videoId = S.videoId
       WHEN NOT MATCHED THEN
-        INSERT (videoId, artist, title, cleanTitle, publishedAt, eventTag, category, detectedArtist, featuring, analyzedReason, description, topComments, classificationSource)
-        VALUES (S.videoId, S.artist, S.title, S.cleanTitle, S.publishedAt, S.eventTag, S.category, S.detectedArtist, S.featuring, S.analyzedReason, S.description, S.topComments, S.classificationSource)
+        INSERT (videoId, artist, title, cleanTitle, publishedAt, eventTag, category, genre, detectedArtist, featuring, analyzedReason, description, topComments, classificationSource)
+        VALUES (S.videoId, S.artist, S.title, S.cleanTitle, S.publishedAt, S.eventTag, S.category, S.genre, S.detectedArtist, S.featuring, S.analyzedReason, S.description, S.topComments, S.classificationSource)
       WHEN MATCHED THEN
-        UPDATE SET 
+        UPDATE SET
           T.artist = IF(T.classificationSource = '${SOURCE.ARTIST_FIXED}', T.artist, S.artist),
           T.title = S.title,
           T.cleanTitle = S.cleanTitle,
           T.publishedAt = S.publishedAt,
           T.eventTag = S.eventTag,
           T.category = S.category,
+          T.genre = S.genre,
           T.detectedArtist = IF(T.classificationSource = '${SOURCE.ARTIST_FIXED}', '', S.detectedArtist),
           T.featuring = S.featuring,
           T.analyzedReason = S.analyzedReason,
@@ -597,6 +601,7 @@ async function runUpdateSongs() {
     }
   }
 
+
   await sendTelegramNotification(
     `✅ <b>新曲探索完了</b>\n` +
     `対象: ${artistsToProcess.length}名中 ${successCount}名成功\n` +
@@ -605,6 +610,15 @@ async function runUpdateSongs() {
     (newRosterEntries.length > 0 ? `\n📋 <b>Label_Roster 自動追加: ${newRosterEntries.length}件</b>\n${newRosterEntries.map(r => `${r[0]} → ${r[1]}`).join('\n')}` : '') +
     failureMsg
   );
+
+  // 10. Automatically trigger HADE Active Roster Linker (Tier 1) to resolve channels for newly added roster artists
+  try {
+    console.log('Triggering HADE Active Roster Linker (Tier 1)...');
+    const { runLinkRosterChannels } = await import('./link-roster-channels.mjs');
+    await runLinkRosterChannels();
+  } catch (e) {
+    console.error('Error triggering HADE Active Roster Linker:', e.message);
+  }
 }
 
 async function withRetry(fn, label = '', maxAttempts = 3) {
@@ -633,4 +647,5 @@ function parseDuration(duration) {
 runUpdateSongs().catch(async (error) => {
     console.error(error);
     await sendTelegramNotification(`⚠️ <b>新曲探索エラー</b>\n<code>${error.message}</code>`);
+    process.exit(1);
 });
