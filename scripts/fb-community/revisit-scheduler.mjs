@@ -2,6 +2,15 @@ import { revisitPosts, extractYouTubeLinks } from './apify-scraper.mjs';
 import { classifyPosts } from './ai-filter.mjs';
 import { writePosts, getPostsForRevisit } from './bq-writer.mjs';
 
+function normUrl(url) {
+  if (!url) return '';
+  return url
+    .replace(/^https?:\/\/(m\.|www\.)?facebook\.com/i, 'https://www.facebook.com')
+    .replace(/\/$/, '')
+    .split('?')[0]
+    .toLowerCase();
+}
+
 function normalizePost(raw, meta, phase) {
   const youtubeLinks = extractYouTubeLinks(raw);
   return {
@@ -44,11 +53,11 @@ export async function runRevisit(bq, phase) {
     return 0;
   }
 
-  // Match scraped results back to metadata by post_url
-  const metaByUrl = Object.fromEntries(pendingMeta.map(m => [m.post_url, m]));
+  // Match scraped results back to metadata by post_url (normalize both sides)
+  const metaByUrl = Object.fromEntries(pendingMeta.map(m => [normUrl(m.post_url), m]));
   const normalized = rawPosts
-    .filter(raw => raw.url && metaByUrl[raw.url])
-    .map(raw => normalizePost(raw, metaByUrl[raw.url], phase));
+    .filter(raw => raw.url && metaByUrl[normUrl(raw.url)])
+    .map(raw => normalizePost(raw, metaByUrl[normUrl(raw.url)], phase));
 
   if (normalized.length === 0) {
     console.warn(`[Revisit] Phase ${phase}: APIFY returned no matching posts`);

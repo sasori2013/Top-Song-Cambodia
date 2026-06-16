@@ -47,8 +47,8 @@ async function ensureTable(bq) {
   return table;
 }
 
-function insertId(postUrl, phase) {
-  return createHash('sha256').update(`${postUrl}__phase${phase}`).digest('hex').slice(0, 32);
+function insertId(postUrl, phase, date = new Date().toISOString().slice(0, 10)) {
+  return createHash('sha256').update(`${postUrl}__phase${phase}__${date}`).digest('hex').slice(0, 32);
 }
 
 export async function writePosts(posts) {

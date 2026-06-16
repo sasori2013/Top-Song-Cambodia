@@ -2,7 +2,7 @@ import { GoogleAuth } from 'google-auth-library';
 import fetch from 'node-fetch';
 
 const LOCATION = 'us-central1';
-const MODEL    = 'gemini-2.0-flash-001';
+const MODEL    = 'gemini-2.5-flash';
 
 function createAuth() {
   const getEnv = k => (process.env[k] || '').trim().replace(/^['"]|['"]$/g, '');
