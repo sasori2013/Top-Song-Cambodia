@@ -95,7 +95,7 @@ export function CambodiaHeatmap({ data, stats: _stats, top3: _top3 }: { data?: a
   const maxViews = useMemo(() => Math.max(...processedProvinces.map(p => p.views || 0), 1), [processedProvinces]);
 
   return (
-    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6 w-full font-['Outfit']">
+    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6 w-full font-outfit">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-[10px] font-black tracking-[0.4em] uppercase text-white/80">PROVINCIAL HEATMAP</h2>

@@ -197,7 +197,7 @@ export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
       whileInView={{ opacity: 1 }}
       viewport={{ once: true }}
       transition={{ duration: 0.8 }}
-      className="w-full border border-white/10 bg-white/5 backdrop-blur-md rounded-xl p-6 md:p-8 font-['Outfit']"
+      className="w-full border border-white/10 bg-white/5 backdrop-blur-md rounded-xl p-6 md:p-8 font-outfit"
     >
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-[10px] font-black tracking-[0.4em] uppercase text-white/80">GENRE RADAR</h2>
@@ -207,7 +207,7 @@ export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
         </div>
       </div>
 
-      <svg viewBox={`0 0 ${VW} ${VH}`} width="100%" height="auto" style={{ fontFamily: 'monospace' }}>
+      <svg viewBox={`0 0 ${VW} ${VH}`} className="w-full h-auto" style={{ fontFamily: 'monospace' }}>
         <defs>
           <filter id={`glow-${uid}`} x="-30%" y="-30%" width="160%" height="160%">
             <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />

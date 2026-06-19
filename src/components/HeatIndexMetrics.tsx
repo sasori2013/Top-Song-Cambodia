@@ -72,7 +72,7 @@ export const HeatIndexMetrics: React.FC<HeatIndexMetricsProps> = ({ growth = 0, 
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 1.5 }}
-            className="w-full max-w-xl mx-auto p-6 md:p-8 relative overflow-hidden border border-white/10 bg-white/5 backdrop-blur-md rounded-xl font-['Outfit']"
+            className="w-full max-w-xl mx-auto p-6 md:p-8 relative overflow-hidden border border-white/10 bg-white/5 backdrop-blur-md rounded-xl font-outfit"
         >
             <div className="relative z-10 flex flex-col items-center">
                 <div className="flex items-center justify-between mb-6 w-full">

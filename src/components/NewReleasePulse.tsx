@@ -28,7 +28,7 @@ export const NewReleasePulse: React.FC<NewReleasePulseProps> = ({ data }) => {
       whileInView={{ opacity: 1 }}
       viewport={{ once: true }}
       transition={{ duration: 1.5 }}
-      className="w-full p-6 md:p-8 border border-white/10 bg-white/5 backdrop-blur-md rounded-xl font-['Outfit']"
+      className="w-full p-6 md:p-8 border border-white/10 bg-white/5 backdrop-blur-md rounded-xl font-outfit"
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-6">

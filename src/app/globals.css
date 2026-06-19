@@ -12,6 +12,7 @@
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);
   --color-muted: var(--muted);
+  --font-outfit: var(--font-outfit), sans-serif;
 }
 
 html {

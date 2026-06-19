@@ -31,7 +31,7 @@ export const DashboardChart: React.FC<DashboardChartProps> = ({ items }) => {
   };
 
   return (
-    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6 md:p-8 w-full font-['Outfit']">
+    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6 md:p-8 w-full font-outfit">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-[10px] font-black tracking-[0.4em] uppercase text-white/80">HEAT RANKING</h2>
         <div className="flex items-center gap-2">

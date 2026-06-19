@@ -90,7 +90,7 @@ export const DailyActions: React.FC<DailyActionsProps> = ({ count }) => {
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 1.5 }}
-            className="w-full p-6 md:p-8 relative overflow-hidden border border-white/10 bg-white/5 backdrop-blur-md rounded-xl font-['Outfit']"
+            className="w-full p-6 md:p-8 relative overflow-hidden border border-white/10 bg-white/5 backdrop-blur-md rounded-xl font-outfit"
         >
             <div className="flex items-center justify-between mb-6">
                 <h2 className="text-[10px] font-black tracking-[0.4em] uppercase text-white/80">DAILY ACTIONS</h2>
