@@ -197,21 +197,13 @@ export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
       whileInView={{ opacity: 1 }}
       viewport={{ once: true }}
       transition={{ duration: 0.8 }}
-      className="w-full border border-white/10 bg-white/5 backdrop-blur-md rounded-xl p-6 md:p-8"
+      className="w-full border border-white/10 bg-white/5 backdrop-blur-md rounded-xl p-6 md:p-8 font-['Outfit']"
     >
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.4em] uppercase text-white/80">
-            GENRE RADAR
-          </h2>
-          <div className="flex items-center gap-2 mt-1">
-            <motion.div
-              className="w-1.5 h-1.5 rounded-full bg-white"
-              animate={{ opacity: [1, 0.2, 1] }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            />
-            <p className="text-[8px] text-white/45 tracking-[0.15em] uppercase">{displayLabel}</p>
-          </div>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-[10px] font-black tracking-[0.4em] uppercase text-white/80">GENRE RADAR</h2>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" />
+          <span className="text-[7px] text-white/45 font-bold uppercase tracking-widest font-mono">{displayLabel}</span>
         </div>
       </div>
 

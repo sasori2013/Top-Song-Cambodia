@@ -97,16 +97,12 @@ export function CambodiaHeatmap({ data, stats: _stats, top3: _top3 }: { data?: a
   return (
     <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6 w-full font-['Outfit']">
       {/* Header */}
-      <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/5">
-        <div>
-          <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.8em] text-white/80 uppercase pl-[0.8em]">
-            PROVINCIAL HEATMAP
-          </h2>
-          <p className="mt-2 text-[8px] md:text-[9px] font-medium tracking-[0.2em] text-white/45 uppercase pl-[1em]">
-            Cambodia Music Heat by Region — Updated Daily
-          </p>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-[10px] font-black tracking-[0.4em] uppercase text-white/80">PROVINCIAL HEATMAP</h2>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" />
+          <span className="text-[7px] text-white/45 font-bold uppercase tracking-widest font-mono">LIVE REGION</span>
         </div>
-        <span className="text-[9px] font-mono font-bold text-white/45 uppercase tracking-widest">Live Region</span>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6 items-stretch">

@@ -31,15 +31,12 @@ export const DashboardChart: React.FC<DashboardChartProps> = ({ items }) => {
   };
 
   return (
-    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6 md:p-8 w-full">
-      <div className="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
-        <div>
-          <h2 className="text-[20px] md:text-[24px] font-black tracking-[0.8em] text-white uppercase pl-[0.8em]">
-            HEAT RANKING
-          </h2>
-          <p className="mt-2 text-[9px] md:text-[10px] font-medium tracking-[0.15em] text-white/65 pl-[1em]">
-            New releases within 2 months — updated daily
-          </p>
+    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6 md:p-8 w-full font-['Outfit']">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-[10px] font-black tracking-[0.4em] uppercase text-white/80">HEAT RANKING</h2>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" />
+          <span className="text-[7px] text-white/45 font-bold uppercase tracking-widest font-mono">LIVE</span>
         </div>
       </div>
 
