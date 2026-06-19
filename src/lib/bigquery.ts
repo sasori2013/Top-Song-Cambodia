@@ -375,20 +375,20 @@ export async function getRankingDataFromBQ(): Promise<RankingResponse | null> {
       bq.query(`
         WITH weekly AS (
           SELECT
-            DATE_DIFF(DATE '${latestDate}', DATE_TRUNC(DATE(publishedAt), WEEK(MONDAY)), WEEK) AS periods_ago,
+            DATE_DIFF(DATE(CURRENT_TIMESTAMP(), 'Asia/Phnom_Penh'), DATE_TRUNC(DATE(publishedAt), WEEK(MONDAY)), WEEK) AS periods_ago,
             COUNT(*) AS count, 'weekly' AS type
           FROM \`${DATASET_ID}.songs_master\`
           WHERE publishedAt IS NOT NULL
-            AND DATE(publishedAt) BETWEEN DATE_SUB(DATE '${latestDate}', INTERVAL 4 WEEK) AND DATE '${latestDate}'
+            AND DATE(publishedAt) BETWEEN DATE_SUB(DATE(CURRENT_TIMESTAMP(), 'Asia/Phnom_Penh'), INTERVAL 4 WEEK) AND DATE(CURRENT_TIMESTAMP(), 'Asia/Phnom_Penh')
           GROUP BY periods_ago HAVING periods_ago BETWEEN 0 AND 3
         ),
         monthly AS (
           SELECT
-            DATE_DIFF(DATE_TRUNC(DATE '${latestDate}', MONTH), DATE_TRUNC(DATE(publishedAt), MONTH), MONTH) AS periods_ago,
+            DATE_DIFF(DATE_TRUNC(DATE(CURRENT_TIMESTAMP(), 'Asia/Phnom_Penh'), MONTH), DATE_TRUNC(DATE(publishedAt), MONTH), MONTH) AS periods_ago,
             COUNT(*) AS count, 'monthly' AS type
           FROM \`${DATASET_ID}.songs_master\`
           WHERE publishedAt IS NOT NULL
-            AND DATE(publishedAt) BETWEEN DATE_SUB(DATE '${latestDate}', INTERVAL 12 MONTH) AND DATE '${latestDate}'
+            AND DATE(publishedAt) BETWEEN DATE_SUB(DATE(CURRENT_TIMESTAMP(), 'Asia/Phnom_Penh'), INTERVAL 12 MONTH) AND DATE(CURRENT_TIMESTAMP(), 'Asia/Phnom_Penh')
           GROUP BY periods_ago HAVING periods_ago BETWEEN 0 AND 11
         )
         SELECT * FROM weekly UNION ALL SELECT * FROM monthly
