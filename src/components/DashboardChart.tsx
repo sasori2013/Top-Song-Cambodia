@@ -41,7 +41,7 @@ export const DashboardChart: React.FC<DashboardChartProps> = ({ items }) => {
       </div>
 
 {/* Table Rows */}
-      <div className="space-y-2">
+      <div className="space-y-1">
         {displayedItems.map((item, index) => {
           const cleanedTitle = cleanSongTitle(item.title);
           const isExpanded = expandedId === item.videoId;
@@ -60,7 +60,7 @@ export const DashboardChart: React.FC<DashboardChartProps> = ({ items }) => {
             >
               <div
                 onClick={() => toggleRow(item.videoId)}
-                className="grid grid-cols-12 gap-2 md:gap-4 px-4 py-6 items-center cursor-pointer select-none"
+                className="grid grid-cols-12 gap-2 md:gap-4 px-4 py-3 items-center cursor-pointer select-none"
               >
                 {/* Rank */}
                 <div className="col-span-2 md:col-span-1 flex items-center gap-2">
