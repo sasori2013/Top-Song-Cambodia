@@ -66,7 +66,7 @@ interface Props {
 }
 
 export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
-  const uid = useId().replace(/:/g, '');
+  const uid = "genreradar";
   const [hoveredLayer, setHoveredLayer] = useState<number | null>(null);
 
   if (!data) return null;

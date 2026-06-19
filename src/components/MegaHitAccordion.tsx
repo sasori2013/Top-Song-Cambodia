@@ -134,22 +134,16 @@ export const MegaHitAccordion: React.FC = () => {
   const toggle = (y: number) => setOpenYear(prev => prev === y ? null : y);
 
   return (
-    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-5 w-full">
+    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-5 w-full font-outfit">
       {/* Header */}
-      <div className="flex items-baseline justify-between mb-4 pb-3 border-b border-white/5">
-        <div>
-          <h2 className="text-[14px] font-black tracking-[0.5em] text-white uppercase pl-[0.5em]">
-            MEGA HITS
-          </h2>
-          <p className="text-[9px] tracking-[0.15em] text-white/30 mt-0.5 pl-[0.5em]">
-            500万再生突破 — All Time
-          </p>
-        </div>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-[10px] font-black tracking-[0.4em] uppercase text-white/80">MEGA HITS</h2>
         <a
           href="/mega-hits"
-          className="text-[9px] font-bold tracking-widest text-white/30 hover:text-white/70 transition-colors border border-white/10 hover:border-white/30 px-2 py-1 rounded"
+          className="flex items-center gap-2 text-white/45 hover:text-white/75 transition-colors"
         >
-          FULL →
+          <div className="w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" />
+          <span className="text-[7px] font-bold uppercase tracking-widest font-mono">ALL TIME ↗</span>
         </a>
       </div>
 
