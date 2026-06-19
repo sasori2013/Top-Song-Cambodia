@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useId, useState } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { GenreTrendData } from '@/lib/types';
 
@@ -12,6 +12,8 @@ const MIN_R   = R * 0.38;
 const LR      = 148;
 const VW      = 860;
 const VH      = 340;
+const CX_M    = 200;
+const VW_M    = 400;
 const HISTORY = 12;
 
 const ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -27,14 +29,13 @@ const SHORT: Record<string, string> = {
 };
 
 const STROKE_W  = [0.5,  0.5,  0.55, 0.55, 0.6,  0.6,  0.65, 0.65, 0.70, 0.75, 0.85, 1.5 ];
-const GRAY_OP   = 0.45; // uniform past-month opacity (blob + legend line)
-const GRAY_TEXT = 0.55; // uniform past-month legend text opacity
+const GRAY_OP   = 0.45;
+const GRAY_TEXT = 0.55;
 
 function ptAt(cx: number, a: number, r: number) {
   return { x: cx + r * Math.cos(a), y: CY + r * Math.sin(a) };
 }
 
-// center = 50% of max; values below that threshold sit at MIN_R
 function makeToR(props: number[]): (p: number) => number {
   const max = Math.max(...props, 0.001);
   return (p: number) => {
@@ -60,13 +61,31 @@ function blobAt(cx: number, props: number[], angles: number[], toR: (p: number) 
   return d + ' Z';
 }
 
+function RadarDefs({ uid }: { uid: string }) {
+  return (
+    <defs>
+      <filter id={`glow-${uid}`} x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
+        <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+      </filter>
+      <filter id={`bloom-${uid}`} x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="18" result="blur" />
+      </filter>
+      <radialGradient id={`fill-${uid}`} cx="50%" cy="50%" r="50%" gradientUnits="objectBoundingBox">
+        <stop offset="0%"   stopColor="white" stopOpacity="0.22" />
+        <stop offset="60%"  stopColor="white" stopOpacity="0.12" />
+        <stop offset="100%" stopColor="white" stopOpacity="0.02" />
+      </radialGradient>
+    </defs>
+  );
+}
+
 interface Props {
   data?: GenreTrendData;
   viewsData?: GenreTrendData;
 }
 
 export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
-  const uid = "genreradar";
   const [hoveredLayer, setHoveredLayer] = useState<number | null>(null);
 
   if (!data) return null;
@@ -113,8 +132,7 @@ export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
     return Math.min(1, p / max);
   };
 
-  // Render one radar's blob layers for a given center X
-  const renderBlobs = (cx: number, propKey: 'props1' | 'props2', uidSuffix: string) =>
+  const renderBlobs = (cx: number, propKey: 'props1' | 'props2', uidSuffix: string, blobUid: string) =>
     layerData.map(({ [propKey]: props }, li) => {
       const idx      = li + offset;
       const isLatest = li === L - 1;
@@ -134,15 +152,15 @@ export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
             <motion.path
               d={blobAt(cx, props, angles, toR)}
               fill="rgba(255,255,255,0.10)" stroke="none"
-              filter={`url(#bloom-${uid})`}
+              filter={`url(#bloom-${blobUid})`}
               animate={{ opacity: [0.7, 1, 0.6, 0.95, 0.7] }}
               transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
             />
-            <path d={blobAt(cx, props, angles, toR)} fill={`url(#fill-${uid})`} stroke="none" />
+            <path d={blobAt(cx, props, angles, toR)} fill={`url(#fill-${blobUid})`} stroke="none" />
             <motion.path
               d={blobAt(cx, props, angles, toR)}
               fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth={sw} strokeLinejoin="round"
-              filter={`url(#glow-${uid})`}
+              filter={`url(#glow-${blobUid})`}
               animate={{ scale: [1, 1.018, 0.990, 1.012, 1] }}
               transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut', times: [0,0.28,0.58,0.78,1] }}
               style={{ transformOrigin: `${cx}px ${CY}px` }}
@@ -163,7 +181,6 @@ export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
       );
     });
 
-  // Render genre labels for one radar
   const renderLabels = (cx: number, displayProps: number[]) =>
     series1.map((s, i) => {
       const prop   = displayProps[i] ?? 0;
@@ -186,10 +203,46 @@ export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
       );
     });
 
-  const legendX      = VW - 145;
-  const legendTop    = 20;
-  const legendBottom = VH - 15;
+  const legendX       = VW - 145;
+  const legendTop     = 20;
+  const legendBottom  = VH - 15;
   const legendSpacing = L > 1 ? (legendBottom - legendTop) / (L - 1) : 0;
+
+  const renderDesktopLegend = () => (
+    <g transform={`translate(${legendX}, ${legendTop})`}>
+      {Array.from({ length: L }, (_, di) => {
+        const li         = L - 1 - di;
+        const { label }  = layerData[li];
+        const isHov      = hoveredLayer === li;
+        const isLatest   = li === L - 1;
+        const isSelected = isHov || (hoveredLayer === null && isLatest);
+        const lineOp     = isSelected ? 0.90 : GRAY_OP;
+        const textOp     = isSelected ? 0.90 : GRAY_TEXT;
+        const sw         = isSelected ? 1.6 : 0.6;
+        const yPos       = di * legendSpacing;
+        return (
+          <g key={li}
+            transform={`translate(0, ${yPos})`}
+            onMouseEnter={() => setHoveredLayer(li)}
+            onMouseLeave={() => setHoveredLayer(null)}
+            style={{ cursor: 'pointer' }}
+          >
+            <rect x={-4} y={-legendSpacing / 2} width={145} height={legendSpacing} fill="transparent" />
+            <line x1={0} y1={0} x2={18} y2={0}
+              stroke="white" strokeOpacity={lineOp} strokeWidth={sw}
+              style={{ transition: 'stroke-opacity 0.15s, stroke-width 0.15s' }}
+            />
+            <text x={24} y={4}
+              fill="white" fillOpacity={textOp}
+              fontSize="11" fontWeight="700" letterSpacing="0.06em"
+              style={{ transition: 'fill-opacity 0.15s' }}>
+              {label}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+  );
 
   return (
     <motion.div
@@ -207,80 +260,84 @@ export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
         </div>
       </div>
 
-      <svg viewBox={`0 0 ${VW} ${VH}`} className="w-full h-auto" style={{ fontFamily: 'monospace' }}>
-        <defs>
-          <filter id={`glow-${uid}`} x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-          <filter id={`bloom-${uid}`} x="-40%" y="-40%" width="180%" height="180%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="18" result="blur" />
-          </filter>
-          <radialGradient id={`fill-${uid}`} cx="50%" cy="50%" r="50%" gradientUnits="objectBoundingBox">
-            <stop offset="0%"   stopColor="white" stopOpacity="0.22" />
-            <stop offset="60%"  stopColor="white" stopOpacity="0.12" />
-            <stop offset="100%" stopColor="white" stopOpacity="0.02" />
-          </radialGradient>
-        </defs>
+      {/* ── Desktop: 2 radars side-by-side in one SVG ── */}
+      <svg viewBox={`0 0 ${VW} ${VH}`} className="hidden md:block w-full h-auto" style={{ fontFamily: 'monospace' }}>
+        <RadarDefs uid="genreradar-d" />
 
-        {/* Divider between two radars */}
         <line
           x1={(CX1 + CX2) / 2} y1={20}
           x2={(CX1 + CX2) / 2} y2={VH - 20}
           stroke="white" strokeOpacity="0.15" strokeWidth="0.5"
         />
 
-        {/* Left radar: RELEASES */}
-        {renderBlobs(CX1, 'props1', 'r1')}
+        {renderBlobs(CX1, 'props1', 'r1', 'genreradar-d')}
         {renderLabels(CX1, displayProps1)}
         <text x={CX1} y={CY + 5} textAnchor="middle"
           fill="rgba(255,255,255,0.35)" fontSize="6" fontWeight="700" letterSpacing="0.20em">
           RELEASES
         </text>
 
-        {/* Right radar: VIEWS */}
-        {renderBlobs(CX2, 'props2', 'r2')}
+        {renderBlobs(CX2, 'props2', 'r2', 'genreradar-d')}
         {renderLabels(CX2, displayProps2)}
         <text x={CX2} y={CY + 5} textAnchor="middle"
           fill="rgba(255,255,255,0.35)" fontSize="6" fontWeight="700" letterSpacing="0.20em">
           VIEWS
         </text>
 
-        {/* Shared legend — newest at top, fills right column */}
-        <g transform={`translate(${legendX}, ${legendTop})`}>
+        {renderDesktopLegend()}
+      </svg>
+
+      {/* ── Mobile: 2 radars stacked vertically ── */}
+      <div className="md:hidden space-y-1">
+        {/* RELEASES radar */}
+        <svg viewBox={`0 0 ${VW_M} ${VH}`} className="w-full h-auto" style={{ fontFamily: 'monospace' }}>
+          <RadarDefs uid="genreradar-m1" />
+          {renderBlobs(CX_M, 'props1', 'r1m', 'genreradar-m1')}
+          {renderLabels(CX_M, displayProps1)}
+          <text x={CX_M} y={CY + 5} textAnchor="middle"
+            fill="rgba(255,255,255,0.35)" fontSize="6" fontWeight="700" letterSpacing="0.20em">
+            RELEASES
+          </text>
+        </svg>
+
+        {/* VIEWS radar */}
+        <svg viewBox={`0 0 ${VW_M} ${VH}`} className="w-full h-auto" style={{ fontFamily: 'monospace' }}>
+          <RadarDefs uid="genreradar-m2" />
+          {renderBlobs(CX_M, 'props2', 'r2m', 'genreradar-m2')}
+          {renderLabels(CX_M, displayProps2)}
+          <text x={CX_M} y={CY + 5} textAnchor="middle"
+            fill="rgba(255,255,255,0.35)" fontSize="6" fontWeight="700" letterSpacing="0.20em">
+            VIEWS
+          </text>
+        </svg>
+
+        {/* Legend as HTML for mobile readability */}
+        <div className="pt-3 flex flex-wrap gap-x-4 gap-y-1.5">
           {Array.from({ length: L }, (_, di) => {
             const li       = L - 1 - di;
             const { label } = layerData[li];
-            const isHov      = hoveredLayer === li;
-            const isLatest   = li === L - 1;
-            const isSelected = isHov || (hoveredLayer === null && isLatest);
-            const lineOp     = isSelected ? 0.90 : GRAY_OP;
-            const textOp     = isSelected ? 0.90 : GRAY_TEXT;
-            const sw         = isSelected ? 1.6 : 0.6;
-            const yPos       = di * legendSpacing;
+            const isLatest = li === L - 1;
             return (
-              <g key={li}
-                transform={`translate(0, ${yPos})`}
-                onMouseEnter={() => setHoveredLayer(li)}
-                onMouseLeave={() => setHoveredLayer(null)}
-                style={{ cursor: 'pointer' }}
-              >
-                <rect x={-4} y={-legendSpacing / 2} width={145} height={legendSpacing} fill="transparent" />
-                <line x1={0} y1={0} x2={18} y2={0}
-                  stroke="white" strokeOpacity={lineOp} strokeWidth={sw}
-                  style={{ transition: 'stroke-opacity 0.15s, stroke-width 0.15s' }}
+              <div key={li} className="flex items-center gap-1.5">
+                <div
+                  className="flex-shrink-0"
+                  style={{
+                    width: 16, height: isLatest ? 1.5 : 0.8,
+                    background: 'white',
+                    opacity: isLatest ? 0.9 : GRAY_OP,
+                  }}
                 />
-                <text x={24} y={4}
-                  fill="white" fillOpacity={textOp}
-                  fontSize="11" fontWeight="700" letterSpacing="0.06em"
-                  style={{ transition: 'fill-opacity 0.15s' }}>
+                <span
+                  className="text-[9px] font-bold tracking-wide font-mono"
+                  style={{ color: `rgba(255,255,255,${isLatest ? 0.9 : GRAY_TEXT})` }}
+                >
                   {label}
-                </text>
-              </g>
+                </span>
+              </div>
             );
           })}
-        </g>
-      </svg>
+        </div>
+      </div>
     </motion.div>
   );
 };
