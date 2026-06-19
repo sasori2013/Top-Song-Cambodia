@@ -46,7 +46,7 @@ export const ArtistRegistration: React.FC = () => {
 
     return (
         <div className="w-full max-w-xl">
-            <div className="border border-white/10 bg-white/5 backdrop-blur-md rounded-xl p-6 transition-all hover:bg-white/[0.07]">
+            <div className="border border-white/10 bg-white/5 backdrop-blur-md rounded-xl p-6 transition-all hover:bg-white/[0.07] font-outfit">
                 <h3 className="text-white/80 text-sm font-semibold tracking-wider uppercase mb-2">Request Artist Registration</h3>
                 <p className="text-white/40 text-[11px] mb-4">
                     Submit a YouTube or Facebook link. It will be reviewed before being added to our database.

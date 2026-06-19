@@ -10,7 +10,7 @@ export const VerticalVideo: React.FC<VerticalVideoProps> = ({
   videoId = 'nE1n6d4-8Dk', // Default placeholder for a Cambodian music Short
 }) => {
   return (
-    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6 flex flex-col items-center transition-all hover:bg-white/[0.07]">
+    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6 flex flex-col items-center transition-all hover:bg-white/[0.07] font-outfit">
       <div className="w-full flex justify-between items-center mb-6">
         <h3 className="text-[10px] font-black text-white/80 uppercase tracking-[0.4em]">
           Weekly HEAT Shorts
