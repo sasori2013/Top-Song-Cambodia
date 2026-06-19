@@ -28,11 +28,11 @@ export const NewReleasePulse: React.FC<NewReleasePulseProps> = ({ data }) => {
       whileInView={{ opacity: 1 }}
       viewport={{ once: true }}
       transition={{ duration: 1.5 }}
-      className="w-full p-6 md:p-8 border border-white/10 bg-white/5 backdrop-blur-md rounded-xl"
+      className="w-full p-6 md:p-8 border border-white/10 bg-white/5 backdrop-blur-md rounded-xl font-['Outfit']"
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.4em] uppercase text-white/80">
+        <h2 className="text-[10px] font-black tracking-[0.4em] uppercase text-white/80">
           NEW RELEASES
         </h2>
         <div className="flex gap-1 bg-white/5 rounded-lg p-1">

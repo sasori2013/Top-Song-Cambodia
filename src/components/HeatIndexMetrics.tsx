@@ -72,14 +72,16 @@ export const HeatIndexMetrics: React.FC<HeatIndexMetricsProps> = ({ growth = 0, 
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 1.5 }}
-            className="w-full max-w-xl mx-auto p-6 md:p-8 relative overflow-hidden border border-white/10 bg-white/5 backdrop-blur-md rounded-xl"
+            className="w-full max-w-xl mx-auto p-6 md:p-8 relative overflow-hidden border border-white/10 bg-white/5 backdrop-blur-md rounded-xl font-['Outfit']"
         >
             <div className="relative z-10 flex flex-col items-center">
-                <header className="flex flex-col items-center mb-8 text-center">
-                    <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.4em] uppercase text-white/80">
-                        WEEKLY TRAFFIC
-                    </h2>
-                </header>
+                <div className="flex items-center justify-between mb-6 w-full">
+                    <h2 className="text-[10px] font-black tracking-[0.4em] uppercase text-white/80">WEEKLY TRAFFIC</h2>
+                    <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" />
+                        <span className="text-[7px] text-white/45 font-bold uppercase tracking-widest font-mono">PULSE</span>
+                    </div>
+                </div>
 
                 <div className="flex flex-col items-stretch gap-8 mb-6 w-full">
                     <div className="flex flex-col items-center text-center text-white">
