@@ -116,19 +116,21 @@ export function CambodiaHeatmap({ data, stats: _stats, top3: _top3 }: { data?: a
                 const inactiveOpacity = 0.20 + intensity * 0.3;
                 const targetOpacity = isActive ? 0.85 : inactiveOpacity;
                 return (
-                  <motion.circle
+                  <circle
                     key={i}
                     cx={dot.x}
                     cy={dot.y}
                     r={DOT_R}
                     fill="#ffffff"
-                    animate={{ opacity: targetOpacity }}
-                    transition={{ duration: 1.2, ease: 'easeInOut' }}
+                    style={{
+                      opacity: targetOpacity,
+                      transition: 'opacity 1.2s ease-in-out',
+                      cursor: 'pointer',
+                    }}
                     onClick={() => {
                       const idx = ranking.findIndex(r => r.id === dot.provinceId);
                       if (idx !== -1) setHighlightIdx(idx);
                     }}
-                    style={{ cursor: 'pointer' }}
                   />
                 );
               })}
@@ -216,15 +218,19 @@ export function CambodiaHeatmap({ data, stats: _stats, top3: _top3 }: { data?: a
                     const d = `M ${ox1.toFixed(2)} ${oy1.toFixed(2)} A ${OR} ${OR} 0 ${large} 1 ${ox2.toFixed(2)} ${oy2.toFixed(2)} L ${ix2.toFixed(2)} ${iy2.toFixed(2)} A ${IR} ${IR} 0 ${large} 0 ${ix1.toFixed(2)} ${iy1.toFixed(2)} Z`;
                     const isActive = p.id === currentProv.id;
                     return (
-                      <motion.path
+                      <path
                         key={p.id}
                         d={d}
-                        animate={{ opacity: isActive ? 1 : 0.15, scale: isActive ? 1.04 : 1 }}
-                        transition={{ duration: 0.8, ease: 'easeInOut' }}
                         fill="#ffffff"
                         stroke="#000"
                         strokeWidth="0.8"
-                        style={{ transformOrigin: `${CX}px ${CY}px`, cursor: 'pointer' }}
+                        style={{
+                          opacity: isActive ? 1 : 0.15,
+                          transform: isActive ? 'scale(1.04)' : 'scale(1)',
+                          transformOrigin: `${CX}px ${CY}px`,
+                          transition: 'opacity 0.8s ease-in-out, transform 0.8s ease-in-out',
+                          cursor: 'pointer',
+                        }}
                         onClick={() => setHighlightIdx(ranking.findIndex(r => r.id === p.id))}
                       />
                     );
