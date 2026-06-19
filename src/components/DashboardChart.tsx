@@ -16,9 +16,9 @@ export const DashboardChart: React.FC<DashboardChartProps> = ({ items }) => {
   const [showAll, setShowAll] = useState(false);
 
   const sortedItems = [...items].sort((a, b) => a.rank - b.rank);
-  const [expandedId, setExpandedId] = useState<string | null>(sortedItems[0]?.videoId || null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const top20Items = sortedItems.slice(0, 20);
-  const displayedItems = showAll ? top20Items : top20Items.slice(0, 10);
+  const displayedItems = showAll ? top20Items : top20Items.slice(0, 3);
 
   const toggleRow = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
@@ -31,13 +31,13 @@ export const DashboardChart: React.FC<DashboardChartProps> = ({ items }) => {
   };
 
   return (
-    <div className="bg-white/5 backdrop-blur-md border border-white rounded-xl rounded-tr-none p-6 md:p-8 w-full">
+    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6 md:p-8 w-full">
       <div className="flex justify-between items-center mb-8 pb-4 border-b border-white/5">
         <div>
           <h2 className="text-[20px] md:text-[24px] font-black tracking-[0.8em] text-white uppercase pl-[0.8em]">
             HEAT RANKING
           </h2>
-          <p className="mt-2 text-[9px] md:text-[10px] font-medium tracking-[0.15em] text-white/40 pl-[1em]">
+          <p className="mt-2 text-[9px] md:text-[10px] font-medium tracking-[0.15em] text-white/65 pl-[1em]">
             New releases within 2 months — updated daily
           </p>
         </div>
@@ -55,7 +55,7 @@ export const DashboardChart: React.FC<DashboardChartProps> = ({ items }) => {
           return (
             <div
               key={item.videoId || `rank-${item.rank}-${index}`}
-              className={`border rounded-lg transition-all duration-300 ${
+              className={`border rounded-lg transition-all duration-300 group ${
                 isExpanded
                   ? 'border-white/20 bg-white/10'
                   : 'border-white/5 hover:border-white/15 hover:bg-white/5 bg-transparent'
@@ -67,19 +67,19 @@ export const DashboardChart: React.FC<DashboardChartProps> = ({ items }) => {
               >
                 {/* Rank */}
                 <div className="col-span-2 md:col-span-1 flex items-center gap-2">
-                  <span className="font-mono font-bold text-3xl md:text-4xl text-white/70 italic">
+                  <span className="font-mono font-bold text-3xl md:text-4xl text-white/95 italic">
                     {item.rank.toString().padStart(2, '0')}
                   </span>
                 </div>
 
                 {/* Track Info */}
-                <div className="col-span-7 md:col-span-6 flex items-center gap-3">
+                <div className="col-span-7 md:col-span-5 flex items-center gap-3">
                   <div className="relative h-14 w-24 bg-black border border-white/10 rounded overflow-hidden shrink-0">
                     <img src={item.thumbnail} alt={item.artist} className="h-full w-full object-cover" />
                   </div>
                   <div className="min-w-0">
                     <h4 className="text-sm md:text-base font-bold text-white truncate">{item.artist}</h4>
-                    <p className="text-xs md:text-sm text-white/40 truncate">{cleanedTitle}</p>
+                    <p className="text-xs md:text-sm text-white/65 truncate">{cleanedTitle}</p>
                   </div>
                 </div>
 
@@ -90,11 +90,11 @@ export const DashboardChart: React.FC<DashboardChartProps> = ({ items }) => {
                       {isNew ? (
                         <span className="text-white animate-pulse-slow">★ NEW</span>
                       ) : isUp ? (
-                        <span className="text-white/80">▲ +{item.rankChange}</span>
+                        <span className="text-white/95">▲ +{item.rankChange}</span>
                       ) : isDown ? (
-                        <span className="text-white/30">▼ {Math.abs(Number(item.rankChange))}</span>
+                        <span className="text-white/55">▼ {Math.abs(Number(item.rankChange))}</span>
                       ) : (
-                        <span className="text-white/30">▶ STAY</span>
+                        <span className="text-white/55">▶ STAY</span>
                       )}
                     </div>
                   ) : (
@@ -103,7 +103,7 @@ export const DashboardChart: React.FC<DashboardChartProps> = ({ items }) => {
                 </div>
 
                 {/* Score */}
-                <div className="col-span-12 md:col-span-3 flex md:justify-end items-center justify-between mt-2 md:mt-0 pt-2 md:pt-0 border-t md:border-t-0 border-white/5">
+                <div className="col-span-10 md:col-span-3 flex md:justify-end items-center justify-between mt-2 md:mt-0 pt-2 md:pt-0 border-t md:border-t-0 border-white/5">
                   <span className="md:hidden text-[8px] font-black text-white/20 uppercase tracking-wider">HEAT SCORE</span>
                   <HeatScore
                     rank={item.rank}
@@ -114,6 +114,21 @@ export const DashboardChart: React.FC<DashboardChartProps> = ({ items }) => {
                     disableAnimation={true}
                     className="scale-[1.4] origin-right"
                   />
+                </div>
+
+                {/* Expand Indicator (Chevron) */}
+                <div className="col-span-2 md:col-span-1 flex justify-end items-center mt-2 md:mt-0 pt-2 md:pt-0 border-t md:border-t-0 border-white/5">
+                  <svg
+                    className={`h-4 w-4 text-white/30 transition-all duration-300 group-hover:text-white/70 ${
+                      isExpanded ? 'rotate-180 text-white/80' : ''
+                    }`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
                 </div>
               </div>
 
@@ -129,7 +144,7 @@ export const DashboardChart: React.FC<DashboardChartProps> = ({ items }) => {
                   >
                     <div className="p-4 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
                       <div className="bg-white/5 rounded-lg p-4 border border-white/5 flex flex-col items-center">
-                        <span className="text-[8px] font-black text-white/30 uppercase tracking-[0.2em] mb-4">
+                        <span className="text-[8px] font-black text-white/60 uppercase tracking-[0.2em] mb-4">
                           7-Day Growth Velocity Chart
                         </span>
                         <div className="w-full">
@@ -151,13 +166,13 @@ export const DashboardChart: React.FC<DashboardChartProps> = ({ items }) => {
                             { label: '24h Est Views', value: formatNumber(Math.floor(item.dailyViews * 1.2)) },
                           ].map(({ label, value }) => (
                             <div key={label} className="bg-white/5 rounded p-3 border border-white/5">
-                              <span className="text-[7px] md:text-[8px] text-white/30 font-bold uppercase tracking-widest block mb-1">{label}</span>
+                              <span className="text-[7px] md:text-[8px] text-white/60 font-bold uppercase tracking-widest block mb-1">{label}</span>
                               <span className="text-xs md:text-sm text-white font-mono font-bold">{value}</span>
                             </div>
                           ))}
                         </div>
 
-                        <div className="flex justify-between items-center text-[10px] text-white/30 border-t border-white/5 pt-4">
+                        <div className="flex justify-between items-center text-[10px] text-white/60 border-t border-white/5 pt-4">
                           <span>Total Views: {formatNumber(item.views)}</span>
                           {item.url && (
                             <a
@@ -181,13 +196,13 @@ export const DashboardChart: React.FC<DashboardChartProps> = ({ items }) => {
       </div>
 
       {/* Toggle Button */}
-      {top20Items.length > 10 && (
+      {top20Items.length > 3 && (
         <div className="mt-6 flex justify-center border-t border-white/5 pt-6">
           <button
             onClick={() => setShowAll(!showAll)}
             className="px-6 py-2.5 rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 text-white/60 text-xs font-bold tracking-widest uppercase transition-all duration-300 flex items-center gap-2"
           >
-            {showAll ? <>Show Top 10 Only <span className="text-[10px]">▲</span></> : <>Show Ranks 11–20 <span className="text-[10px]">▼</span></>}
+            {showAll ? <>Show Top 3 Only <span className="text-[10px]">▲</span></> : <>Show Ranks 4–20 <span className="text-[10px]">▼</span></>}
           </button>
         </div>
       )}

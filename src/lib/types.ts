@@ -28,6 +28,7 @@ export interface RankingStats {
     heatGrowth?: number;
     heatTrend?: number[];
     weeklyGenreViews?: { genre: string; views: number }[];
+    dailyTraffic?: { date: string; value: number }[];
     dailyActions?: {
         views: number; likes: number; comments: number;
         prev?: { views: number; likes: number; comments: number };

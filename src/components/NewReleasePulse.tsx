@@ -32,7 +32,7 @@ export const NewReleasePulse: React.FC<NewReleasePulseProps> = ({ data }) => {
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.4em] uppercase text-white/60">
+        <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.4em] uppercase text-white/80">
           NEW RELEASES
         </h2>
         <div className="flex gap-1 bg-white/5 rounded-lg p-1">
@@ -41,7 +41,7 @@ export const NewReleasePulse: React.FC<NewReleasePulseProps> = ({ data }) => {
               key={v}
               onClick={() => setView(v)}
               className={`text-[8px] font-black tracking-widest uppercase px-3 py-1.5 rounded-md transition-all duration-200 ${
-                view === v ? 'bg-white/15 text-white' : 'text-white/30 hover:text-white/50'
+                view === v ? 'bg-white/15 text-white' : 'text-white/50 hover:text-white/85'
               }`}
             >
               {v === 'weekly' ? '4 WKS' : '12 MO'}
@@ -67,12 +67,12 @@ export const NewReleasePulse: React.FC<NewReleasePulseProps> = ({ data }) => {
         <div className="pb-1">
           <div
             className={`text-[11px] font-black ${
-              isUp ? 'text-white' : isFlat ? 'text-white/30' : 'text-white/40'
+              isUp ? 'text-white' : isFlat ? 'text-white/55' : 'text-white/40'
             }`}
           >
             {isUp ? `▲ +${delta}` : isFlat ? '▶ SAME' : `▼ ${Math.abs(delta)}`}
           </div>
-          <div className="text-[8px] text-white/20 uppercase tracking-wider font-bold mt-0.5">
+          <div className="text-[8px] text-white/45 uppercase tracking-wider font-bold mt-0.5">
             vs {view === 'weekly' ? 'last week' : 'last month'}
           </div>
         </div>
@@ -92,7 +92,7 @@ export const NewReleasePulse: React.FC<NewReleasePulseProps> = ({ data }) => {
             <div key={`${view}-${i}`} className="flex items-center gap-3">
               <span
                 className={`text-[8px] font-black uppercase tracking-wider shrink-0 text-right ${
-                  p.isCurrent ? 'text-white/80' : 'text-white/20'
+                  p.isCurrent ? 'text-white/95' : 'text-white/45'
                 } ${view === 'weekly' ? 'w-14' : 'w-7'}`}
               >
                 {p.label}
@@ -112,7 +112,7 @@ export const NewReleasePulse: React.FC<NewReleasePulseProps> = ({ data }) => {
               </div>
               <span
                 className={`text-[9px] font-mono font-bold w-5 text-right ${
-                  p.isCurrent ? 'text-white/70' : 'text-white/25'
+                  p.isCurrent ? 'text-white/90' : 'text-white/50'
                 }`}
               >
                 {p.count}
@@ -123,7 +123,7 @@ export const NewReleasePulse: React.FC<NewReleasePulseProps> = ({ data }) => {
       </AnimatePresence>
 
       <div className="mt-5 flex justify-between items-center border-t border-white/5 pt-4">
-        <span className="text-[9px] text-white/20 font-black uppercase tracking-[0.3em] font-mono">
+        <span className="text-[9px] text-white/45 font-black uppercase tracking-[0.3em] font-mono">
           RELEASE CADENCE
         </span>
         <div className="w-1.5 h-1.5 bg-white/60 rounded-full animate-pulse opacity-50" />

@@ -1,11 +1,9 @@
-import { getRankingDataFromBQ } from '@/lib/bigquery';
+import { getCachedBQData } from '@/lib/api';
 import { NextResponse } from 'next/server';
-
-export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const data = await getRankingDataFromBQ();
+    const data = await getCachedBQData();
     if (!data) {
       return NextResponse.json({ error: 'Failed to fetch ranking data' }, { status: 500 });
     }

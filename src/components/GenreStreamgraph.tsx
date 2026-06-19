@@ -27,8 +27,8 @@ const SHORT: Record<string, string> = {
 };
 
 const STROKE_W  = [0.5,  0.5,  0.55, 0.55, 0.6,  0.6,  0.65, 0.65, 0.70, 0.75, 0.85, 1.5 ];
-const GRAY_OP   = 0.22; // uniform past-month opacity (blob + legend line)
-const GRAY_TEXT = 0.30; // uniform past-month legend text opacity
+const GRAY_OP   = 0.45; // uniform past-month opacity (blob + legend line)
+const GRAY_TEXT = 0.55; // uniform past-month legend text opacity
 
 function ptAt(cx: number, a: number, r: number) {
   return { x: cx + r * Math.cos(a), y: CY + r * Math.sin(a) };
@@ -122,7 +122,7 @@ export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
       const isDim    = hoveredLayer !== null && !isHov;
       const sw       = STROKE_W[idx] ?? 0.7;
       const isSelected = isHov || (hoveredLayer === null && isLatest);
-      const finalOp  = isSelected ? 0.80 : isDim ? GRAY_OP * 0.35 : GRAY_OP;
+      const finalOp  = isSelected ? 0.95 : isDim ? GRAY_OP * 0.45 : GRAY_OP;
 
       if (isLatest && hoveredLayer === null) {
         const toR = makeToR(props);
@@ -171,7 +171,7 @@ export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
       const a      = angles[i];
       const anchor = Math.cos(a) > 0.15 ? 'start' : Math.cos(a) < -0.15 ? 'end' : 'middle';
       const pct    = Math.round(prop * 100);
-      const op     = 0.40 + normT(displayProps, prop) * 0.55;
+      const op     = 0.65 + normT(displayProps, prop) * 0.35;
       return (
         <g key={`${cx}-${s.genre}`}>
           <text x={p.x} y={p.y - 1} textAnchor={anchor}
@@ -179,7 +179,7 @@ export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
             {SHORT[s.genre] ?? s.genre.slice(0, 6).toUpperCase()}
           </text>
           <text x={p.x} y={p.y + 11} textAnchor={anchor}
-            fill="white" fillOpacity={op * 0.65} fontSize="7.5" fontWeight="700" letterSpacing="0.04em">
+            fill="white" fillOpacity={op * 0.80} fontSize="7.5" fontWeight="700" letterSpacing="0.04em">
             {pct}%
           </text>
         </g>
@@ -201,7 +201,7 @@ export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
     >
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.4em] uppercase text-white/60">
+          <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.4em] uppercase text-white/80">
             GENRE RADAR
           </h2>
           <div className="flex items-center gap-2 mt-1">
@@ -210,7 +210,7 @@ export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
               animate={{ opacity: [1, 0.2, 1] }}
               transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
             />
-            <p className="text-[8px] text-white/20 tracking-[0.15em] uppercase">{displayLabel}</p>
+            <p className="text-[8px] text-white/45 tracking-[0.15em] uppercase">{displayLabel}</p>
           </div>
         </div>
       </div>
@@ -235,14 +235,14 @@ export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
         <line
           x1={(CX1 + CX2) / 2} y1={20}
           x2={(CX1 + CX2) / 2} y2={VH - 20}
-          stroke="white" strokeOpacity="0.06" strokeWidth="0.5"
+          stroke="white" strokeOpacity="0.15" strokeWidth="0.5"
         />
 
         {/* Left radar: RELEASES */}
         {renderBlobs(CX1, 'props1', 'r1')}
         {renderLabels(CX1, displayProps1)}
         <text x={CX1} y={CY + 5} textAnchor="middle"
-          fill="rgba(255,255,255,0.10)" fontSize="6" fontWeight="700" letterSpacing="0.20em">
+          fill="rgba(255,255,255,0.35)" fontSize="6" fontWeight="700" letterSpacing="0.20em">
           RELEASES
         </text>
 
@@ -250,7 +250,7 @@ export const GenreStreamgraph: React.FC<Props> = ({ data, viewsData }) => {
         {renderBlobs(CX2, 'props2', 'r2')}
         {renderLabels(CX2, displayProps2)}
         <text x={CX2} y={CY + 5} textAnchor="middle"
-          fill="rgba(255,255,255,0.10)" fontSize="6" fontWeight="700" letterSpacing="0.20em">
+          fill="rgba(255,255,255,0.35)" fontSize="6" fontWeight="700" letterSpacing="0.20em">
           VIEWS
         </text>
 

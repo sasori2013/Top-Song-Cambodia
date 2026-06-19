@@ -57,14 +57,14 @@ const Gauge: React.FC<GaugeProps> = ({ label, today, prev, index }) => {
                     style={{ rotate: '-90deg', transformOrigin: `${CX}px ${CX}px` }}
                 />
                 <text x={CX} y={CX + 5} textAnchor="middle"
-                    style={{ fontSize: '11px', fontWeight: 900, fill: isUp ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.35)', letterSpacing: '0.02em' }}>
+                    style={{ fontSize: '11px', fontWeight: 900, fill: isUp ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.6)', letterSpacing: '0.02em' }}>
                     {isUp ? '▲' : '▼'}{Math.abs(Number(deltaPct))}%
                 </text>
             </svg>
             <span className="text-2xl font-black font-mono text-white tracking-tight leading-none">{fmt(today)}</span>
             <div className="flex flex-col items-center gap-0.5">
-                <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em]">{label}</span>
-                <span className="text-[8px] font-mono text-white/20">{fmt(prev)}</span>
+                <span className="text-[9px] font-black text-white/65 uppercase tracking-[0.3em]">{label}</span>
+                <span className="text-[8px] font-mono text-white/50">{fmt(prev)}</span>
             </div>
         </div>
     );
@@ -93,10 +93,10 @@ export const DailyActions: React.FC<DailyActionsProps> = ({ count }) => {
             className="w-full p-6 md:p-8 relative overflow-hidden border border-white/10 bg-white/5 backdrop-blur-md rounded-xl font-['Outfit']"
         >
             <div className="flex items-center justify-between mb-6">
-                <h2 className="text-[10px] font-black tracking-[0.4em] uppercase text-white/60">DAILY ACTIONS</h2>
+                <h2 className="text-[10px] font-black tracking-[0.4em] uppercase text-white/80">DAILY ACTIONS</h2>
                 <div className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" />
-                    <span className="text-[7px] text-white/20 font-bold uppercase tracking-widest font-mono">LIVE</span>
+                    <span className="text-[7px] text-white/45 font-bold uppercase tracking-widest font-mono">LIVE</span>
                 </div>
             </div>
 
@@ -108,11 +108,11 @@ export const DailyActions: React.FC<DailyActionsProps> = ({ count }) => {
             <div className="mt-6 flex justify-center gap-6 border-t border-white/5 pt-4">
                 <div className="flex items-center gap-2">
                     <div className="w-3 h-[3px] rounded-full bg-white/90" />
-                    <span className="text-[7px] font-bold text-white/30 uppercase tracking-widest">Today</span>
+                    <span className="text-[7px] font-bold text-white/60 uppercase tracking-widest">Today</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="w-3 h-[3px] rounded-full bg-white/28" />
-                    <span className="text-[7px] font-bold text-white/30 uppercase tracking-widest">Yesterday</span>
+                    <span className="text-[7px] font-bold text-white/60 uppercase tracking-widest">Yesterday</span>
                 </div>
             </div>
 
@@ -120,10 +120,10 @@ export const DailyActions: React.FC<DailyActionsProps> = ({ count }) => {
             {sentiment && (
                 <div className="mt-6 border-t border-white/5 pt-5">
                     <div className="flex items-center justify-between mb-3">
-                        <p className="text-[9px] font-black text-white/30 uppercase tracking-[0.3em] font-mono">
+                        <p className="text-[9px] font-black text-white/60 uppercase tracking-[0.3em] font-mono">
                             Comment Mood
                         </p>
-                        <span className="text-[8px] font-mono text-white/20">
+                        <span className="text-[8px] font-mono text-white/50">
                             {sentiment.songs} songs
                         </span>
                     </div>
@@ -156,13 +156,13 @@ export const DailyActions: React.FC<DailyActionsProps> = ({ count }) => {
                     {/* Labels */}
                     <div className="flex justify-between">
                         {[
-                            { label: 'Positive', value: sentiment.positive, op: 'text-white/60' },
-                            { label: 'Neutral',  value: sentiment.neutral,  op: 'text-white/30' },
-                            { label: 'Negative', value: sentiment.negative, op: 'text-white/20' },
+                            { label: 'Positive', value: sentiment.positive, op: 'text-white/85' },
+                            { label: 'Neutral',  value: sentiment.neutral,  op: 'text-white/60' },
+                            { label: 'Negative', value: sentiment.negative, op: 'text-white/45' },
                         ].map(({ label, value, op }) => (
                             <div key={label} className="flex flex-col items-center gap-0.5">
                                 <span className={`text-[13px] font-black font-mono ${op}`}>{value}%</span>
-                                <span className="text-[7px] font-bold text-white/20 uppercase tracking-widest">{label}</span>
+                                <span className="text-[7px] font-bold text-white/45 uppercase tracking-widest">{label}</span>
                             </div>
                         ))}
                     </div>

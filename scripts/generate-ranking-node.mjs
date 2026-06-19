@@ -540,6 +540,25 @@ async function runRankingNode() {
   console.log('--- Ranking Generation (Node.js) Completed ---');
   await updateProcessStatus('Ranking: Completed', 100, 100, 'completed');
   await sendTelegramNotification(`✅ <b>ランキング作成完了</b>\nTop 40 の生成とシート書込に成功しました。\n(比較対象: ${baseDate})`);
+
+  // Purge site cache then warm it up so no visitor ever hits a cold cache
+  const siteUrl = getEnv('NEXT_PUBLIC_SITE_URL');
+  const revalidateSecret = getEnv('REVALIDATE_SECRET');
+  if (siteUrl && revalidateSecret) {
+    try {
+      const res = await fetch(`${siteUrl}/api/revalidate?secret=${revalidateSecret}`, { method: 'POST' });
+      if (res.ok) {
+        console.log('[revalidate] Site cache cleared successfully');
+        // Warm up: trigger a fresh BQ fetch and cache it before any visitor arrives
+        const warmRes = await fetch(siteUrl, { headers: { 'x-warmup': '1' } });
+        console.log(`[warmup] Cache warmed: HTTP ${warmRes.status}`);
+      } else {
+        console.warn('[revalidate] Failed:', res.status);
+      }
+    } catch (e) {
+      console.warn('[revalidate] Could not reach site:', e.message);
+    }
+  }
 }
 
 runRankingNode().catch(async (error) => {

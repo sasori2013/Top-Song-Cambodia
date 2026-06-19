@@ -1,18 +1,30 @@
+import { unstable_cache } from 'next/cache';
 import { RankingResponse } from './types';
 
 // Prioritize environment variable, fallback to current active deployment
 export const GAS_API_URL = process.env.NEXT_PUBLIC_GAS_API_URL || 'https://script.google.com/macros/s/AKfycbwcCVTf4NPMO2NHdqeQ5OolplixthM4vUwYeyCKJaA1vpp48dG9NBwGG0wI781bfrxBkg/exec';
 
+export const getCachedBQData = unstable_cache(
+    async () => {
+        const { getRankingDataFromBQ } = await import('./bigquery');
+        const data = await getRankingDataFromBQ();
+        // Throw on null so unstable_cache does not store the failure result
+        if (!data) throw new Error('BQ returned null');
+        return data;
+    },
+    ['bq-ranking-data'],
+    { revalidate: 86400, tags: ['bq-ranking'] } // 24h fallback; invalidated on-demand by pipeline
+);
+
 export async function getRankingData(): Promise<RankingResponse> {
     const mock = getMockData();
 
-    // 1. If on Server, try BigQuery directly
+    // 1. If on Server, try BigQuery directly (cached)
     if (typeof window === 'undefined') {
         try {
-            const { getRankingDataFromBQ } = await import('./bigquery');
-            const bqData = await getRankingDataFromBQ();
+            const bqData = await getCachedBQData();
             if (bqData) {
-                console.log('Fetched ranking from BigQuery directly');
+                console.log('Fetched ranking from BigQuery (cached)');
                 return bqData;
             }
         } catch (e) {
@@ -31,7 +43,7 @@ export async function getRankingData(): Promise<RankingResponse> {
     try {
         console.log('Fetching from:', API_URL);
         const res = await fetch(API_URL, {
-            cache: 'no-store',
+            next: { revalidate: 1800 },
             method: 'GET',
         });
 
@@ -125,6 +137,22 @@ function getMockData(): RankingResponse {
                 { genre: 'Traditional Khmer', views: 1307822 },
                 { genre: 'Dance & EDM',       views:  390083 },
                 { genre: 'R&B & Soul',        views:   93843 },
+            ],
+            dailyTraffic: [
+                { date: '06-04', value: 1955126 },
+                { date: '06-05', value: 1791558 },
+                { date: '06-06', value: 1729742 },
+                { date: '06-07', value: 2081255 },
+                { date: '06-08', value: 1958503 },
+                { date: '06-09', value: 1698752 },
+                { date: '06-10', value: 1879981 },
+                { date: '06-11', value: 1486687 },
+                { date: '06-12', value: 1397583 },
+                { date: '06-13', value: 1369971 },
+                { date: '06-14', value: 1594556 },
+                { date: '06-15', value: 1773961 },
+                { date: '06-16', value: 1275538 },
+                { date: '06-17', value: 1452029 }
             ],
             dailyActions: {
                 views: 1600000, likes: 9500, comments: 158,

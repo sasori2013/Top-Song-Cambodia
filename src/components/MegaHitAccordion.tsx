@@ -43,6 +43,7 @@ function getTierColor(v: number): string {
 function YearPanel({ year, onClose }: { year: number; onClose: () => void }) {
   const [songs, setSongs] = useState<SongItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,8 +57,10 @@ function YearPanel({ year, onClose }: { year: number; onClose: () => void }) {
     return () => { cancelled = true; };
   }, [year]);
 
+  const displayedSongs = showAll ? songs : songs.slice(0, 10);
+
   return (
-    <div className="mt-2 space-y-0.5 max-h-[480px] overflow-y-auto pr-1 scrollbar-thin">
+    <div className="mt-2 space-y-0.5">
       {loading ? (
         <div className="space-y-1 py-2">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -65,33 +68,48 @@ function YearPanel({ year, onClose }: { year: number; onClose: () => void }) {
           ))}
         </div>
       ) : (
-        songs.map(s => (
-          <a
-            key={s.videoId}
-            href={`https://www.youtube.com/watch?v=${s.videoId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/8 transition-colors group"
-          >
-            {/* Rank */}
-            <span className="font-mono text-[10px] text-white/25 w-6 text-right shrink-0">
-              {s.rank}
-            </span>
-            {/* Thumb */}
-            <div className="w-12 h-7 shrink-0 rounded overflow-hidden bg-black border border-white/10">
-              <img src={s.thumbnail} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200" loading="lazy" />
+        <>
+          <div className="max-h-[300px] overflow-y-auto pr-1 scrollbar-thin space-y-0.5">
+            {displayedSongs.map(s => (
+              <a
+                key={s.videoId}
+                href={`https://www.youtube.com/watch?v=${s.videoId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-white/8 transition-colors group"
+              >
+                {/* Rank */}
+                <span className="font-mono text-[10px] text-white/25 w-6 text-right shrink-0">
+                  {s.rank}
+                </span>
+                {/* Thumb */}
+                <div className="w-12 h-7 shrink-0 rounded overflow-hidden bg-black border border-white/10">
+                  <img src={s.thumbnail} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200" loading="lazy" />
+                </div>
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-white/40 truncate leading-tight">{s.artist}</p>
+                  <p className="text-[11px] text-white/80 font-medium truncate leading-tight">{s.title}</p>
+                </div>
+                {/* Views */}
+                <span className={`font-mono font-bold text-[11px] shrink-0 ${getTierColor(s.views)}`}>
+                  {formatViews(s.views)}
+                </span>
+              </a>
+            ))}
+          </div>
+
+          {songs.length > 10 && (
+            <div className="pt-2 pb-1 text-center border-t border-white/5 mt-2">
+              <button
+                onClick={() => setShowAll(!showAll)}
+                className="text-[9px] font-bold tracking-widest text-white/40 hover:text-white/80 transition-colors uppercase py-1 px-4 border border-white/10 hover:border-white/25 rounded-md"
+              >
+                {showAll ? 'Show Top 10 Only' : `Show More (${songs.length - 10} songs)`}
+              </button>
             </div>
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-white/40 truncate leading-tight">{s.artist}</p>
-              <p className="text-[11px] text-white/80 font-medium truncate leading-tight">{s.title}</p>
-            </div>
-            {/* Views */}
-            <span className={`font-mono font-bold text-[11px] shrink-0 ${getTierColor(s.views)}`}>
-              {formatViews(s.views)}
-            </span>
-          </a>
-        ))
+          )}
+        </>
       )}
     </div>
   );
@@ -107,8 +125,7 @@ export const MegaHitAccordion: React.FC = () => {
       .then(r => r.json())
       .then(d => {
         setYears(d.years || []);
-        // Open the most recent year by default
-        if (d.years?.length > 0) setOpenYear(d.years[0].year);
+        // Start completely collapsed by default
         setLoading(false);
       })
       .catch(() => setLoading(false));

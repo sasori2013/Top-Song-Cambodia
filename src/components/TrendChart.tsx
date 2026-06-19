@@ -184,7 +184,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                     fill="none"
                     stroke={color}
                     strokeWidth="1"
-                    strokeOpacity="0.1"
+                    strokeOpacity="0.30"
                     strokeLinecap="round"
                 />
  
@@ -201,7 +201,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                     initial={{ pathLength: 0, opacity: 0 }}
                     animate={{
                         pathLength: 1,
-                        opacity: isRank ? 0.8 : glowOpacity,
+                        opacity: isRank ? 0.95 : Math.max(0.80, glowOpacity),
                     }}
                     transition={{
                         pathLength: { duration: 1.5, ease: "easeInOut" },
@@ -242,7 +242,7 @@ export const TrendChart: React.FC<TrendChartProps> = ({
                                 fontWeight="bold"
                                 fontFamily="monospace"
                                 initial={{ opacity: 0 }}
-                                animate={{ opacity: isFaded ? 0 : 0.85 }}
+                                animate={{ opacity: isFaded ? 0 : 0.95 }}
                                 transition={{ delay: 1.6 + (i * 0.1) }}
                             >
                                 {data[i]}

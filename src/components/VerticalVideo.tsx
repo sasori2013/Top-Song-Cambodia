@@ -10,9 +10,9 @@ export const VerticalVideo: React.FC<VerticalVideoProps> = ({
   videoId = 'nE1n6d4-8Dk', // Default placeholder for a Cambodian music Short
 }) => {
   return (
-    <div className="bg-white/95 backdrop-blur-xl border border-slate-200 rounded-xl p-6 flex flex-col items-center shadow-2xl">
+    <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-xl p-6 flex flex-col items-center transition-all hover:bg-white/[0.07]">
       <div className="w-full flex justify-between items-center mb-6">
-        <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">
+        <h3 className="text-[10px] font-black text-white/80 uppercase tracking-[0.4em]">
           Weekly HEAT Shorts
         </h3>
         <span className="flex h-2 w-2 relative">
@@ -39,7 +39,7 @@ export const VerticalVideo: React.FC<VerticalVideoProps> = ({
         <div className="absolute inset-0 border border-white/0 group-hover:border-white/10 rounded-[28px] transition-all duration-500 pointer-events-none" />
       </div>
 
-      <p className="mt-4 text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] text-center">
+      <p className="mt-4 text-[9px] font-bold text-white/40 uppercase tracking-[0.2em] text-center">
         Weekly Video Recap / 週間ランキング
       </p>
     </div>

@@ -99,14 +99,14 @@ export function CambodiaHeatmap({ data, stats: _stats, top3: _top3 }: { data?: a
       {/* Header */}
       <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/5">
         <div>
-          <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.8em] text-white/60 uppercase pl-[0.8em]">
+          <h2 className="text-[10px] md:text-[12px] font-black tracking-[0.8em] text-white/80 uppercase pl-[0.8em]">
             PROVINCIAL HEATMAP
           </h2>
-          <p className="mt-2 text-[8px] md:text-[9px] font-medium tracking-[0.2em] text-white/20 uppercase pl-[1em]">
+          <p className="mt-2 text-[8px] md:text-[9px] font-medium tracking-[0.2em] text-white/45 uppercase pl-[1em]">
             Cambodia Music Heat by Region — Updated Daily
           </p>
         </div>
-        <span className="text-[9px] font-mono font-bold text-white/20 uppercase tracking-widest">Live Region</span>
+        <span className="text-[9px] font-mono font-bold text-white/45 uppercase tracking-widest">Live Region</span>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6 items-stretch">
@@ -117,7 +117,7 @@ export function CambodiaHeatmap({ data, stats: _stats, top3: _top3 }: { data?: a
               {dotGrid.map((dot, i) => {
                 const isActive = dot.provinceId === currentProv.id;
                 const intensity = Math.sqrt(dot.views / maxViews);
-                const inactiveOpacity = 0.08 + intensity * 0.2;
+                const inactiveOpacity = 0.20 + intensity * 0.3;
                 const targetOpacity = isActive ? 0.85 : inactiveOpacity;
                 return (
                   <motion.circle
@@ -155,7 +155,7 @@ export function CambodiaHeatmap({ data, stats: _stats, top3: _top3 }: { data?: a
               <div className="absolute -top-8 -right-8 w-32 h-32 blur-[60px] rounded-full pointer-events-none" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }} />
               <div className="flex items-center justify-between relative z-10">
                 <div>
-                  <span className="text-[7px] font-bold text-white/30 uppercase tracking-[0.4em] block mb-1">REGION FOCUS</span>
+                  <span className="text-[7px] font-bold text-white/55 uppercase tracking-[0.4em] block mb-1">REGION FOCUS</span>
                   <AnimatePresence mode="wait">
                     <motion.h3
                       key={currentProv.id}
@@ -182,7 +182,7 @@ export function CambodiaHeatmap({ data, stats: _stats, top3: _top3 }: { data?: a
                       {formatPct(currentProv.views)}
                     </motion.div>
                   </AnimatePresence>
-                  <p className="text-[7px] font-black text-white/30 uppercase tracking-[0.2em]">HEAT VOLUME</p>
+                  <p className="text-[7px] font-black text-white/55 uppercase tracking-[0.2em]">HEAT VOLUME</p>
                 </div>
                 <div className="flex items-center gap-1.5 ml-4">
                   <div className="w-1.5 h-1.5 rounded-full bg-white/60 animate-pulse" />
@@ -237,7 +237,7 @@ export function CambodiaHeatmap({ data, stats: _stats, top3: _top3 }: { data?: a
                   <text x={CX} y={CY - 6} textAnchor="middle" style={{ fontSize: '18px', fontWeight: 900, fill: '#fff' }}>
                     {formatPct(currentProv.views)}
                   </text>
-                  <text x={CX} y={CY + 10} textAnchor="middle" style={{ fontSize: '7px', fontWeight: 700, fill: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <text x={CX} y={CY + 10} textAnchor="middle" style={{ fontSize: '7px', fontWeight: 700, fill: 'rgba(255,255,255,0.65)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     {currentProv.name}
                   </text>
                 </svg>
@@ -248,8 +248,8 @@ export function CambodiaHeatmap({ data, stats: _stats, top3: _top3 }: { data?: a
           {/* Ranking */}
           <div className="bg-white/[0.03] border border-white/10 rounded-lg p-4 flex flex-col flex-1">
             <div className="flex justify-between items-center mb-3">
-              <h4 className="text-[9px] font-black text-white/30 uppercase tracking-[0.4em]">RANKING</h4>
-              <span className="text-[7px] font-mono font-bold text-white/10 uppercase">Top 6</span>
+              <h4 className="text-[9px] font-black text-white/60 uppercase tracking-[0.4em]">RANKING</h4>
+              <span className="text-[7px] font-mono font-bold text-white/35 uppercase">Top 6</span>
             </div>
             <div className="space-y-1">
               {ranking.slice(0, 6).map((p, i) => (
@@ -260,10 +260,10 @@ export function CambodiaHeatmap({ data, stats: _stats, top3: _top3 }: { data?: a
                   className="flex justify-between items-center px-2 py-2 rounded cursor-pointer border border-transparent hover:border-white/10"
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-[8px] font-mono font-bold w-4" style={{ color: p.id === currentProv.id ? '#ffffff' : 'rgba(255,255,255,0.15)' }}>
+                    <span className="text-[8px] font-mono font-bold w-4" style={{ color: p.id === currentProv.id ? '#ffffff' : 'rgba(255,255,255,0.45)' }}>
                       {(i + 1).toString().padStart(2, '0')}
                     </span>
-                    <span className={`text-[12px] font-bold truncate ${p.id === currentProv.id ? 'text-white' : 'text-white/30'}`}>
+                    <span className={`text-[12px] font-bold truncate ${p.id === currentProv.id ? 'text-white' : 'text-white/60'}`}>
                       {p.name}
                     </span>
                   </div>
